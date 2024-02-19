@@ -1,0 +1,28 @@
+
+<html>
+  <head title='Some title to be replaced'></head>
+  <body>
+    <div id='dunge-root'></div>
+    <script>var passages = new Map();
+var startingPassage = null;
+function callPassage(passageName) {
+    __PS_MV_REG = [];
+    return passages.get(passageName)();
+};
+startingPassage = 'Welcome to Dunge!';
+passages.set('Welcome to Dunge!', function () {
+    __PS_MV_REG = [];
+    return document.querySelector('#dunge-root').innerHTML = ['<h1>Welcome to Dunge!</h1><p>This is a sample game.</p>', ['<a href=\"javascript:void(0);\" onclick=\"', 'javascript:' + 'callPassage(\'Next passage\')', '\">Continue</a>'].join('')].join('');
+});
+passages.set('Next passage', function () {
+    __PS_MV_REG = [];
+    return document.querySelector('#dunge-root').innerHTML = ['<h1>This is the next passage</h1>', ['<a href=\"javascript:void(0);\" onclick=\"', 'javascript:' + 'callPassage(\'Welcome to Dunge!\')', '\">Go Back</a>'].join('')].join('');
+});
+if (startingPassage) {
+    callPassage(startingPassage);
+} else {
+    document.querySelector.innerHtml = '<h1>No starting passage.  Use (start <some-passage>).</h1>';
+};
+    </script>
+  </body>
+</html>

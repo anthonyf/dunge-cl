@@ -1,19 +1,15 @@
-(defpackage dunge
-  (:use #:cl)
+(uiop:define-package dunge
+  (:use #:cl #:parenscript)
   (:import-from #:trivia
 		#:match)
-  (:local-nicknames (#:ps #:parenscript))
-  (:shadow #:do
-	   #:set)
-  (:export #:defpassage
-	   #:set
-	   #:p
-	   #:link
-	   #:quit))
-
-(uiop:define-package dunge-user
-  (:use #:dunge))
-
-
-(uiop:define-package dunge-game
-  (:use #:dunge))
+  (:import-from #:who
+		#:str
+		#:with-html-output-to-string)
+  ;; (:shadow #:do
+  ;; 	   #:set)
+  ;; (:export #:defpassage
+  ;; 	   #:set
+  ;; 	   #:p
+  ;; 	   #:link
+  ;; 	   #:quit)
+  )
