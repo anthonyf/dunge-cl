@@ -2,7 +2,7 @@
   :version "0.1.0"
   :author ""
   :license ""
-  :depends-on (:parenscript
+  :depends-on ("parenscript"
 	       "trivia"
 	       "alexandria"
 	       "serapeum"
@@ -11,7 +11,10 @@
   :components ((:module "src"
                 :components
                 ((:file "package")
-		 (:file "main"))))
+		 (:file "main")))
+	       (:module "games"
+		:components
+		((:file "example"))))
   :description ""
   :in-order-to ((test-op (test-op "dunge/tests"))))
 
