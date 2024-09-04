@@ -1,10 +1,19 @@
-(in-package :dunge)
+(uiop:define-package #:dunge/src/main
+  (:use #:cl)
+  (:mix #:iterate
+	#:alexandria
+	#:serapeum)
+  (:export #:defpassage
+	   #:set-passage
+	   #:starting-passage))
+(in-package #:dunge/src/main)
 
 (defvar *current-passage* nil)
 
 (defvar *passages* (make-hash-table))
 
 
+(defgeneric render-passage (passage))
 (defgeneric title (passage))
 (defgeneric body (passage))
 (defgeneric commands (passage))
@@ -36,7 +45,7 @@
 
 (defclass basic-action ()
   ((func :reader func :initarg :func)
-   (name :reader name :initarg :name)))
+   (name :reader command-name :initarg :name)))
 
 (defclass basic-passage ()
   ((title :reader title :initarg :title :initform nil)
@@ -44,13 +53,14 @@
    (commands :reader commands :initarg :commands :initform nil)))
 
 (defun init-game ()
-  (let ((welcome-passage (make-instance 'basic-passage
-					:title "Welcome to Dunge!"
-					:body "Dunge is an interactive dungeon crawler"
-					:commands (make-instance 'basic-action
-								 :name "Next passage"
-								 :func (lambda ()
-									 (setf *current-passage* next-passage))))))
+  (let* ((next-passage (make-instance 'basic-passage :title "Next passage" :body "This is the next passage"))
+	 (welcome-passage (make-instance 'basic-passage
+					 :title "Welcome to Dunge!"
+					 :body "Dunge is an interactive dungeon crawler"
+					 :commands (list (make-instance 'basic-action
+									:name "Next passage"
+									:func (lambda ()
+										(setf *current-passage* next-passage)))))))
     (setf *current-passage*
 	  welcome-passage)))
 
