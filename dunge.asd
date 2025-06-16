@@ -2,15 +2,18 @@
   :version "0.1.0"
   :author ""
   :license ""
-  :class :package-inferred-system
-  :depends-on (#:dunge/src/main)
   :description ""
+  :depends-on ()
+  :serial t
+  :components ((:module "src"
+			:components ((:file "main"))))
   :in-order-to ((test-op (test-op "dunge/tests"))))
 
 (defsystem "dunge/tests"
   :author ""
   :license ""
-  :class :package-inferred-system
-  :depends-on (#:dunge/tests/main)
+  :depends-on ("rove")
   :description "Test system for dunge"
+  :components ((:module "tests"
+		:components ((:file "main"))))
   :perform (test-op (op c) (symbol-call :rove :run c)))
