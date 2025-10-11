@@ -1,79 +1,72 @@
 (uiop:define-package #:dunge
   (:use #:cl)
   (:shadow #:room)
-  (:mix-reexport #:dunge/generics)
-  (:local-nicknames (#:i #:dunge/capi/interface))
   (:export #:main))
 
 (in-package #:dunge)
 
-(defclass simple-command ()
-  ((text :initarg :text
-	 :accessor text)
-   (execute-fn :initarg :execute-fn
-	       :accessor execute-fn)))
+(defgeneric text (thing))
+(defgeneric execute (command))
+(defgeneric commands (state))
 
-(defmethod execute ((command simple-command))
-  (with-accessors ((execute-fn execute-fn)) command
-    (funcall execute-fn)))
+(defgeneric print-text (ui text))
+(defgeneric print-menu (ui commands))
+(defgeneric read-command (ui))
 
-(defclass game-state ()
-  ((current-room-id :accessor current-room-id
-		    :initarg current-room-id
-		    :initform nil)
-   (rooms :accessor rooms :initarg rooms)))
+(defvar *state* nil)
 
-(defun new-game-state ()
-  (setf *game-state* (make-instance 'game-state)))
+(defclass text-ui ()
+  ())
 
-(defclass room ()
-  ((description :initarg :description
-		:initform (error "must supply room description!"))
-   (contents :accessor contents
-	     :initarg :contents
-	     :initform nil)))
+(defmethod print-text ((ui text-ui) text)
+  (format t "~a~%" text))
 
-(defun add-room (&key room-id description (contents nil))
-  (let ((room (make-instance 'room
-			     :description description
-			     :contents contents)))
-    (setf (getf (rooms *game-state*) room-id)
-	  room)))
+(defmethod print-menu ((ui text-ui) commands)
+  (loop for cmd in commands
+	do (format t "~a~%" (text cmd))))
 
-(defun get-room (room-id)
-  (getf (rooms *game-state*) room-id))
+(defmethod read-command ((ui text-ui))
+  (let ((input (read-line)))
+    (find input (commands *state*) :key #'text :test #'string=)))
 
-(defclass path ()
-  ((command :initarg :command
-	    :accessor command)
-   (description :accessor description
-		:initarg :description)
-   (room-id :accessor room-id
-	    :initarg :room-id)))
 
-(defun add-path (from-room-id to-room-id description command)
-  (push (make-instance 'path
-		       :command command
-		       :description description
-		       :room-id to-room-id)
-	(contents (get-room from-room-id))))
+(defclass question ()
+  ((text :accessor text :initarg :text)
+   (choices :accessor choices :initarg :choices)))
 
-(defmethod text ((gs game-state))
-  )
+(defmethod commands ((state question))
+  (choices state))
 
-(defmethod commands ((gs game-state))
-  )
+(defclass choice ()
+  ((text :accessor text :initarg :text)
+   (action :accessor action :initarg :action)))
+
+(defmethod execute ((command choice))
+  (funcall (action command)))
+
+(defun run-game (ui starting-state)
+  (let ((*state* starting-state))
+    (loop do (progn (print-text ui (text *state*))
+		    (print-menu ui (commands *state*))
+		    (execute (read-command ui)))
+	  while *state*)))
+
 
 (defun main ()
-  (new-game-state)
-  (add-room :room-id :start :description "Welcome to Dunge!")
-  (add-path :start :town-center
-	    :description "Click continue to play"
-	    :command "Continue")
-  
-  (add-room :room-id :town-center :description "Town Center")
-  (add-room :room-id :blacksmith :description "Blacksmith")
-  (add-room :room-id :blacksmith :description "General Store")
-  (add-room :room-id :adventurers-guild :description "Adventurer's Guild")
-  (i:run-capi-game))
-
+  (run-game (make-instance 'text-ui)
+	    (make-instance 'question
+			   :text "You are in a dark room. There is a door to the north."
+			   :choices (list (make-instance 'choice
+							 :text "Go north"
+							 :action (lambda ()
+								   (setf *state*
+									 (make-instance 'question
+											:text "You are in a bright room. There is a door to the south."
+											:choices (list (make-instance 'choice
+														      :text "Go south"
+														      :action (lambda ()
+																(setf *state* nil))))))))
+					  (make-instance 'choice
+							 :text "Stay"
+							 :action (lambda ()
+								   (setf *state* nil)))))))
