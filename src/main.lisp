@@ -5,7 +5,7 @@
 
 (in-package #:dunge)
 
-(defgeneric text (thing))
+(defgeneric description (thing))
 (defgeneric execute (command))
 (defgeneric commands (state))
 
@@ -23,22 +23,22 @@
 
 (defmethod print-menu ((ui text-ui) commands)
   (loop for cmd in commands
-	do (format t "~a~%" (text cmd))))
+	do (format t "~a~%" (description cmd))))
 
 (defmethod read-command ((ui text-ui))
   (let ((input (read-line)))
-    (find input (commands *state*) :key #'text :test #'string=)))
+    (find input (commands *state*) :key #'description :test #'string=)))
 
 
 (defclass question ()
-  ((text :accessor text :initarg :text)
+  ((description :accessor description :initarg :description)
    (choices :accessor choices :initarg :choices)))
 
 (defmethod commands ((state question))
   (choices state))
 
 (defclass choice ()
-  ((text :accessor text :initarg :text)
+  ((description :accessor description :initarg :description)
    (action :accessor action :initarg :action)))
 
 (defmethod execute ((command choice))
@@ -46,27 +46,44 @@
 
 (defun run-game (ui starting-state)
   (let ((*state* starting-state))
-    (loop do (progn (print-text ui (text *state*))
+    (loop do (progn (print-text ui (description *state*))
 		    (print-menu ui (commands *state*))
 		    (execute (read-command ui)))
 	  while *state*)))
 
 
+(defclass room ()
+  ((description :accessor description :initarg :description)))
+
+(defclass pathway ()
+  ((from :accessor from :initarg :from)
+   (to :accessor to :initarg :to)
+   (direction :accessor direction :initarg :direction)))
+
+(defclass door (pathway)
+  ((description :accessor description :initarg :description)
+   (lockedp :accessor lockedp :initarg :lockedp :initform nil)
+   (openp :accessor openp :initarg :openp :initform nil)))
+
+(defvar *rooms* nil)
+
+
+
 (defun main ()
   (run-game (make-instance 'text-ui)
 	    (make-instance 'question
-			   :text "You are in a dark room. There is a door to the north."
+			   :description "You are in a dark room. There is a door to the north."
 			   :choices (list (make-instance 'choice
-							 :text "Go north"
+							 :description "Go north"
 							 :action (lambda ()
 								   (setf *state*
 									 (make-instance 'question
-											:text "You are in a bright room. There is a door to the south."
+											:description "You are in a bright room. There is a door to the south."
 											:choices (list (make-instance 'choice
-														      :text "Go south"
+														      :description "Go south"
 														      :action (lambda ()
 																(setf *state* nil))))))))
 					  (make-instance 'choice
-							 :text "Stay"
+							 :description "Stay"
 							 :action (lambda ()
 								   (setf *state* nil)))))))
