@@ -4,96 +4,60 @@
 
 (in-package #:dunge)
 
-;;; DSL
-(defparameter *quit* nil)
-(defparameter *place* nil "represents the current place the player is at")
-(defparameter *actions* (make-hash-table :test #'equalp) "list of all actions available in the game")
-
-(defclass place ()
-  ())
-
-(defclass action ()
-  ((command :initarg :command :accessor action-command)
-   (description :initarg :description :accessor description)
-   (validation-fn :initarg :validation-fn :accessor validation-fn)
-   (action-fn :initarg :action-fn :accessor action-fn)))
-
-(defgeneric title (place)
-  (:documentation "Return the title of the place."))
-
-(defgeneric description (place)
-  (:documentation "Return the description of the place."))
-
-(defgeneric do-action (action)
-  (:documentation "Perform the action."))
-
-(defgeneric valid-action-p (action)
-  (:documentation "Return true if the action is valid in the current context."))
-
 (eval-when (:compile-toplevel :load-toplevel :execute)
-  
-  (defmacro define-action (command &key description when do)
-    (a (command description when do)
-      `(let ((action (make-instance 'action
-				   :command ,command
-				   :description ,description
-				   :validation-fn (lambda () ,when)
-				   :action-fn (lambda () ,do))))
-	(setf (gethash ,command *actions*) action))))
 
-  (defmacro place (name description)
-    `(progn
-	   (defclass ,name (place)
-	 ())
-	   (defmethod title ((p ,name))))))
+ (defmacro text (str)
+  `(format t "~A~%~%" ,str))
 
-;;; Game REPL
+(defmacro choice (&body choices)
+  `(tagbody 
+      ,@(loop
+	  for i from 1
+	  for (choice-text . nil) in choices
+	  collect `(format t "~A. ~A~%" ,i ,choice-text))
+    prompt
+      (format t "Enter choice: ")
+      (let* ((line (read-line))
+	     (n (parse-integer line :junk-allowed t)))
+	(terpri)
+	(case n
+	  ,@(loop for i from 1
+		  for (nil . body) in choices
+		  collect `(,i ,@body))
+	  (t (format t "Invalid choice: ~A~%~%" n)
+	   (go prompt))))))
 
-(defun valid-actions ()
-  (remove-if-not
-   (lambda (action)
-     (valid-action-p action))
-   *actions*))
+(defmacro finish ()
+  )
+)
 
-(defun print-actions-menu (actions)
-  (loop for action in actions
-	for x from 1
-	do (format t "~A: ~A~%" x (action-command action))
-	finally (format t "Choose an action by number: ")))
+(defun run-game ()
+  (text "Your majesty, your people are starving in the streets, and threaten revolution.
+Our enemies to the west are weak, but they threaten soon to invade.  What will you do?")
 
-(defun process-input (line)
-  (let* ((input (parse-integer line :junk-allowed t))
-	 (actions (valid-actions)))
-	(if (and input
-	     (>= input 1)
-	     (<= input (length actions)))
-	(let ((action (nth (1- input) actions)))
-	  (do-action action))
-	  (format t "Invalid input. Please try again.~%"))))
-
-(defun game-repl ()
-  (loop until *quit*
-	do (progn
-	     (format t "~A~%" (title *place*))
-	     (format t "~A~%~%" (description *place*))
-	     (print-actions-menu (valid-actions))
-	     (let ((input (read-line)))
-	       (process-input input)))))
-
-;;; 
-
-(define-action quit "Quit the game"
-  :when t
-  :do (setf *quit* t))
-
-
-
-;;; game example
-
-(place town-square
-       "You are in the bustling town square. Merchants are selling their wares and townsfolk are going about their day.")
-
-(place blacksmiths-shop
-       "You are inside the blacksmith's shop. The sound of hammering metal fills the air.")
-
-(path town-square west blacksmiths-shop)
+  (choice
+    ("Make pre-emptive war on the western lands."
+     (text "If you can seize their territory, your kingdom will flourish.  But your army's morale is low and the kingdom's armory is empty.  How will you win the war?")
+     (choice
+       ("Drive the peasants like slaves"
+	;; if we work hard enough, we'll win.
+	(text "Unfortunately, morale doesn't work like that.  Your army soon turns against you and the kingdom falls to the western barbarians.")
+	(finish))
+       ("Appoint charismatic knights and give them land, peasants, and resources."
+	(text "Your majesty's people are eminently resourceful.  Your knights win the day, but take care: they may soon demand a convention of parliament.")
+	(finish))
+       ("Steal food and weapons from the enemy in the dead of night."
+	(text "A cunning plan.  Soon your army is a match for the westerners; they choose not to invade for now, but how long can your majesty postpone the inevitable?")
+	(finish))))
+    ("Beat swords to plowshares and trade food to the westerners for protection."
+     (text "The westerners have you at the point of a sword.  They demand unfair terms from you.")
+     (choice
+       ("Accept the terms for now."
+	(text "Eventually, the barbarian westerners conquer you anyway, destroying their bread basket, and the entire region starves.")
+	(finish))
+       ("Threaten to salt our fields if they don't offer better terms."
+	(text "They blink.  Your majesty gets a fair price for wheat.")
+	(finish))))
+    ("Abdicate the throne. I have clearly mismanaged this kingdom!"
+     (text "The kingdom descends into chaos, but you manage to escape with your own hide.  Perhaps in time you can return to restore order to this fair land.")
+     (finish))))
