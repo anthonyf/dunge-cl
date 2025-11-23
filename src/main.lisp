@@ -1,89 +1,99 @@
 (uiop:define-package #:dunge
   (:use #:cl)
-  (:shadow #:room)
-  (:export #:main))
+  (:export ))
 
 (in-package #:dunge)
 
-(defgeneric description (thing))
-(defgeneric execute (command))
-(defgeneric commands (state))
+;;; DSL
+(defparameter *quit* nil)
+(defparameter *place* nil "represents the current place the player is at")
+(defparameter *actions* (make-hash-table :test #'equalp) "list of all actions available in the game")
 
-(defgeneric print-text (ui text))
-(defgeneric print-menu (ui commands))
-(defgeneric read-command (ui))
-
-(defvar *state* nil)
-
-(defclass text-ui ()
+(defclass place ()
   ())
 
-(defmethod print-text ((ui text-ui) text)
-  (format t "~a~%" text))
+(defclass action ()
+  ((command :initarg :command :accessor action-command)
+   (description :initarg :description :accessor description)
+   (validation-fn :initarg :validation-fn :accessor validation-fn)
+   (action-fn :initarg :action-fn :accessor action-fn)))
 
-(defmethod print-menu ((ui text-ui) commands)
-  (loop for cmd in commands
-	do (format t "~a~%" (description cmd))))
+(defgeneric title (place)
+  (:documentation "Return the title of the place."))
 
-(defmethod read-command ((ui text-ui))
-  (let ((input (read-line)))
-    (find input (commands *state*) :key #'description :test #'string=)))
+(defgeneric description (place)
+  (:documentation "Return the description of the place."))
+
+(defgeneric do-action (action)
+  (:documentation "Perform the action."))
+
+(defgeneric valid-action-p (action)
+  (:documentation "Return true if the action is valid in the current context."))
+
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  
+  (defmacro define-action (command &key description when do)
+    (a (command description when do)
+      `(let ((action (make-instance 'action
+				   :command ,command
+				   :description ,description
+				   :validation-fn (lambda () ,when)
+				   :action-fn (lambda () ,do))))
+	(setf (gethash ,command *actions*) action))))
+
+  (defmacro place (name description)
+    `(progn
+	   (defclass ,name (place)
+	 ())
+	   (defmethod title ((p ,name))))))
+
+;;; Game REPL
+
+(defun valid-actions ()
+  (remove-if-not
+   (lambda (action)
+     (valid-action-p action))
+   *actions*))
+
+(defun print-actions-menu (actions)
+  (loop for action in actions
+	for x from 1
+	do (format t "~A: ~A~%" x (action-command action))
+	finally (format t "Choose an action by number: ")))
+
+(defun process-input (line)
+  (let* ((input (parse-integer line :junk-allowed t))
+	 (actions (valid-actions)))
+	(if (and input
+	     (>= input 1)
+	     (<= input (length actions)))
+	(let ((action (nth (1- input) actions)))
+	  (do-action action))
+	  (format t "Invalid input. Please try again.~%"))))
+
+(defun game-repl ()
+  (loop until *quit*
+	do (progn
+	     (format t "~A~%" (title *place*))
+	     (format t "~A~%~%" (description *place*))
+	     (print-actions-menu (valid-actions))
+	     (let ((input (read-line)))
+	       (process-input input)))))
+
+;;; 
+
+(define-action quit "Quit the game"
+  :when t
+  :do (setf *quit* t))
 
 
-(defclass question ()
-  ((description :accessor description :initarg :description)
-   (choices :accessor choices :initarg :choices)))
 
-(defmethod commands ((state question))
-  (choices state))
+;;; game example
 
-(defclass choice ()
-  ((description :accessor description :initarg :description)
-   (action :accessor action :initarg :action)))
+(place town-square
+       "You are in the bustling town square. Merchants are selling their wares and townsfolk are going about their day.")
 
-(defmethod execute ((command choice))
-  (funcall (action command)))
+(place blacksmiths-shop
+       "You are inside the blacksmith's shop. The sound of hammering metal fills the air.")
 
-(defun run-game (ui starting-state)
-  (let ((*state* starting-state))
-    (loop do (progn (print-text ui (description *state*))
-		    (print-menu ui (commands *state*))
-		    (execute (read-command ui)))
-	  while *state*)))
-
-
-(defclass room ()
-  ((description :accessor description :initarg :description)))
-
-(defclass pathway ()
-  ((from :accessor from :initarg :from)
-   (to :accessor to :initarg :to)
-   (direction :accessor direction :initarg :direction)))
-
-(defclass door (pathway)
-  ((description :accessor description :initarg :description)
-   (lockedp :accessor lockedp :initarg :lockedp :initform nil)
-   (openp :accessor openp :initarg :openp :initform nil)))
-
-(defvar *rooms* nil)
-
-
-
-(defun main ()
-  (run-game (make-instance 'text-ui)
-	    (make-instance 'question
-			   :description "You are in a dark room. There is a door to the north."
-			   :choices (list (make-instance 'choice
-							 :description "Go north"
-							 :action (lambda ()
-								   (setf *state*
-									 (make-instance 'question
-											:description "You are in a bright room. There is a door to the south."
-											:choices (list (make-instance 'choice
-														      :description "Go south"
-														      :action (lambda ()
-																(setf *state* nil))))))))
-					  (make-instance 'choice
-							 :description "Stay"
-							 :action (lambda ()
-								   (setf *state* nil)))))))
+(path town-square west blacksmiths-shop)

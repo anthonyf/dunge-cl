@@ -3,15 +3,11 @@
   :author ""
   :license ""
   :description ""
-  :depends-on ()
+  :depends-on ("alexandria")
   :serial t
   :components ((:module "src"
 		:components
-		((:file "generics")
-		 (:module "capi"
-		  :components ((:file "wrapping-layout")
-			       (:file "interface")))
-		 (:file "main"))))
+		(#+nil(:file "main"))))
   :in-order-to ((test-op (test-op "dunge/tests"))))
 
 (defsystem "dunge/tests"
