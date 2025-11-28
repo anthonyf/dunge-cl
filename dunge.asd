@@ -7,7 +7,7 @@
   :serial t
   :components ((:module "src"
 		:components
-		(#+nil(:file "main"))))
+		((:file "main"))))
   :in-order-to ((test-op (test-op "dunge/tests"))))
 
 (defsystem "dunge/tests"
