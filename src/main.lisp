@@ -21,8 +21,9 @@
 				 )))))
 	       #+nil(finish (&body body)
 		      `(progn))
-	       (text (str)
-		 `(format t "~A~%~%" ,str))
+	       (text (&rest strs)
+		 `(format t "~{~A~}~%" ,strs))
+	       (label )
 	       (choice (&body choices)
 		 `(tagbody 
 		     ,@(loop
@@ -70,6 +71,20 @@
 ;; scene
 ;; text
 ;; choice
+
+
+(defun counter-test ()
+  (game
+    (var count 0)
+    (label start)
+    (text "Count is now " count)
+    (text "continue counting?")
+    (choice ("yes"
+	     (set count (+ count 1))
+	     (goto start))
+      ("no"
+       (text "Final count is " count)))
+    ))1
 
 
 (defun run-game ()
