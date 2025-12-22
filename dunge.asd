@@ -1,3 +1,13 @@
+(require :asdf)
+
+(in-package :asdf-user)
+
+
+(initialize-source-registry
+ '(:source-registry
+   (:tree (:here "lib"))
+   :inherit-configuration))
+
 (defsystem "dunge"
   :version "0.1.0"
   :author ""

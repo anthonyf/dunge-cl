@@ -5,67 +5,72 @@
 
 (in-package #:dunge)
 
-(defparameter *scenes* (make-hash-table :test 'equal))
 
-(eval-when (:compile-toplevel :load-toplevel :execute)
+;; label (a label to goto or gosub)
 
-  (defmacro game (&body body)
-    (macrolet ((scene (name &body body)
-		   (macrolet ((finish ()
-				`(go finish-scene)))
-		     `(setf (gethash ,name *scenes*)
-			    (lambda ()
-			      (tagbody
-				 ,@body
-			       finish-scene
-				 )))))
-	       #+nil(finish (&body body)
-		      `(progn))
-	       (text (&rest strs)
-		 `(format t "~{~A~}~%" ,strs))
-	       (label )
-	       (choice (&body choices)
-		 `(tagbody 
-		     ,@(loop
-			 for i from 1
-			 for (choice-text . nil) in choices
-			 collect `(format t "~A. ~A~%" ,i ,choice-text))
-		   prompt
-		     (format t "Enter choice: ")
-		     (let* ((line (read-line))
-			    (n (parse-integer line :junk-allowed t)))
-		       (terpri)
-		       (case n
-			 ,@(loop for i from 1
-				 for (nil . body) in choices
-				 collect `(,i ,@body))
-			 (t (format t "Invalid choice: ~A~%~%" n)
-			  (go prompt))))))))
-    `(let ((scene-name (catch 'goto-scene
-			 ,@body
-			 nil)))
-       (when scene-name
-	 (funcall (gethash scene-name *scenes*)))))
+;; scene (a block of text and choices)
 
-  )
-  
+;; var (declare a variable)
 
-  ;; scene (a block of text and choices)
+;; set (set a variable)
 
-  ;; var (declare a variable)
+;; goto (jump to another scene)
 
-  ;; set (set a variable)
+;; gosub (jump to another scene and return)
 
-  ;; goto (jump to another scene)
+;; title (title of the game)
 
-  ;; gosub (jump to another scene and return)
-  
-  ;; title (title of the game)
+;; https://sarabander.github.io/sicp/html/5_002e4.xhtml
 
-  ;; comment (does not execute, just for documentation purposes)
+(defun env-lookup (env var)
+  (cond
+    ((null env)
+     (error "Unbound variable: ~A" var))
+    ((eq var (caar env))
+     (cdar env))
+    (t
+     (env-lookup (cdr env) var))))
 
-  ;; page-break (press a button to continue)
-  
+(defun self-evaluating-p (expr)
+  (or (numberp expr)
+      (stringp expr)))
+
+(defun variable-p (expr)
+  (symbolp expr))
+
+(defun assignment-p (expr)
+  (and (listp expr)
+       (eq (car expr) 'set)))
+
+#+nil
+(env-lookup '((x . 10) (y . 20)) 'x) ;; => 10
+
+;; implement an explicit control evaluator
+(defun evaluate (expr global-env)
+  (let ((expr expr)
+	(conts nil)
+	(env global-env)
+	(val nil) ;; result value
+	)
+    (push :ev-dispatch conts)
+    (loop while conts
+	  for cont = (pop conts)
+	  do (case cont
+	       (:ev-dispatch (cond
+			       ((self-evaluating-p expr)
+				(push :ev-self-eval conts)
+				))
+	       
+			       )
+	       (:ev-self-eval
+		;; (assign val (reg exp))
+		;; (goto (reg continue))
+		(setf val expr)
+		)))
+    val))
+
+(evaluate 4 nil)
+
 
 ;;; game objects
 ;; scene
@@ -73,7 +78,7 @@
 ;; choice
 
 
-(defun counter-test ()
+#+nil(defun counter-test ()
   (game
     (var count 0)
     (label start)
@@ -87,7 +92,7 @@
     ))1
 
 
-(defun run-game ()
+#+nil(defun run-game ()
   (game 
    (text "Your majesty, your people are starving in the streets, and threaten revolution.
 Our enemies to the west are weak, but they threaten soon to invade.  What will you do?")
