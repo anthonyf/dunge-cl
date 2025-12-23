@@ -42,6 +42,10 @@
   (and (listp expr)
        (eq (car expr) 'set)))
 
+(defun quoted-p (expr)
+  (and (listp expr)
+       (eq (car expr) 'quote)))
+
 #+nil
 (env-lookup '((x . 10) (y . 20)) 'x) ;; => 10
 
@@ -59,18 +63,40 @@
 	       (:ev-dispatch (cond
 			       ((self-evaluating-p expr)
 				(push :ev-self-eval conts)
-				))
-	       
-			       )
+				)
+			       ((variable-p expr)
+				(push :ev-variable conts))
+			       ((quoted-p expr)
+				(push :ev-quoted conts))
+			       (t (error "Unknown expression type: ~A" expr))))
 	       (:ev-self-eval
 		;; (assign val (reg exp))
 		;; (goto (reg continue))
 		(setf val expr)
-		)))
+		)
+	       (:ev-variable
+		;; (assign val
+		;; 	(op lookup-variable-value)
+		;; 	(reg exp)
+		;; 	(reg env))
+		;; (goto (reg continue))
+		(setf val (env-lookup env expr)))
+	       (:ev-quoted
+		;; ev-quoted
+		;; (assign val
+		;; 	(op text-of-quotation)
+		;; 	(reg exp))
+		;; (goto (reg continue))
+		(setf val (cadr expr)))
+	       (t (error "Unknown cont: ~A" cont))))
     val))
 
+#+nil
 (evaluate 4 nil)
-
+#+nil
+(evaluate 'a '((b . 2)(a . 10)))
+#+nil
+(evaluate '(quote a) '((b . 2)(a . 10)))
 
 ;;; game objects
 ;; scene
