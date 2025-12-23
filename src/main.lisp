@@ -64,24 +64,22 @@
        (not (member (car expr) *special-forms*))))
 
 ;; implement an explicit control evaluator
-(defun evaluate (expr global-env)
-  (let ((expr expr)
-	(stack nil)
-	(cont :ev-dispatch)
-	(env global-env)
+(defun evaluate (expr env)
+  (let ((stack nil)
+	(conts (list :ev-dispatch)) ;; continuation stack
 	(val nil)  ;; result value
 	(unev nil) ;; unevaluated operands
+	(argl nil) ;; argument list
 	)
-    (loop while cont
-	  for _cont = cont
-	  do (setf cont nil)
-	  do (case _cont
+    (loop while conts
+	  for cont = (pop conts)
+	  do (case cont
 	       (:ev-dispatch (cond
-			       ((self-evaluating-p expr) (setf cont :ev-self-eval))
-			       ((variable-p expr)        (setf cont :ev-variable))
-			       ((quoted-p expr)          (setf cont :ev-quoted))
-			       ((lambda-p expr)          (setf cont :ev-lambda))
-			       ((application-p expr)     (setf cont :ev-application))
+			       ((self-evaluating-p expr) (push :ev-self-eval conts))
+			       ((variable-p expr)        (push :ev-variable conts))
+			       ((quoted-p expr)          (push :ev-quoted conts))
+			       ((lambda-p expr)          (push :ev-lambda conts))
+			       ((application-p expr)     (push :ev-application conts))
 			       (t (error "Unknown expression type: ~A" expr))))
 	       (:ev-self-eval (setf val expr))
 	       (:ev-variable  (setf val (env-lookup env expr)))
@@ -113,12 +111,12 @@
 		;; (assign
 		;;  continue (label ev-appl-did-operator))
 		;; (goto (label eval-dispatch))
-		(push cont stack)
+		(push conts stack)
 		(push env stack)
 		(setf unev (cdr expr))
 		(push unev stack)
 		(setf expr (car expr))
-		(setf cont :ev-appl-did-operator))
+		(push :ev-appl-did-operator conts))
 	       (:ev-appl-did-operator
 		;; ev-appl-did-operator
 		;; (restore unev)		; the operands
@@ -141,7 +139,7 @@
 #+nil
 (evaluate '(quote a) '((b . 2)(a . 10)))
 #+nil
-(evaluate '(lambda (a b) (+ a b)) nil)
+(evaluate '(lambda (a b) (+ a b)) '((b . 2)(a . 10)))
 
 ;;; game objects
 ;; scene
