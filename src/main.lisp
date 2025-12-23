@@ -31,6 +31,9 @@
     (t
      (env-lookup (cdr env) var))))
 
+#+nil
+(env-lookup '((x . 10) (y . 20)) 'x) ;; => 10
+
 (defun self-evaluating-p (expr)
   (or (numberp expr)
       (stringp expr)))
@@ -46,48 +49,88 @@
   (and (listp expr)
        (eq (car expr) 'quote)))
 
-#+nil
-(env-lookup '((x . 10) (y . 20)) 'x) ;; => 10
+(defun lambda-p (expr)
+  (and (listp expr)
+       (eq (car expr) 'lambda)))
+
+(defun make-procedure (parameters body env)
+  (list 'procedure parameters body env))
+
+(defparameter *special-forms* '(quote if set lambda begin))
+
+(defun application-p (expr)
+  (and (listp expr)
+       (not (null expr))
+       (not (member (car expr) *special-forms*))))
 
 ;; implement an explicit control evaluator
 (defun evaluate (expr global-env)
   (let ((expr expr)
-	(conts nil)
+	(stack nil)
+	(cont :ev-dispatch)
 	(env global-env)
-	(val nil) ;; result value
+	(val nil)  ;; result value
+	(unev nil) ;; unevaluated operands
 	)
-    (push :ev-dispatch conts)
-    (loop while conts
-	  for cont = (pop conts)
-	  do (case cont
+    (loop while cont
+	  for _cont = cont
+	  do (setf cont nil)
+	  do (case _cont
 	       (:ev-dispatch (cond
-			       ((self-evaluating-p expr)
-				(push :ev-self-eval conts)
-				)
-			       ((variable-p expr)
-				(push :ev-variable conts))
-			       ((quoted-p expr)
-				(push :ev-quoted conts))
+			       ((self-evaluating-p expr) (setf cont :ev-self-eval))
+			       ((variable-p expr)        (setf cont :ev-variable))
+			       ((quoted-p expr)          (setf cont :ev-quoted))
+			       ((lambda-p expr)          (setf cont :ev-lambda))
+			       ((application-p expr)     (setf cont :ev-application))
 			       (t (error "Unknown expression type: ~A" expr))))
-	       (:ev-self-eval
-		;; (assign val (reg exp))
-		;; (goto (reg continue))
-		(setf val expr)
-		)
-	       (:ev-variable
-		;; (assign val
-		;; 	(op lookup-variable-value)
+	       (:ev-self-eval (setf val expr))
+	       (:ev-variable  (setf val (env-lookup env expr)))
+	       (:ev-quoted    (setf val (cadr expr)))
+	       (:ev-lambda
+		;; ev-lambda
+		;; (assign unev
+		;; 	(op lambda-parameters)
+		;; 	(reg exp))
+		;; (assign exp 
+		;; 	(op lambda-body)
+		;; 	(reg exp))
+		;; (assign val 
+		;; 	(op make-procedure)
+		;; 	(reg unev)
 		;; 	(reg exp)
 		;; 	(reg env))
 		;; (goto (reg continue))
-		(setf val (env-lookup env expr)))
-	       (:ev-quoted
-		;; ev-quoted
-		;; (assign val
-		;; 	(op text-of-quotation)
-		;; 	(reg exp))
-		;; (goto (reg continue))
-		(setf val (cadr expr)))
+		(setf unev (cadr expr))
+		(setf expr (caddr expr))
+		(setf val (make-procedure unev expr env)))
+	       (:ev-application
+		;; ev-application
+		;; (save continue)
+		;; (save env)
+		;; (assign unev (op operands) (reg exp))
+		;; (save unev)
+		;; (assign exp (op operator) (reg exp))
+		;; (assign
+		;;  continue (label ev-appl-did-operator))
+		;; (goto (label eval-dispatch))
+		(push cont stack)
+		(push env stack)
+		(setf unev (cdr expr))
+		(push unev stack)
+		(setf expr (car expr))
+		(setf cont :ev-appl-did-operator))
+	       (:ev-appl-did-operator
+		;; ev-appl-did-operator
+		;; (restore unev)		; the operands
+		;; (restore env)
+		;; (assign argl (op empty-arglist))
+		;; (assign proc (reg val))	; the operator
+		;; (test (op no-operands?) (reg unev))
+		;; (branch (label apply-dispatch))
+		;; (save proc)
+		(setf unev (pop stack))
+		(setf env (pop stack))
+		)
 	       (t (error "Unknown cont: ~A" cont))))
     val))
 
@@ -97,6 +140,8 @@
 (evaluate 'a '((b . 2)(a . 10)))
 #+nil
 (evaluate '(quote a) '((b . 2)(a . 10)))
+#+nil
+(evaluate '(lambda (a b) (+ a b)) nil)
 
 ;;; game objects
 ;; scene
