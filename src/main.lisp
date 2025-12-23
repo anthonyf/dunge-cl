@@ -70,6 +70,7 @@
 
 ;; implement an explicit control evaluator
 (defun evaluate (expr env)
+  ;; registers
   (let ((stack nil)
 	(conts nil) ;; continuation stack
 	(val nil)   ;; result value
@@ -294,14 +295,19 @@
 		 (:unknown-procedure-type
 		  (dbg :unknown-procedure-type :start)
 		  (error "Unknown procedure type: ~A" proc))
-		 #+nil(:ev-begin
-		       ;; ev-begin
-		       ;; (assign unev
-		       ;; 	(op begin-actions)
-		       ;; 	(reg exp))
-		       ;; (save continue)
-		       ;; (goto (label ev-sequence))
-		       )
+		 (:ev-begin
+		  ;; ev-begin
+		  ;; (assign unev
+		  ;; 	(op begin-actions)
+		  ;; 	(reg exp))
+		  ;; (save continue)
+		  ;; (goto (label ev-sequence))
+		  (dbg :ev-begin :start)
+		  (setf unev (cdr expr))
+		  (push conts stack)
+		  (push :ev-sequence conts)
+		  (dbg :ev-begin :end)
+		  )
 		 (:ev-sequence
 		  ;; ev-sequence
 		  ;; (assign exp (op first-exp) (reg unev))
@@ -331,8 +337,8 @@
 		  ;; 	(reg unev))
 		  ;; (goto (label ev-sequence))
 		  (dbg :ev-sequence-continue :start)
-		  (setf unev (pop stack))
 		  (setf env (pop stack))
+		  (setf unev (pop stack))
 		  (setf unev (cdr unev))
 		  (push :ev-sequence conts)
 		  (dbg :ev-sequence-continue :end)
