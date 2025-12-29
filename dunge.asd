@@ -5,7 +5,7 @@
 
 (initialize-source-registry
  '(:source-registry
-   (:tree (:here "lib"))
+   (:tree (:here))
    :inherit-configuration))
 
 (defsystem "dunge"
