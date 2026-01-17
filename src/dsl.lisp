@@ -36,6 +36,9 @@
 (defmethod render ((choice choice))
   (push choice *choices*))
 
+(defmethod render ((function function))
+  (funcall function))
+
 (defmethod execute-choice ((choice choice))
   (funcall (choice-action choice)))
 
@@ -115,9 +118,9 @@
 
 (eval-when (:load-toplevel :compile-toplevel :execute)
   (defmacro game (&body body)
-    `(make-instance 'scene
-		    :name 'main
-		    :elements (list ,@body)))
+    `(play-game (make-instance 'scene
+			       :name 'main
+			       :elements (list ,@body))))
   
   (defmacro text (&rest args)
     `(lambda ()
@@ -128,17 +131,18 @@
 						       args))
 	       ,@(remove-if #'stringp args))))
 
-  (defmacro choice (description &body body)
+  (defmacro choice (&body body)
     `(progn
-       (format t "~A~%" ,description)
-       ,@(loop for item in body
-	       collect  (let ((desc (car item))
-			      (action-body (cdr item)))
-			  `(make-instance 'choice
-					  :description ,desc
-					  :action (lambda ()
-						    @,(loop for elem in action-body
-							    collect `(render-element ,elem))))))))
+       ,@(loop for (desc . action-body) in body
+	       collect (let ()
+			 `(make-instance 'choice
+					 :description ,desc
+					 :action (lambda ()
+						   ,@action-body
+						   #+nil,@(loop for elem in action-body
+							   collect `(render ,elem))))))))
+  (defmacro finish ()
+    `(throw 'finish-scene nil))
   )
 
 

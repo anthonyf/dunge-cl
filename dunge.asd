@@ -13,11 +13,15 @@
   :author ""
   :license ""
   :description ""
-  :depends-on ("alexandria")
+  :depends-on ("uiop"
+	       "alexandria")
   :serial t
   :components ((:module "src"
 		:components
-		((:file "main"))))
+		((:file "dice")
+		 (:file "text-layout")
+		 (:file "character")
+		 (:file "main"))))
   :in-order-to ((test-op (test-op "dunge/tests"))))
 
 (defsystem "dunge/tests"
