@@ -21,6 +21,8 @@
 		((:file "dice")
 		 (:file "text-layout")
 		 (:file "character")
+		 (:file "engine")
+		 (:file "character-builder")
 		 (:file "main"))))
   :in-order-to ((test-op (test-op "dunge/tests"))))
 
