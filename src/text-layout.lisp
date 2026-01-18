@@ -1,6 +1,8 @@
 (uiop:define-package #:dunge/text-layout
   (:use #:cl)
   (:export #:column-layout
+	   #:nl
+	   #:text
 	   #:lines
 	   #:columns))
 
@@ -46,13 +48,14 @@ Cha: 10 (0"))
 
 
 (defun column-layout (column-strs &key (padding 1))
-  (let* ((grid (columns-to-grid column-strs))
-	 (col-widths (col-widths grid)))
-    (loop for row in grid
-	  do (loop for col in row
-		   for col-width in col-widths
-		   do (format t "~a~a~a" col (spaces padding) (spaces (- col-width (length col)))))
-	  do (terpri))))
+  (with-output-to-string (out)
+    (let* ((grid (columns-to-grid column-strs))
+	   (col-widths (col-widths grid)))
+      (loop for row in grid
+	    do (loop for col in row
+		     for col-width in col-widths
+		     do (format out "~a~a~a" col (spaces padding) (spaces (- col-width (length col)))))
+	    do (terpri out)))))
 
 #+nil
 (multiple-value-list
@@ -78,19 +81,28 @@ cc"
 b
 c")))
 
+(defun nl ()
+  (with-output-to-string (out)
+    (terpri out)))
+
+(defmacro text (&rest items)
+  `(with-output-to-string (out)
+     ,@(loop for item in items
+	     collect `(princ ,item out))))
+
+#+nil
+(let ((c 10))
+  (text "a" c " "  2 "b"))
+
 (defmacro lines (&rest lines)
   ""
   `(with-output-to-string (out)
      ,@(loop for line in lines
-	     collect `(format out "~a~%"
-			      ,(cond ((typep line 'string)
-				     line)
-				    ((listp line)
-				     `(apply #'format nil `(,,@line)))
-				    (t (write-to-string line)))))))
+	     collect `(text ,@line (nl)))))
+
 
 (defmacro columns (&rest cols)
   `(column-layout (list ,@cols)))
 
 #+nil
-(lines "a" "b" ("~a" (length "bob")))
+(lines "a" "b" ("a" (length "bob")))

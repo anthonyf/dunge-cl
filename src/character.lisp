@@ -157,23 +157,17 @@ hero is always remarkably good at something."
 	     (t ""))))
     
     (columns
-     (lines ("Name: ~a" (character-name character))
-	    ("Class: ~a" (character-class character))
-	    ("Level: ~a" (character-level character))
-	    ("HP: ~a" (total-hit-points character)))
-    
-     (lines ("Str: ~a ~a" (character-strength character)
-			    (fmt-attr-mod (attribute-modifier character 'strength)))
-	    ("Int: ~a ~a" (character-intelligence character)
-			    (fmt-attr-mod (attribute-modifier character 'intelligence)))
-	    ("Wis: ~a ~a" (character-wisdom character)
-			    (fmt-attr-mod (attribute-modifier character 'wisdom)))
-	    ("Dex: ~a ~a" (character-dexterity character)
-			    (fmt-attr-mod (attribute-modifier character 'dexterity)))
-	    ("Con: ~a ~a" (character-constitution character)
-			    (fmt-attr-mod (attribute-modifier character 'constitution)))
-	    ("Cha: ~a ~a" (character-charisma character)
-			    (fmt-attr-mod (attribute-modifier character 'charisma)))))
+     (text "Name: " (character-name character) (nl)
+	   "Class: " (character-class character) (nl)
+	   "Level: " (character-level character) (nl)
+	   "HP: " (total-hit-points character) (nl))
+	   
+     (text "Str: " (character-strength character) " " (fmt-attr-mod (attribute-modifier character 'strength)) (nl)
+	    "Int: " (character-intelligence character) " " (fmt-attr-mod (attribute-modifier character 'intelligence)) (nl)
+	    "Wis: " (character-wisdom character) " " (fmt-attr-mod (attribute-modifier character 'wisdom)) (nl)
+	    "Dex: " (character-dexterity character) " " (fmt-attr-mod (attribute-modifier character 'dexterity)) (nl)
+	    "Con: " (character-constitution character) " " (fmt-attr-mod (attribute-modifier character 'constitution)) (nl)
+	    "Cha: " (character-charisma character) " " (fmt-attr-mod (attribute-modifier character 'charisma)) (nl)))
     ))
   
 
