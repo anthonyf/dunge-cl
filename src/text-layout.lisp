@@ -1,7 +1,8 @@
 (uiop:define-package #:dunge/text-layout
   (:use #:cl)
   (:export #:column-layout
-	   ))
+	   #:lines
+	   #:columns))
 
 (in-package :dunge/text-layout)
 
@@ -44,10 +45,9 @@ Cha: 10 (0"))
   (make-string n :initial-element #\Space))
 
 
-(defun column-layout (column-strs)
+(defun column-layout (column-strs &key (padding 1))
   (let* ((grid (columns-to-grid column-strs))
-	 (col-widths (col-widths grid))
-	 (padding 1))
+	 (col-widths (col-widths grid)))
     (loop for row in grid
 	  do (loop for col in row
 		   for col-width in col-widths
@@ -77,3 +77,20 @@ cc"
 		  "aaa
 b
 c")))
+
+(defmacro lines (&rest lines)
+  ""
+  `(with-output-to-string (out)
+     ,@(loop for line in lines
+	     collect `(format out "~a~%"
+			      ,(cond ((typep line 'string)
+				     line)
+				    ((listp line)
+				     `(apply #'format nil `(,,@line)))
+				    (t (write-to-string line)))))))
+
+(defmacro columns (&rest cols)
+  `(column-layout (list ,@cols)))
+
+#+nil
+(lines "a" "b" ("~a" (length "bob")))
