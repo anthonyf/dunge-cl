@@ -1,7 +1,8 @@
 (uiop:define-package #:dunge
   (:use #:cl)
-  (:mix #:dunge/engine
-	#:dunge/text-layout)
+  (:mix-reexport #:dunge/engine
+		 #:dunge/text-layout)
+  
   (:shadow #:write)
   (:export #:set-vignette
 	   #:push-vignette
