@@ -4,8 +4,7 @@
 	   #:nl
 	   #:text
 	   #:lines
-	   #:columns
-	   #:out))
+	   #:columns))
 
 (in-package :dunge/text-layout)
 
@@ -108,7 +107,3 @@ c")))
 #+nil
 (lines "a" "b" ("a" (length "bob")))
 
-(defun out (&rest items)
-  (loop for item in items
-	do (princ item))
-  (terpri))
