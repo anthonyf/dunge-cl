@@ -29,7 +29,22 @@
 
 (defun start (ctx)
   (out ctx (text "Welcome to Dunge!" (nl)))
-  (list (goto-choice "Continue" 'town-square)))
+  (list (goto-choice "Continue" 'character-info)))
+
+(defparameter *character-name* nil)
+
+(defun character-info (ctx)
+  (if *character-name*
+      (progn
+	(out ctx (text "Welcome " *character-name* "!" (nl)))
+	(list (goto-choice "Start your adventure!" 'town-square)))
+      (progn
+	(out ctx (text "Let's gather some information about your character." (nl)))
+	(prompt "What is your name?"
+		:validate-fn #'validate-non-empty-string
+		:action (lambda (text)
+			  (setf *character-name* text)
+			  (set-vignette 'character-info))))))
 
 (defun town-square (ctx)
   (out ctx (text "This is the town square" (nl)))
