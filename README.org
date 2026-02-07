@@ -1,4 +1,12 @@
 * Dunge 
+:PROPERTIES:
+:ID:       E866D563-4D34-4FE0-85EE-CC3FBDA1F56E
+:END:
+
+** TODOs
+*** TODO Make a character builder
+*** TODO Make a house, with rooms and interactable items
+*** TODO Battle encounter
 
 ** Usage
 

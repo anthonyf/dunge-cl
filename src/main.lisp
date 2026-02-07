@@ -3,6 +3,9 @@
   ;;(:shadow #:return #:eval)
   (:export ))
 
+(uiop:define-package #:dunge-user
+  (:use #:cl #:dunge))
+
 (in-package #:dunge)
 
 (defparameter *scenes* (make-hash-table :test 'equal))
