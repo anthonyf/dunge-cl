@@ -14,6 +14,7 @@
 		:components
 		((:file "dice")
 		 (:file "text-layout")
+		 (:file "engine")
 		 (:file "main"))))
   :in-order-to ((test-op (test-op "dunge/tests"))))
 
