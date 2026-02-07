@@ -12,7 +12,8 @@
   :serial t
   :components ((:module "src"
 		:components
-		((:file "dice")
+		((:file "utils")
+		 (:file "dice")
 		 (:file "text-layout")
 		 (:file "engine")
 		 (:file "main"))))

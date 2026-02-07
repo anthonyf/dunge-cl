@@ -1,5 +1,6 @@
 (uiop:define-package #:dunge/engine
   (:use #:cl)
+  (:mix #:dunge/utils)
   (:export #:*vignette-stack*
 	   #:current-vignette
 	   #:set-vignette
@@ -16,6 +17,8 @@
 
 	   #:print-context
 	   #:out
+
+	   #:prompt
 
 	   #:game-repl))
 
@@ -37,7 +40,7 @@
 (defgeneric menu (ctx choices))
 (defgeneric choice-label (choice))
 (defgeneric choice-action (choice))
-(defgeneric execute-action (action))
+(defgeneric execute-action (action &rest args))
 
 (defgeneric out (ctx str))
 
@@ -66,11 +69,11 @@
        (execute-action (choice-action (nth (1- n) choices))))))
 
 
-(defmethod execute-action ((sym symbol))
-  (funcall (symbol-function sym)))
+(defmethod execute-action ((sym symbol) &rest args)
+  (apply (symbol-function sym) args))
 
-(defmethod execute-action ((fun function))
-  (funcall fun))
+(defmethod execute-action ((fun function) &rest args)
+  (apply fun args))
 
 (defun game-repl (starting-vignette)
   (let ((ctx (make-instance 'print-context))
@@ -92,3 +95,26 @@
 		 :label label
 		 :action (lambda ()
 			   (set-vignette vignette))))
+
+(defclass prompt ()
+  ((question :initarg :question :accessor prompt-question)
+   (validate-fn :initarg :validate-fn :accessor prompt-validate-fn)
+   (action :initarg :action :accessor prompt-action)))
+
+(defun prompt (question &key validate-fn action)
+  (make-instance 'prompt
+		 :question question
+		 :validate-fn validate-fn
+		 :action action))
+
+(defmethod menu ((ctx print-context) (prompt prompt))
+  (tagbody
+   prompt
+     (format t "~a > " (prompt-question prompt))
+     (let ((line (trim-whitespace (read-line))))
+       (cond ((funcall (prompt-validate-fn prompt) line)
+	      (execute-action (prompt-action prompt) line))
+	     (t
+	      (format t "Invalid input: ~a~%" line)
+	      (go prompt))))))
+
