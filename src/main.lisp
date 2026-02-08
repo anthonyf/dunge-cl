@@ -35,22 +35,21 @@
 	   ""
 	   :elements (list (exit "Continue" (room 'character-info))))
 
-(defparameter *character-name* nil)
-
-(defun character-info (ctx)
-  (if *character-name*
-      (progn
-	(out ctx (text "Welcome " *character-name* "!" (nl)))
-	(list (goto-choice "Start your adventure!" (room 'town-square))))
-      (progn
-	(out ctx (text "Let's gather some information about your character." (nl)))
-	(prompt "What is your name?"
-		:validate-fn #'validate-non-empty-string
-		:action (lambda (text)
-			  (setf *character-name* text)
-			  (set-vignette (room 'character-info)))))))
-
-(setf (room 'character-info) #'character-info)
+(make-room 'character-info "Character Creation" ""
+  :elements (list
+    (gate (lambda () (lookup "character" "name"))
+      :then (list
+	     (lambda (ctx)
+	       (out ctx (text "Welcome " (lookup "character" "name") "!" (nl)))
+	       (list (goto-choice "Start your adventure!" (room 'town-square)))))
+      :else (list
+	     (lambda (ctx)
+	       (out ctx (text "Let's gather some information about your character." (nl)))
+	       (prompt "What is your name?"
+		       :validate-fn #'validate-non-empty-string
+		       :action (lambda (text)
+				 (setf (lookup "character" "name") text)
+				 (set-vignette (room 'character-info)))))))))
 
 (make-room 'town-square "Town Square" "This is the town square"
 	   :elements (list (exit "Go to the blacksmith" (room 'blacksmith))))
