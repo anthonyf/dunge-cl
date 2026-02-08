@@ -7,7 +7,8 @@
   (:export #:room
 	   #:make-room
 	   #:exit
-	   #:gate))
+	   #:gate
+	   #:p))
 
 (in-package #:dunge/room)
 
@@ -16,34 +17,44 @@
 		:accessor exit-description)
    (choice-text :initarg :choice-text
 		:accessor exit-choice-text)
-   (target-vignette :initarg :target-vignette
-		    :accessor exit-target-vignette)))
+   (room-id :initarg :room-id
+	    :accessor exit-room-id)))
 
-(defun exit (choice-text target &key description)
+(defun exit (choice-text room-id &key description)
   (make-instance 'exit
 		 :description description
 		 :choice-text choice-text
-		 :target-vignette target))
+		 :room-id room-id))
 
 (defmethod perform (ctx (exit exit))
   (when (exit-description exit)
     (out ctx
-	 (text (exit-description exit) (nl))))
-  (list (goto-choice (exit-choice-text exit)
-		     (exit-target-vignette exit))))
+	 (format nil "~a~%" (exit-description exit))))
+  (let ((id (exit-room-id exit)))
+    (list (make-instance 'choice
+			 :label (exit-choice-text exit)
+			 :action (lambda ()
+				   (set-vignette (room id)))))))
+
+(defclass p ()
+  ((content :initarg :content :accessor p-content)))
+
+(defun p (&rest content)
+  (make-instance 'p :content content))
+
+(defmethod perform (ctx (p p))
+  (out ctx (format nil "~{~A~}~%" (p-content p)))
+  nil)
 
 (defclass room ()
   ((title :initarg :title
 	  :accessor room-title)
-   (description :initarg :description
-		:accessor room-description)
    (elements :initarg :elements
 		  :accessor room-elements)))
 
 (defmethod perform (ctx (room room))
   (out ctx
-       (text (room-title room) (nl)
-	     (room-description room) (nl)))
+       (text (room-title room) (nl)))
   (loop for element in (room-elements room)
 	for result = (perform ctx element)
 	if (listp result) append result
@@ -75,9 +86,8 @@
 (defun (setf room) (room id)
   (setf (lookup "rooms" id) room))
 
-(defun make-room (id title description &key elements)
+(defun make-room (id title &rest elements)
   (setf (room id)
 	(make-instance 'room
 		       :title title
-		       :description description
 		       :elements elements)))

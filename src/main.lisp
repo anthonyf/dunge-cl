@@ -32,31 +32,31 @@
 ;;;;;;;;;; testing ;;;;;;;;;;;;
 
 (make-room 'start "Welcome to Dunge!"
-	   ""
-	   :elements (list (exit "Continue" (room 'character-info))))
+  (exit "Continue" 'character-info))
 
-(make-room 'character-info "Character Creation" ""
-  :elements (list
-    (gate (lambda () (lookup "character" "name"))
-      :then (list
-	     (lambda (ctx)
-	       (out ctx (text "Welcome " (lookup "character" "name") "!" (nl)))
-	       (list (goto-choice "Start your adventure!" (room 'town-square)))))
-      :else (list
-	     (lambda (ctx)
-	       (out ctx (text "Let's gather some information about your character." (nl)))
-	       (prompt "What is your name?"
-		       :validate-fn #'validate-non-empty-string
-		       :action (lambda (text)
-				 (setf (lookup "character" "name") text)
-				 (set-vignette (room 'character-info)))))))))
+(make-room 'character-info "Character Creation"
+  (gate (lambda () (lookup "character" "name"))
+    :then (list
+	   (lambda (ctx)
+	     (out ctx (text "Welcome " (lookup "character" "name") "!" (nl)))
+	     (list (goto-choice "Start your adventure!" (room 'town-square)))))
+    :else (list
+	   (lambda (ctx)
+	     (out ctx (text "Let's gather some information about your character." (nl)))
+	     (prompt "What is your name?"
+		     :validate-fn #'validate-non-empty-string
+		     :action (lambda (text)
+			       (setf (lookup "character" "name") text)
+			       (set-vignette (room 'character-info))))))))
 
-(make-room 'town-square "Town Square" "This is the town square"
-	   :elements (list (exit "Go to the blacksmith" (room 'blacksmith))))
+(make-room 'town-square "Town Square"
+  (p "This is the town square")
+  (exit "Go to the blacksmith" 'blacksmith))
 
 
-(make-room 'blacksmith "Blacksmith" "This is the blacksmith."
-	   :elements (list (exit "back to town square" (room 'town-square))))
+(make-room 'blacksmith "Blacksmith"
+  (p "This is the blacksmith.")
+  (exit "back to town square" 'town-square))
 
 #+nil(defun run-game ()
   (game
