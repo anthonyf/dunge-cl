@@ -42,10 +42,9 @@
     :else (list
 	   (p "Let's gather some information about your character.")
 	   (prompt "What is your name?"
-		   :validate-fn #'validate-non-empty-string
-		   :action (lambda (text)
-			     (setf (lookup "character" "name") text)
-			     (set-vignette (room 'character-info)))))))
+		   :validate :non-empty-string
+		   :store '("character" "name")
+		   :goto 'character-info))))
 
 (make-room 'town-square "Town Square"
   (p "This is the town square")

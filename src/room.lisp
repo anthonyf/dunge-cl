@@ -2,13 +2,15 @@
   (:use #:cl)
   (:shadow #:room)
   (:mix #:dunge/engine
+	#:dunge/utils
 	#:dunge/data-store
 	#:dunge/text-layout)
   (:export #:room
 	   #:make-room
 	   #:exit
 	   #:gate
-	   #:p))
+	   #:p
+	   #:prompt))
 
 (in-package #:dunge/room)
 
@@ -84,6 +86,22 @@
 	  for result = (perform ctx element)
 	  if (listp result) append result
 	  else return result)))
+
+(defun resolve-validator (validator)
+  (etypecase validator
+    (keyword (ecase validator
+	       (:non-empty-string #'validate-non-empty-string)))
+    (function validator)))
+
+(defun prompt (question &key validate store goto)
+  (make-instance 'prompt
+		 :question question
+		 :validate-fn (resolve-validator validate)
+		 :action (lambda (input)
+			   (when store
+			     (apply #'(setf lookup) input store))
+			   (when goto
+			     (set-vignette (room goto))))))
 
 (defun room (id)
   (lookup "rooms" id))

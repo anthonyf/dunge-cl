@@ -19,6 +19,9 @@
 	   #:out
 
 	   #:prompt
+	   #:prompt-question
+	   #:prompt-validate-fn
+	   #:prompt-action
 
 	   #:game-repl))
 
@@ -95,20 +98,18 @@
    (validate-fn :initarg :validate-fn :accessor prompt-validate-fn)
    (action :initarg :action :accessor prompt-action)))
 
-(defun prompt (question &key validate-fn action)
-  (make-instance 'prompt
-		 :question question
-		 :validate-fn validate-fn
-		 :action action))
+(defmethod perform (ctx (prompt prompt))
+  prompt)
 
 (defmethod menu ((ctx print-context) (prompt prompt))
   (tagbody
-   prompt
+   retry
      (format t "~a > " (prompt-question prompt))
      (let ((line (trim-whitespace (read-line))))
        (cond ((funcall (prompt-validate-fn prompt) line)
-	      (execute-action (prompt-action prompt) line))
+	      (funcall (prompt-action prompt) line))
 	     (t
 	      (format t "Invalid input: ~a~%" line)
-	      (go prompt))))))
+	      (go retry))))))
+
 
