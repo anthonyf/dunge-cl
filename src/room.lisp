@@ -42,8 +42,13 @@
 (defun p (&rest content)
   (make-instance 'p :content content))
 
+(defun resolve (item)
+  (if (functionp item)
+      (funcall item)
+      item))
+
 (defmethod perform (ctx (p p))
-  (out ctx (format nil "~{~A~}~%" (p-content p)))
+  (out ctx (format nil "~{~A~}~%" (mapcar #'resolve (p-content p))))
   nil)
 
 (defclass room ()

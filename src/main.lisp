@@ -35,19 +35,17 @@
   (exit "Continue" 'character-info))
 
 (make-room 'character-info "Character Creation"
-  (gate (lambda () (lookup "character" "name"))
+  (gate (ref "character" "name")
     :then (list
-	   (lambda (ctx)
-	     (out ctx (text "Welcome " (lookup "character" "name") "!" (nl)))
-	     (list (goto-choice "Start your adventure!" (room 'town-square)))))
+	   (p "Welcome " (ref "character" "name") "!")
+	   (exit "Start your adventure!" 'town-square))
     :else (list
-	   (lambda (ctx)
-	     (out ctx (text "Let's gather some information about your character." (nl)))
-	     (prompt "What is your name?"
-		     :validate-fn #'validate-non-empty-string
-		     :action (lambda (text)
-			       (setf (lookup "character" "name") text)
-			       (set-vignette (room 'character-info))))))))
+	   (p "Let's gather some information about your character.")
+	   (prompt "What is your name?"
+		   :validate-fn #'validate-non-empty-string
+		   :action (lambda (text)
+			     (setf (lookup "character" "name") text)
+			     (set-vignette (room 'character-info)))))))
 
 (make-room 'town-square "Town Square"
   (p "This is the town square")
