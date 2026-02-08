@@ -1,8 +1,8 @@
-(defpackage dunge/tests/main
-  (:use :cl
-        :dunge
-        :rove))
-(in-package :dunge/tests/main)
+(uiop:define-package #:dunge/tests/main
+  (:mix #:cl
+        #:dunge
+        #:rove))
+(in-package #:dunge/tests/main)
 
 ;; NOTE: To run this test file, execute `(asdf:test-system :dunge)' in your Lisp.
 

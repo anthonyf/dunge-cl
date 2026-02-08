@@ -48,11 +48,8 @@
 
 (defclass print-context ()())
 
-(defmethod perform ((ctx print-context)(fun function))
+(defmethod perform (ctx (fun function))
   (funcall fun ctx))
-
-(defmethod perform ((ctx print-context)(fun symbol))
-  (funcall (symbol-function fun) ctx))
 
 (defmethod menu ((ctx print-context) (choices list))
   (tagbody
@@ -68,9 +65,6 @@
 	 (go prompt))
        (execute-action (choice-action (nth (1- n) choices))))))
 
-
-(defmethod execute-action ((sym symbol) &rest args)
-  (apply (symbol-function sym) args))
 
 (defmethod execute-action ((fun function) &rest args)
   (apply fun args))

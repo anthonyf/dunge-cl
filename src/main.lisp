@@ -1,6 +1,10 @@
 (uiop:define-package #:dunge
   (:use #:cl)
-  (:mix-reexport #:dunge/engine
+  (:shadowing-import-from #:dunge/room #:room)
+  (:mix-reexport #:dunge/data-store
+		 #:dunge/utils
+		 #:dunge/engine
+		 #:dunge/room
 		 #:dunge/text-layout)
   
   (:shadow #:write)
@@ -21,15 +25,15 @@
 	   #:game-repl))
 
 (uiop:define-package #:dunge-user
-  (:use #:cl #:dunge))
+  (:mix #:cl #:dunge))
 
 (in-package #:dunge)
 
 ;;;;;;;;;; testing ;;;;;;;;;;;;
 
-(defun start (ctx)
-  (out ctx (text "Welcome to Dunge!" (nl)))
-  (list (goto-choice "Continue" 'character-info)))
+(make-room 'start "Welcome to Dunge!"
+	   ""
+	   :interactibles (list (exit "Continue" (room 'character-info))))
 
 (defparameter *character-name* nil)
 
@@ -37,22 +41,23 @@
   (if *character-name*
       (progn
 	(out ctx (text "Welcome " *character-name* "!" (nl)))
-	(list (goto-choice "Start your adventure!" 'town-square)))
+	(list (goto-choice "Start your adventure!" (room 'town-square))))
       (progn
 	(out ctx (text "Let's gather some information about your character." (nl)))
 	(prompt "What is your name?"
 		:validate-fn #'validate-non-empty-string
 		:action (lambda (text)
 			  (setf *character-name* text)
-			  (set-vignette 'character-info))))))
+			  (set-vignette (room 'character-info)))))))
 
-(defun town-square (ctx)
-  (out ctx (text "This is the town square" (nl)))
-  (list (goto-choice "Go to the blacksmith" 'blacksmith)))
+(setf (room 'character-info) #'character-info)
 
-(defun blacksmith (ctx)
-  (out ctx (text "This is the blacksmith" (nl)))
-  (list (goto-choice "Back to the town square" 'town-square)))
+(make-room 'town-square "Town Square" "This is the town square"
+	   :interactibles (list (exit "Go to the blacksmith" (room 'blacksmith))))
+
+
+(make-room 'blacksmith "Blacksmith" "This is the blacksmith."
+	   :interactibles (list (exit "back to town square" (room 'town-square))))
 
 #+nil(defun run-game ()
   (game

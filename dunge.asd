@@ -13,17 +13,20 @@
   :components ((:module "src"
 		:components
 		((:file "utils")
+		 (:file "data-store")
 		 (:file "dice")
 		 (:file "text-layout")
 		 (:file "engine")
+		 (:file "room")
 		 (:file "main"))))
   :in-order-to ((test-op (test-op "dunge/tests"))))
 
 (defsystem "dunge/tests"
   :author ""
   :license ""
-  :depends-on ("rove")
+  :depends-on ("dunge" "rove")
   :description "Test system for dunge"
   :components ((:module "tests"
-		:components ((:file "main"))))
+		:components ((:file "main")
+			     (:file "data-store"))))
   :perform (test-op (op c) (symbol-call :rove :run c)))
