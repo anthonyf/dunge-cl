@@ -47,13 +47,18 @@
 		   :goto 'character-info))))
 
 (make-room 'town-square "Town Square"
-  (p "This is the town square")
-  (exit "Go to the blacksmith" 'blacksmith))
+  (p "This is the town square, the central hub of this very small, unnamed town.")
+  (exit "Look at the Adventure Board" 'adventure-board :description "You see an adventure board here where the townsfolk have posted their bounties.  Perfect for an adventurer like yourself.")
+  (exit "Go to the blacksmith" 'blacksmith :description "To the east you see smoke from the forge of the town blacksmith."))
+
+(make-room 'adventure-board "Adventure Board"
+  (p "Todo random adventures will be generated and posted here.")
+  (exit "Back" 'town-square))
 
 
 (make-room 'blacksmith "Blacksmith"
   (p "This is the blacksmith.")
-  (exit "back to town square" 'town-square))
+  (exit "Return to town square" 'town-square))
 
 #+nil(defun run-game ()
   (game
