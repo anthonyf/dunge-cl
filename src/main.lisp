@@ -33,7 +33,7 @@
 
 (make-room 'start "Welcome to Dunge!"
 	   ""
-	   :interactibles (list (exit "Continue" (room 'character-info))))
+	   :elements (list (exit "Continue" (room 'character-info))))
 
 (defparameter *character-name* nil)
 
@@ -53,11 +53,11 @@
 (setf (room 'character-info) #'character-info)
 
 (make-room 'town-square "Town Square" "This is the town square"
-	   :interactibles (list (exit "Go to the blacksmith" (room 'blacksmith))))
+	   :elements (list (exit "Go to the blacksmith" (room 'blacksmith))))
 
 
 (make-room 'blacksmith "Blacksmith" "This is the blacksmith."
-	   :interactibles (list (exit "back to town square" (room 'town-square))))
+	   :elements (list (exit "back to town square" (room 'town-square))))
 
 #+nil(defun run-game ()
   (game

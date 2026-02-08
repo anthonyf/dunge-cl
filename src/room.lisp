@@ -36,14 +36,14 @@
 	  :accessor room-title)
    (description :initarg :description
 		:accessor room-description)
-   (interactibles :initarg :interactibles
-		  :accessor room-interactibles)))
+   (elements :initarg :elements
+		  :accessor room-elements)))
 
 (defmethod perform (ctx (room room))
   (out ctx
        (text (room-title room) (nl)
 	     (room-description room) (nl)))
-  (loop for interactible in (room-interactibles room)
+  (loop for interactible in (room-elements room)
 	append (perform ctx interactible)))
 
 (defun room (id)
@@ -52,9 +52,9 @@
 (defun (setf room) (room id)
   (setf (lookup "rooms" id) room))
 
-(defun make-room (id title description &key interactibles)
+(defun make-room (id title description &key elements)
   (setf (room id)
 	(make-instance 'room
 		       :title title
 		       :description description
-		       :interactibles interactibles)))
+		       :elements elements)))
