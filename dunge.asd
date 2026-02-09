@@ -18,6 +18,7 @@
 		 (:file "text-layout")
 		 (:file "engine")
 		 (:file "room")
+		 (:file "item")
 		 (:file "main"))))
   :in-order-to ((test-op (test-op "dunge/tests"))))
 
@@ -28,5 +29,6 @@
   :description "Test system for dunge"
   :components ((:module "tests"
 		:components ((:file "main")
-			     (:file "data-store"))))
+			     (:file "data-store")
+			     (:file "item"))))
   :perform (test-op (op c) (symbol-call :rove :run c)))

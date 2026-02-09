@@ -1,10 +1,12 @@
 (uiop:define-package #:dunge
   (:use #:cl)
   (:shadowing-import-from #:dunge/room #:room)
+  (:shadowing-import-from #:dunge/item #:item)
   (:mix-reexport #:dunge/data-store
 		 #:dunge/utils
 		 #:dunge/engine
 		 #:dunge/room
+		 #:dunge/item
 		 #:dunge/text-layout
 		 #:dunge/dice)
   
@@ -33,23 +35,37 @@
 ;;; Background data
 
 (defparameter *backgrounds*
-  '(("Soldier"  :description "trained in combat, disciplined"
-		:equipment ("Sword (d8)" "Gambeson (Armor 1)" "Helm (+1 Armor)")
+  `(("Soldier"  :description "trained in combat, disciplined"
+		:equipment (,(make-item "Sword (d8)")
+			    ,(make-item "Gambeson (Armor 1)")
+			    ,(make-item "Helm (+1 Armor)"))
 		:armor 2  :gold 8)
     ("Scholar"  :description "educated, curious, physically weak"
-		:equipment ("Spellbook" "Dagger (d6)" "Ink & Quill")
+		:equipment (,(make-item "Spellbook")
+			    ,(make-item "Dagger (d6)")
+			    ,(make-item "Ink & Quill"))
 		:armor 0  :gold 8)
     ("Criminal" :description "streetwise, light-fingered, untrustworthy"
-		:equipment ("Lockpicks" "Dagger (d6)" "Dark Cloak" "Grappling Hook")
+		:equipment (,(make-item "Lockpicks")
+			    ,(make-item "Dagger (d6)")
+			    ,(make-item "Dark Cloak")
+			    ,(make-item "Grappling Hook"))
 		:armor 0  :gold 8)
     ("Pilgrim"  :description "faithful, traveled, poor"
-		:equipment ("Staff (d6)" "Holy Symbol" "Healing Herbs x3")
+		:equipment (,(make-item "Staff (d6)")
+			    ,(make-item "Holy Symbol")
+			    ,(make-item "Healing Herbs" :stackable t :stack-limit 10 :quantity 3))
 		:armor 0  :gold 8)
     ("Hunter"   :description "survivalist, patient, rural"
-		:equipment ("Bow (d6)" "Arrows" "Knife (d6)" "Snare Kit" "Furs")
+		:equipment (,(make-item "Bow (d6)")
+			    ,(make-item "Arrows")
+			    ,(make-item "Knife (d6)")
+			    ,(make-item "Snare Kit")
+			    ,(make-item "Furs"))
 		:armor 0  :gold 8)
     ("Merchant" :description "wealthy, connected, soft"
-		:equipment ("Dagger (d6)" "Fine Clothes")
+		:equipment (,(make-item "Dagger (d6)")
+			    ,(make-item "Fine Clothes"))
 		:armor 0  :gold 38)))
 
 (defun background-prop (name prop)
@@ -150,7 +166,9 @@
 	     (declare (ignore ctx))
 	     (let* ((bg (lookup "character" "background"))
 		    (items (append (background-prop bg :equipment)
-				   '("Rations x3" "Torch x2" "Waterskin"))))
+				   (list (make-item "Rations" :stackable t :stack-limit 10 :quantity 3)
+					 (make-item "Torch" :stackable t :stack-limit 5 :quantity 2)
+					 (make-item "Waterskin")))))
 	       (setf (lookup "character" "inventory") items)
 	       (setf (lookup "character" "armor") (background-prop bg :armor))
 	       (setf (lookup "character" "gold") (background-prop bg :gold))
@@ -159,8 +177,8 @@
   (p "As a " (ref "character" "background") " you receive:")
   (p "")
   (lambda (ctx)
-    (dolist (item (lookup "character" "inventory"))
-      (out ctx (format nil "  - ~a~%" item)))
+    (dolist (i (lookup "character" "inventory"))
+      (out ctx (format nil "  - ~a~%" (item-display-name i))))
     nil)
   (p "")
   (lambda (ctx)
@@ -200,8 +218,8 @@
     (out ctx (format nil "  Fate:  ~a~%" (lookup "character" "fate")))
     (out ctx (format nil "~%"))
     (out ctx (format nil "  Inventory:~%"))
-    (dolist (item (lookup "character" "inventory"))
-      (out ctx (format nil "    - ~a~%" item)))
+    (dolist (i (lookup "character" "inventory"))
+      (out ctx (format nil "    - ~a~%" (item-display-name i))))
     nil)
   (p "")
   (exit "Begin your adventure!" 'town-square))
