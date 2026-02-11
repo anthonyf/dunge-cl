@@ -167,11 +167,12 @@
   (exit "Continue" 'fate-points))
 
 (make-room 'fate-points "Fate Points"
-  (gate (player-ref #'char-fate)
+  (gate (local-ref "fate-set")
     :else (list
 	   (lambda (ctx)
 	     (declare (ignore ctx))
 	     (setf (char-fate *player*) 2)
+	     (setf (room-local "fate-set") t)
 	     nil)))
   (p "You begin with 2 Fate Points.")
   (p "Fate Points can be spent to narrowly avoid death or reroll a critical save.")
