@@ -1,9 +1,10 @@
 (uiop:define-package #:dunge/character-creation
   (:use #:cl)
   (:shadowing-import-from #:dunge/room #:room)
+  (:shadowing-import-from #:dunge/character #:char-name)
   (:mix #:dunge/room
 	#:dunge/item
-	#:dunge/data-store
+	#:dunge/character
 	#:dunge/engine
 	#:dunge/dice)
   (:export #:character-info
@@ -53,15 +54,16 @@
 ;;; Character creation rooms
 
 (make-room 'character-info "Character Creation"
-  (gate (ref "character" "name")
+  (gate (player-ref #'char-name)
     :then (list
-	   (p "Welcome " (ref "character" "name") "!")
+	   (p "Welcome " (player-ref #'char-name) "!")
 	   (exit "Continue" 'choose-background))
     :else (list
 	   (p "Let's gather some information about your character.")
 	   (prompt "What is your name?"
 		   :validate :non-empty-string
-		   :store '("character" "name")
+		   :action (lambda (input)
+			     (setf *player* (make-instance 'player-character :name input)))
 		   :goto 'character-info))))
 
 (make-room 'choose-background "Choose Your Background"
@@ -74,48 +76,48 @@
 		    (make-instance 'choice
 		      :label (format nil "~a - ~a" n (getf props :description))
 		      :action (lambda ()
-				(setf (lookup "character" "background") n)
+				(setf (char-background *player*) n)
 				(set-vignette (room 'roll-stats))))))))
 
 (make-room 'roll-stats "Roll Ability Scores"
-  (gate (ref "character" "stats-rolled")
+  (gate (local-ref "stats-rolled")
     :else (list
 	   (lambda (ctx)
 	     (declare (ignore ctx))
-	     (setf (lookup "character" "str") (apply #'+ (roll-dice 6 6 6)))
-	     (setf (lookup "character" "dex") (apply #'+ (roll-dice 6 6 6)))
-	     (setf (lookup "character" "wil") (apply #'+ (roll-dice 6 6 6)))
-	     (setf (lookup "character" "stats-rolled") t)
+	     (setf (char-str *player*) (apply #'+ (roll-dice 6 6 6)))
+	     (setf (char-dex *player*) (apply #'+ (roll-dice 6 6 6)))
+	     (setf (char-wil *player*) (apply #'+ (roll-dice 6 6 6)))
+	     (setf (room-local "stats-rolled") t)
 	     nil)))
   (p "You rolled:")
-  (p "  STR: " (ref "character" "str"))
-  (p "  DEX: " (ref "character" "dex"))
-  (p "  WIL: " (ref "character" "wil"))
+  (p "  STR: " (player-ref #'char-str))
+  (p "  DEX: " (player-ref #'char-dex))
+  (p "  WIL: " (player-ref #'char-wil))
   (p "")
   (p "You may swap two ability scores, or continue.")
   (lambda (ctx)
     (declare (ignore ctx))
-    (let ((str (lookup "character" "str"))
-	  (dex (lookup "character" "dex"))
-	  (wil (lookup "character" "wil")))
+    (let ((str (char-str *player*))
+	  (dex (char-dex *player*))
+	  (wil (char-wil *player*)))
       (list
        (make-instance 'choice
 	 :label (format nil "Swap STR (~a) and DEX (~a)" str dex)
 	 :action (lambda ()
-		   (setf (lookup "character" "str") dex)
-		   (setf (lookup "character" "dex") str)
+		   (setf (char-str *player*) dex)
+		   (setf (char-dex *player*) str)
 		   (set-vignette (room 'roll-stats))))
        (make-instance 'choice
 	 :label (format nil "Swap STR (~a) and WIL (~a)" str wil)
 	 :action (lambda ()
-		   (setf (lookup "character" "str") wil)
-		   (setf (lookup "character" "wil") str)
+		   (setf (char-str *player*) wil)
+		   (setf (char-wil *player*) str)
 		   (set-vignette (room 'roll-stats))))
        (make-instance 'choice
 	 :label (format nil "Swap DEX (~a) and WIL (~a)" dex wil)
 	 :action (lambda ()
-		   (setf (lookup "character" "dex") wil)
-		   (setf (lookup "character" "wil") dex)
+		   (setf (char-dex *player*) wil)
+		   (setf (char-wil *player*) dex)
 		   (set-vignette (room 'roll-stats))))
        (make-instance 'choice
 	 :label "Continue"
@@ -123,53 +125,53 @@
 		   (set-vignette (room 'roll-hp))))))))
 
 (make-room 'roll-hp "Roll Hit Points"
-  (gate (ref "character" "hp-rolled")
+  (gate (local-ref "hp-rolled")
     :else (list
 	   (lambda (ctx)
 	     (declare (ignore ctx))
 	     (let ((hp (first (roll-dice 6))))
-	       (setf (lookup "character" "hp") hp)
-	       (setf (lookup "character" "hp-max") hp)
-	       (setf (lookup "character" "hp-rolled") t))
+	       (setf (combatant-hp *player*) hp)
+	       (setf (combatant-hp-max *player*) hp)
+	       (setf (room-local "hp-rolled") t))
 	     nil)))
-  (p "Your hit points: " (ref "character" "hp"))
+  (p "Your hit points: " (player-ref #'combatant-hp))
   (exit "Continue" 'equipment))
 
 (make-room 'equipment "Equipment"
-  (gate (ref "character" "equipped")
+  (gate (local-ref "equipped")
     :else (list
 	   (lambda (ctx)
 	     (declare (ignore ctx))
-	     (let* ((bg (lookup "character" "background"))
+	     (let* ((bg (char-background *player*))
 		    (items (append (background-prop bg :equipment)
 				   (list (make-item "Rations" :stackable t :stack-limit 10 :quantity 3)
 					 (make-item "Torch" :stackable t :stack-limit 5 :quantity 2)
 					 (make-item "Waterskin")))))
-	       (setf (lookup "character" "inventory") items)
-	       (setf (lookup "character" "armor") (background-prop bg :armor))
-	       (setf (lookup "character" "gold") (background-prop bg :gold))
-	       (setf (lookup "character" "equipped") t))
+	       (setf (char-inventory *player*) items)
+	       (setf (combatant-armor *player*) (background-prop bg :armor))
+	       (setf (char-gold *player*) (background-prop bg :gold))
+	       (setf (room-local "equipped") t))
 	     nil)))
-  (p "As a " (ref "character" "background") " you receive:")
+  (p "As a " (player-ref #'char-background) " you receive:")
   (p "")
   (lambda (ctx)
-    (dolist (i (lookup "character" "inventory"))
+    (dolist (i (char-inventory *player*))
       (out ctx (format nil "  - ~a~%" (item-display-name i))))
     nil)
   (p "")
   (lambda (ctx)
-    (out ctx (format nil "  Armor: ~a~%" (lookup "character" "armor")))
-    (out ctx (format nil "  Gold:  ~a~%" (lookup "character" "gold")))
+    (out ctx (format nil "  Armor: ~a~%" (combatant-armor *player*)))
+    (out ctx (format nil "  Gold:  ~a~%" (char-gold *player*)))
     nil)
   (p "")
   (exit "Continue" 'fate-points))
 
 (make-room 'fate-points "Fate Points"
-  (gate (ref "character" "fate")
+  (gate (player-ref #'char-fate)
     :else (list
 	   (lambda (ctx)
 	     (declare (ignore ctx))
-	     (setf (lookup "character" "fate") 2)
+	     (setf (char-fate *player*) 2)
 	     nil)))
   (p "You begin with 2 Fate Points.")
   (p "Fate Points can be spent to narrowly avoid death or reroll a critical save.")
@@ -178,23 +180,23 @@
 
 (make-room 'character-summary "Character Summary"
   (lambda (ctx)
-    (out ctx (format nil "  Name:       ~a~%" (lookup "character" "name")))
-    (out ctx (format nil "  Background: ~a~%" (lookup "character" "background")))
+    (out ctx (format nil "  Name:       ~a~%" (char-name *player*)))
+    (out ctx (format nil "  Background: ~a~%" (char-background *player*)))
     (out ctx (format nil "~%"))
     (out ctx (format nil "  STR: ~a   DEX: ~a   WIL: ~a~%"
-		     (lookup "character" "str")
-		     (lookup "character" "dex")
-		     (lookup "character" "wil")))
+		     (char-str *player*)
+		     (char-dex *player*)
+		     (char-wil *player*)))
     (out ctx (format nil "~%"))
     (out ctx (format nil "  HP:    ~a/~a~%"
-		     (lookup "character" "hp")
-		     (lookup "character" "hp-max")))
-    (out ctx (format nil "  Armor: ~a~%" (lookup "character" "armor")))
-    (out ctx (format nil "  Gold:  ~a~%" (lookup "character" "gold")))
-    (out ctx (format nil "  Fate:  ~a~%" (lookup "character" "fate")))
+		     (combatant-hp *player*)
+		     (combatant-hp-max *player*)))
+    (out ctx (format nil "  Armor: ~a~%" (combatant-armor *player*)))
+    (out ctx (format nil "  Gold:  ~a~%" (char-gold *player*)))
+    (out ctx (format nil "  Fate:  ~a~%" (char-fate *player*)))
     (out ctx (format nil "~%"))
     (out ctx (format nil "  Inventory:~%"))
-    (dolist (i (lookup "character" "inventory"))
+    (dolist (i (char-inventory *player*))
       (out ctx (format nil "    - ~a~%" (item-display-name i))))
     nil)
   (p "")

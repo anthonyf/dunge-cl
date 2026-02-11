@@ -1,9 +1,25 @@
 (uiop:define-package #:dunge/combat
   (:use #:cl)
   (:import-from #:dunge/room #:room-local)
-  (:mix #:dunge/data-store
-	#:dunge/dice)
-  (:export #:setup-encounter
+  (:import-from #:dunge/character
+		#:combatant
+		#:combatant-hp
+		#:combatant-hp-max
+		#:combatant-armor
+		#:*player*)
+  (:mix #:dunge/dice)
+  (:export #:enemy
+	   #:enemy-name
+	   #:enemy-attack-die
+
+	   #:encounter
+	   #:encounter-enemy
+	   #:encounter-active-p
+	   #:encounter-log
+
+	   #:current-encounter
+	   #:encounter-active
+	   #:setup-encounter
 	   #:resolve-player-attack
 	   #:resolve-enemy-attack
 	   #:clear-encounter
@@ -12,36 +28,58 @@
 
 (in-package #:dunge/combat)
 
+(defclass enemy (combatant)
+  ((name       :initarg :name       :accessor enemy-name)
+   (attack-die :initarg :attack-die :accessor enemy-attack-die)))
+
+(defclass encounter ()
+  ((enemy    :initarg :enemy    :accessor encounter-enemy)
+   (active-p :initarg :active-p :accessor encounter-active-p :initform t)
+   (log      :initarg :log      :accessor encounter-log      :initform nil)))
+
+(defun current-encounter ()
+  (room-local "encounter"))
+
+(defun encounter-active ()
+  (let ((enc (current-encounter)))
+    (and enc (encounter-active-p enc))))
+
 (defun setup-encounter (name hp armor attack-die)
-  (setf (room-local "enemy-name") name)
-  (setf (room-local "enemy-hp") hp)
-  (setf (room-local "enemy-hp-max") hp)
-  (setf (room-local "enemy-armor") armor)
-  (setf (room-local "enemy-attack") attack-die)
-  (setf (room-local "active") t))
+  (let* ((e (make-instance 'enemy
+			   :name name
+			   :hp hp
+			   :hp-max hp
+			   :armor armor
+			   :attack-die attack-die))
+	 (enc (make-instance 'encounter :enemy e)))
+    (setf (room-local "encounter") enc)))
 
 (defun resolve-player-attack (damage-die)
-  (let* ((roll (first (roll-dice damage-die)))
-	 (armor (room-local "enemy-armor"))
+  (let* ((e (encounter-enemy (current-encounter)))
+	 (roll (first (roll-dice damage-die)))
+	 (armor (combatant-armor e))
 	 (damage (max 0 (- roll armor)))
-	 (new-hp (max 0 (- (room-local "enemy-hp") damage))))
-    (setf (room-local "enemy-hp") new-hp)
+	 (new-hp (max 0 (- (combatant-hp e) damage))))
+    (setf (combatant-hp e) new-hp)
     damage))
 
 (defun resolve-enemy-attack ()
-  (let* ((attack-die (room-local "enemy-attack"))
-	 (roll (first (roll-dice attack-die)))
-	 (armor (lookup "character" "armor"))
+  (let* ((e (encounter-enemy (current-encounter)))
+	 (roll (first (roll-dice (enemy-attack-die e))))
+	 (armor (combatant-armor *player*))
 	 (damage (max 0 (- roll armor)))
-	 (new-hp (max 0 (- (lookup "character" "hp") damage))))
-    (setf (lookup "character" "hp") new-hp)
+	 (new-hp (max 0 (- (combatant-hp *player*) damage))))
+    (setf (combatant-hp *player*) new-hp)
     damage))
 
 (defun clear-encounter ()
-  (setf (room-local "active") nil))
+  (let ((enc (current-encounter)))
+    (when enc
+      (setf (encounter-active-p enc) nil))))
 
 (defun enemy-alive-p ()
-  (> (room-local "enemy-hp") 0))
+  (let ((enc (current-encounter)))
+    (and enc (> (combatant-hp (encounter-enemy enc)) 0))))
 
 (defun player-alive-p ()
-  (> (lookup "character" "hp") 0))
+  (> (combatant-hp *player*) 0))

@@ -2,8 +2,10 @@
   (:use #:cl)
   (:shadowing-import-from #:dunge/room #:room)
   (:shadowing-import-from #:dunge/item #:item)
+  (:shadowing-import-from #:dunge/character #:char-name)
   (:mix-reexport #:dunge/combat
 		 #:dunge/character-creation
+		 #:dunge/character
 		 #:dunge/data-store
 		 #:dunge/utils
 		 #:dunge/engine
@@ -58,7 +60,7 @@
 
 (make-room 'test-combat "Combat!"
   ;; Setup: if combat not active, initialize the encounter
-  (gate (lambda () (not (room-local "active")))
+  (gate (lambda () (not (encounter-active)))
     :then (list
 	   (lambda (ctx)
 	     (declare (ignore ctx))
@@ -68,15 +70,17 @@
 	   (p "")))
 
   ;; Show last round's results if log exists
-  (gate (local-ref "log")
+  (gate (lambda () (let ((enc (current-encounter)))
+		     (and enc (encounter-log enc))))
     :then (list
 	   (lambda (ctx)
-	     (out ctx (format nil "~a~%" (room-local "log")))
-	     (setf (room-local "log") nil)
+	     (let ((enc (current-encounter)))
+	       (out ctx (format nil "~a~%" (encounter-log enc)))
+	       (setf (encounter-log enc) nil))
 	     nil)))
 
   ;; Victory: enemy HP <= 0
-  (gate (lambda () (and (room-local "active")
+  (gate (lambda () (and (encounter-active)
 			(not (enemy-alive-p))))
     :then (list
 	   (lambda (ctx)
@@ -88,12 +92,12 @@
 	   (exit "Return to Adventure Board" 'adventure-board)))
 
   ;; Defeat: player HP <= 0
-  (gate (lambda () (and (room-local "active")
+  (gate (lambda () (and (encounter-active)
 			(not (player-alive-p))))
     :then (list
 	   (lambda (ctx)
 	     (declare (ignore ctx))
-	     (setf (lookup "character" "hp") (lookup "character" "hp-max"))
+	     (setf (combatant-hp *player*) (combatant-hp-max *player*))
 	     (clear-encounter)
 	     nil)
 	   (p "The goblin knocks you unconscious. You wake up back in town.")
@@ -101,17 +105,18 @@
 	   (exit "Return to Town Square" 'town-square)))
 
   ;; Active combat: show status and attack option
-  (gate (lambda () (and (room-local "active")
+  (gate (lambda () (and (encounter-active)
 			(enemy-alive-p)
 			(player-alive-p)))
     :then (list
 	   (lambda (ctx)
-	     (out ctx (format nil "  Goblin HP: ~a/~a~%"
-			      (room-local "enemy-hp")
-			      (room-local "enemy-hp-max")))
+	     (let ((e (encounter-enemy (current-encounter))))
+	       (out ctx (format nil "  Goblin HP: ~a/~a~%"
+				(combatant-hp e)
+				(combatant-hp-max e))))
 	     (out ctx (format nil "  Your HP:   ~a/~a~%"
-			      (lookup "character" "hp")
-			      (lookup "character" "hp-max")))
+			      (combatant-hp *player*)
+			      (combatant-hp-max *player*)))
 	     nil)
 	   (p "")
 	   (lambda (ctx)
@@ -122,7 +127,7 @@
 		:action (lambda ()
 			  (let ((player-dmg (resolve-player-attack 6))
 				(enemy-dmg (resolve-enemy-attack)))
-			    (setf (room-local "log")
+			    (setf (encounter-log (current-encounter))
 				  (format nil "You deal ~a damage. The goblin deals ~a damage."
 					  player-dmg enemy-dmg)))
 			  (set-vignette (room 'test-combat)))))))))

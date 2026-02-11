@@ -19,6 +19,7 @@
 		 (:file "engine")
 		 (:file "room")
 		 (:file "item")
+		 (:file "character")
 		 (:file "character-creation")
 		 (:file "combat")
 		 (:file "main"))))

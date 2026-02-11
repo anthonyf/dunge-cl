@@ -114,15 +114,18 @@
 	       (:non-empty-string #'validate-non-empty-string)))
     (function validator)))
 
-(defun prompt (question &key validate store goto)
-  (make-instance 'prompt
-		 :question question
-		 :validate-fn (resolve-validator validate)
-		 :action (lambda (input)
-			   (when store
-			     (apply #'(setf lookup) input store))
-			   (when goto
-			     (set-vignette (room goto))))))
+(defun prompt (question &key validate store action goto)
+  (let ((act action))
+    (make-instance 'prompt
+		   :question question
+		   :validate-fn (resolve-validator validate)
+		   :action (lambda (input)
+			     (when store
+			       (apply #'(setf lookup) input store))
+			     (when act
+			       (funcall act input))
+			     (when goto
+			       (set-vignette (room goto)))))))
 
 (defun room (id)
   (lookup "rooms" id))
