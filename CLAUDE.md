@@ -12,6 +12,10 @@ sbcl --load web-export.lisp
 
 # Run tests
 (asdf:test-system :dunge)
+
+# Serve web build from remote VPS (run from local machine)
+ssh -L 8080:localhost:8080 user@your-vps "python3 -m http.server 8080 --directory /home/dev/git/dunge-cl/dist/"
+# Then open http://localhost:8080
 ```
 
 ## Architecture

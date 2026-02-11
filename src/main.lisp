@@ -79,7 +79,7 @@
 	       (setf (encounter-log enc) nil))
 	     nil)))
 
-  ;; Victory: enemy HP <= 0
+  ;; Victory: enemy is dead (STR=0 or failed STR save)
   (gate (lambda () (and (encounter-active)
 			(not (enemy-alive-p))))
     :then (list
@@ -91,16 +91,32 @@
 	   (p "")
 	   (exit "Return to Adventure Board" 'adventure-board)))
 
-  ;; Defeat: player HP <= 0
+  ;; Defeat (death): player STR=0
   (gate (lambda () (and (encounter-active)
-			(not (player-alive-p))))
+			(<= (combatant-str *player*) 0)))
     :then (list
 	   (lambda (ctx)
 	     (declare (ignore ctx))
 	     (setf (combatant-hp *player*) (combatant-hp-max *player*))
+	     (setf (combatant-str *player*) 10)
 	     (clear-encounter)
 	     nil)
-	   (p "The goblin knocks you unconscious. You wake up back in town.")
+	   (p "Your wounds are fatal. You collapse and breathe your last.")
+	   (p "")
+	   (exit "Return to Town Square" 'town-square)))
+
+  ;; Defeat (incapacitated): player failed STR save
+  (gate (lambda () (and (encounter-active)
+			(encounter-player-down (current-encounter))))
+    :then (list
+	   (lambda (ctx)
+	     (declare (ignore ctx))
+	     (setf (combatant-hp *player*) (combatant-hp-max *player*))
+	     (setf (combatant-str *player*) 10)
+	     (setf (encounter-player-down (current-encounter)) nil)
+	     (clear-encounter)
+	     nil)
+	   (p "You fall unconscious from your wounds. You wake up back in town, battered but alive.")
 	   (p "")
 	   (exit "Return to Town Square" 'town-square)))
 
@@ -111,12 +127,14 @@
     :then (list
 	   (lambda (ctx)
 	     (let ((e (encounter-enemy (current-encounter))))
-	       (out ctx (format nil "  Goblin HP: ~a/~a~%"
+	       (out ctx (format nil "  Goblin HP: ~a/~a  STR: ~a~%"
 				(combatant-hp e)
-				(combatant-hp-max e))))
-	     (out ctx (format nil "  Your HP:   ~a/~a~%"
+				(combatant-hp-max e)
+				(combatant-str e))))
+	     (out ctx (format nil "  Your HP:   ~a/~a  STR: ~a~%"
 			      (combatant-hp *player*)
-			      (combatant-hp-max *player*)))
+			      (combatant-hp-max *player*)
+			      (combatant-str *player*)))
 	     nil)
 	   (p "")
 	   (lambda (ctx)
@@ -125,11 +143,21 @@
 	      (make-instance 'choice
 		:label "Attack"
 		:action (lambda ()
-			  (let ((player-dmg (resolve-player-attack 6))
-				(enemy-dmg (resolve-enemy-attack)))
-			    (setf (encounter-log (current-encounter))
-				  (format nil "You deal ~a damage. The goblin deals ~a damage."
-					  player-dmg enemy-dmg)))
+			  (let* ((enc (current-encounter))
+				 (player-result (resolve-player-attack 6))
+				 (enemy-result (resolve-enemy-attack)))
+			    ;; Mark enemy dead if STR=0 or failed STR save
+			    (when (or (getf player-result :dead)
+				      (and (not (eq (getf player-result :critical-save) :none))
+					   (not (getf player-result :critical-save))))
+			      (setf (encounter-enemy-dead enc) t))
+			    ;; Mark player down if failed STR save (but not dead)
+			    (when (and (not (getf enemy-result :dead))
+				       (not (eq (getf enemy-result :critical-save) :none))
+				       (not (getf enemy-result :critical-save)))
+			      (setf (encounter-player-down enc) t))
+			    (setf (encounter-log enc)
+				  (format-combat-log player-result enemy-result)))
 			  (set-vignette (room 'test-combat)))))))))
 
 

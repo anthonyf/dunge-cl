@@ -119,3 +119,21 @@
     (setf (dunge/combat:encounter-log enc) '("hit" "miss"))
     (web-assert (equal (dunge/combat:encounter-log enc) '("hit" "miss"))
                 "encounter-log round-trip failed")))
+
+(define-web-test test-encounter-enemy-dead-setf
+  (let ((enc (make-instance 'dunge/combat:encounter
+                            :enemy nil)))
+    (web-assert (null (dunge/combat:encounter-enemy-dead enc))
+                "encounter-enemy-dead should default to nil")
+    (setf (dunge/combat:encounter-enemy-dead enc) t)
+    (web-assert (eq (dunge/combat:encounter-enemy-dead enc) t)
+                "encounter-enemy-dead round-trip failed")))
+
+(define-web-test test-encounter-player-down-setf
+  (let ((enc (make-instance 'dunge/combat:encounter
+                            :enemy nil)))
+    (web-assert (null (dunge/combat:encounter-player-down enc))
+                "encounter-player-down should default to nil")
+    (setf (dunge/combat:encounter-player-down enc) t)
+    (web-assert (eq (dunge/combat:encounter-player-down enc) t)
+                "encounter-player-down round-trip failed")))
