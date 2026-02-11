@@ -64,7 +64,7 @@
     :then (list
 	   (lambda (ctx)
 	     (declare (ignore ctx))
-	     (setup-encounter "Goblin" 4 0 6)
+	     (setup-encounter "Goblin" 4 0 6 :str 8 :dex 12 :wil 8)
 	     nil)
 	   (p "A goblin leaps out of the shadows!")
 	   (p "")))

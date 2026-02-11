@@ -6,6 +6,9 @@
 		#:combatant-hp
 		#:combatant-hp-max
 		#:combatant-armor
+		#:combatant-str
+		#:combatant-dex
+		#:combatant-wil
 		#:*player*)
   (:mix #:dunge/dice)
   (:export #:enemy
@@ -44,13 +47,16 @@
   (let ((enc (current-encounter)))
     (and enc (encounter-active-p enc))))
 
-(defun setup-encounter (name hp armor attack-die)
+(defun setup-encounter (name hp armor attack-die &key (str 10) (dex 10) (wil 10))
   (let* ((e (make-instance 'enemy
 			   :name name
 			   :hp hp
 			   :hp-max hp
 			   :armor armor
-			   :attack-die attack-die))
+			   :attack-die attack-die
+			   :str str
+			   :dex dex
+			   :wil wil))
 	 (enc (make-instance 'encounter :enemy e)))
     (setf (room-local "encounter") enc)))
 

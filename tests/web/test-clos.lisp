@@ -4,25 +4,45 @@
 
 (in-package #:dunge/web-tests)
 
-;;; --- player-character ---
+;;; --- combatant (shared by player-character and enemy) ---
 
-(define-web-test test-char-str-setf
+(define-web-test test-combatant-hp-setf
   (let ((pc (make-instance 'dunge/character:player-character)))
-    (setf (dunge/character:char-str pc) 14)
-    (web-assert (= (dunge/character:char-str pc) 14)
-                "char-str round-trip failed")))
+    (setf (dunge/character:combatant-hp pc) 20)
+    (web-assert (= (dunge/character:combatant-hp pc) 20)
+                "combatant-hp round-trip failed")))
 
-(define-web-test test-char-dex-setf
+(define-web-test test-combatant-hp-max-setf
   (let ((pc (make-instance 'dunge/character:player-character)))
-    (setf (dunge/character:char-dex pc) 10)
-    (web-assert (= (dunge/character:char-dex pc) 10)
-                "char-dex round-trip failed")))
+    (setf (dunge/character:combatant-hp-max pc) 20)
+    (web-assert (= (dunge/character:combatant-hp-max pc) 20)
+                "combatant-hp-max round-trip failed")))
 
-(define-web-test test-char-wil-setf
+(define-web-test test-combatant-armor-setf
   (let ((pc (make-instance 'dunge/character:player-character)))
-    (setf (dunge/character:char-wil pc) 8)
-    (web-assert (= (dunge/character:char-wil pc) 8)
-                "char-wil round-trip failed")))
+    (setf (dunge/character:combatant-armor pc) 2)
+    (web-assert (= (dunge/character:combatant-armor pc) 2)
+                "combatant-armor round-trip failed")))
+
+(define-web-test test-combatant-str-setf
+  (let ((pc (make-instance 'dunge/character:player-character)))
+    (setf (dunge/character:combatant-str pc) 14)
+    (web-assert (= (dunge/character:combatant-str pc) 14)
+                "combatant-str round-trip failed")))
+
+(define-web-test test-combatant-dex-setf
+  (let ((pc (make-instance 'dunge/character:player-character)))
+    (setf (dunge/character:combatant-dex pc) 10)
+    (web-assert (= (dunge/character:combatant-dex pc) 10)
+                "combatant-dex round-trip failed")))
+
+(define-web-test test-combatant-wil-setf
+  (let ((pc (make-instance 'dunge/character:player-character)))
+    (setf (dunge/character:combatant-wil pc) 8)
+    (web-assert (= (dunge/character:combatant-wil pc) 8)
+                "combatant-wil round-trip failed")))
+
+;;; --- player-character specific ---
 
 (define-web-test test-char-gold-setf
   (let ((pc (make-instance 'dunge/character:player-character)))
@@ -54,25 +74,7 @@
     (web-assert (equal (dunge/character:char-inventory pc) '("sword" "shield"))
                 "char-inventory round-trip failed")))
 
-(define-web-test test-combatant-hp-setf
-  (let ((pc (make-instance 'dunge/character:player-character)))
-    (setf (dunge/character:combatant-hp pc) 20)
-    (web-assert (= (dunge/character:combatant-hp pc) 20)
-                "combatant-hp round-trip failed")))
-
-(define-web-test test-combatant-hp-max-setf
-  (let ((pc (make-instance 'dunge/character:player-character)))
-    (setf (dunge/character:combatant-hp-max pc) 20)
-    (web-assert (= (dunge/character:combatant-hp-max pc) 20)
-                "combatant-hp-max round-trip failed")))
-
-(define-web-test test-combatant-armor-setf
-  (let ((pc (make-instance 'dunge/character:player-character)))
-    (setf (dunge/character:combatant-armor pc) 2)
-    (web-assert (= (dunge/character:combatant-armor pc) 2)
-                "combatant-armor round-trip failed")))
-
-;;; --- enemy ---
+;;; --- enemy (str/dex/wil inherited from combatant) ---
 
 (define-web-test test-enemy-hp-setf
   (let ((e (make-instance 'dunge/combat:enemy
@@ -81,6 +83,26 @@
     (setf (dunge/character:combatant-hp e) 3)
     (web-assert (= (dunge/character:combatant-hp e) 3)
                 "enemy combatant-hp round-trip failed")))
+
+(define-web-test test-enemy-str-setf
+  (let ((e (make-instance 'dunge/combat:enemy
+                          :name "Goblin" :hp 4 :hp-max 4
+                          :armor 0 :attack-die "d6"
+                          :str 8 :dex 12 :wil 8)))
+    (setf (dunge/character:combatant-str e) 6)
+    (web-assert (= (dunge/character:combatant-str e) 6)
+                "enemy combatant-str round-trip failed")))
+
+(define-web-test test-enemy-default-stats
+  (let ((e (make-instance 'dunge/combat:enemy
+                          :name "Goblin" :hp 4 :hp-max 4
+                          :armor 0 :attack-die "d6")))
+    (web-assert (= (dunge/character:combatant-str e) 10)
+                "enemy default str should be 10")
+    (web-assert (= (dunge/character:combatant-dex e) 10)
+                "enemy default dex should be 10")
+    (web-assert (= (dunge/character:combatant-wil e) 10)
+                "enemy default wil should be 10")))
 
 ;;; --- encounter ---
 
