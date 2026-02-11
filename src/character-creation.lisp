@@ -92,7 +92,7 @@
   (p "  DEX: " (ref "character" "dex"))
   (p "  WIL: " (ref "character" "wil"))
   (p "")
-  (p "You may swap two ability scores, or keep them as they are.")
+  (p "You may swap two ability scores, or continue.")
   (lambda (ctx)
     (declare (ignore ctx))
     (let ((str (lookup "character" "str"))
@@ -104,21 +104,21 @@
 	 :action (lambda ()
 		   (setf (lookup "character" "str") dex)
 		   (setf (lookup "character" "dex") str)
-		   (set-vignette (room 'roll-hp))))
+		   (set-vignette (room 'roll-stats))))
        (make-instance 'choice
 	 :label (format nil "Swap STR (~a) and WIL (~a)" str wil)
 	 :action (lambda ()
 		   (setf (lookup "character" "str") wil)
 		   (setf (lookup "character" "wil") str)
-		   (set-vignette (room 'roll-hp))))
+		   (set-vignette (room 'roll-stats))))
        (make-instance 'choice
 	 :label (format nil "Swap DEX (~a) and WIL (~a)" dex wil)
 	 :action (lambda ()
 		   (setf (lookup "character" "dex") wil)
 		   (setf (lookup "character" "wil") dex)
-		   (set-vignette (room 'roll-hp))))
+		   (set-vignette (room 'roll-stats))))
        (make-instance 'choice
-	 :label "Keep as they are"
+	 :label "Continue"
 	 :action (lambda ()
 		   (set-vignette (room 'roll-hp))))))))
 
