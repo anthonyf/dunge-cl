@@ -2,7 +2,8 @@
   (:use #:cl)
   (:shadowing-import-from #:dunge/room #:room)
   (:shadowing-import-from #:dunge/item #:item)
-  (:mix-reexport #:dunge/character-creation
+  (:mix-reexport #:dunge/combat
+		 #:dunge/character-creation
 		 #:dunge/data-store
 		 #:dunge/utils
 		 #:dunge/engine
@@ -46,8 +47,85 @@
   (exit "Go to the blacksmith" 'blacksmith :description "To the east you see smoke from the forge of the town blacksmith."))
 
 (make-room 'adventure-board "Adventure Board"
-  (p "Todo random adventures will be generated and posted here.")
+  (p "The board is covered in tattered notices. One catches your eye:")
+  (p "")
+  (p "  \"GOBLIN SPOTTED near the old watchtower. Reward for its removal.\"")
+  (p "")
+  (exit "Investigate the goblin sighting" 'test-combat)
   (exit "Back" 'town-square))
+
+;;; Combat encounter
+
+(make-room 'test-combat "Combat!"
+  ;; Setup: if combat not active, initialize the encounter
+  (gate (lambda () (not (lookup "combat" "active")))
+    :then (list
+	   (lambda (ctx)
+	     (declare (ignore ctx))
+	     (setup-encounter "Goblin" 4 0 6)
+	     nil)
+	   (p "A goblin leaps out of the shadows!")
+	   (p "")))
+
+  ;; Show last round's results if log exists
+  (gate (ref "combat" "log")
+    :then (list
+	   (lambda (ctx)
+	     (out ctx (format nil "~a~%" (lookup "combat" "log")))
+	     (setf (lookup "combat" "log") nil)
+	     nil)))
+
+  ;; Victory: enemy HP <= 0
+  (gate (lambda () (and (lookup "combat" "active")
+			(not (enemy-alive-p))))
+    :then (list
+	   (lambda (ctx)
+	     (declare (ignore ctx))
+	     (clear-encounter)
+	     nil)
+	   (p "The goblin crumples to the ground. Victory!")
+	   (p "")
+	   (exit "Return to Adventure Board" 'adventure-board)))
+
+  ;; Defeat: player HP <= 0
+  (gate (lambda () (and (lookup "combat" "active")
+			(not (player-alive-p))))
+    :then (list
+	   (lambda (ctx)
+	     (declare (ignore ctx))
+	     (setf (lookup "character" "hp") (lookup "character" "hp-max"))
+	     (clear-encounter)
+	     nil)
+	   (p "The goblin knocks you unconscious. You wake up back in town.")
+	   (p "")
+	   (exit "Return to Town Square" 'town-square)))
+
+  ;; Active combat: show status and attack option
+  (gate (lambda () (and (lookup "combat" "active")
+			(enemy-alive-p)
+			(player-alive-p)))
+    :then (list
+	   (lambda (ctx)
+	     (out ctx (format nil "  Goblin HP: ~a/~a~%"
+			      (lookup "combat" "enemy-hp")
+			      (lookup "combat" "enemy-hp-max")))
+	     (out ctx (format nil "  Your HP:   ~a/~a~%"
+			      (lookup "character" "hp")
+			      (lookup "character" "hp-max")))
+	     nil)
+	   (p "")
+	   (lambda (ctx)
+	     (declare (ignore ctx))
+	     (list
+	      (make-instance 'choice
+		:label "Attack"
+		:action (lambda ()
+			  (let ((player-dmg (resolve-player-attack 6))
+				(enemy-dmg (resolve-enemy-attack)))
+			    (setf (lookup "combat" "log")
+				  (format nil "You deal ~a damage. The goblin deals ~a damage."
+					  player-dmg enemy-dmg)))
+			  (set-vignette (room 'test-combat)))))))))
 
 
 (make-room 'blacksmith "Blacksmith"

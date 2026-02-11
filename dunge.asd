@@ -20,6 +20,7 @@
 		 (:file "room")
 		 (:file "item")
 		 (:file "character-creation")
+		 (:file "combat")
 		 (:file "main"))))
   :in-order-to ((test-op (test-op "dunge/tests"))))
 

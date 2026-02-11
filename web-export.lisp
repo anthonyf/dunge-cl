@@ -417,6 +417,7 @@ body {
            (src-file "room.lisp")
            (src-file "item.lisp")
            (src-file "character-creation.lisp")
+           (src-file "combat.lisp")
            (src-file "main.lisp")
            patches-path
            browser-path
