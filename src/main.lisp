@@ -58,7 +58,7 @@
 
 (make-room 'test-combat "Combat!"
   ;; Setup: if combat not active, initialize the encounter
-  (gate (lambda () (not (lookup "combat" "active")))
+  (gate (lambda () (not (room-local "active")))
     :then (list
 	   (lambda (ctx)
 	     (declare (ignore ctx))
@@ -68,15 +68,15 @@
 	   (p "")))
 
   ;; Show last round's results if log exists
-  (gate (ref "combat" "log")
+  (gate (local-ref "log")
     :then (list
 	   (lambda (ctx)
-	     (out ctx (format nil "~a~%" (lookup "combat" "log")))
-	     (setf (lookup "combat" "log") nil)
+	     (out ctx (format nil "~a~%" (room-local "log")))
+	     (setf (room-local "log") nil)
 	     nil)))
 
   ;; Victory: enemy HP <= 0
-  (gate (lambda () (and (lookup "combat" "active")
+  (gate (lambda () (and (room-local "active")
 			(not (enemy-alive-p))))
     :then (list
 	   (lambda (ctx)
@@ -88,7 +88,7 @@
 	   (exit "Return to Adventure Board" 'adventure-board)))
 
   ;; Defeat: player HP <= 0
-  (gate (lambda () (and (lookup "combat" "active")
+  (gate (lambda () (and (room-local "active")
 			(not (player-alive-p))))
     :then (list
 	   (lambda (ctx)
@@ -101,14 +101,14 @@
 	   (exit "Return to Town Square" 'town-square)))
 
   ;; Active combat: show status and attack option
-  (gate (lambda () (and (lookup "combat" "active")
+  (gate (lambda () (and (room-local "active")
 			(enemy-alive-p)
 			(player-alive-p)))
     :then (list
 	   (lambda (ctx)
 	     (out ctx (format nil "  Goblin HP: ~a/~a~%"
-			      (lookup "combat" "enemy-hp")
-			      (lookup "combat" "enemy-hp-max")))
+			      (room-local "enemy-hp")
+			      (room-local "enemy-hp-max")))
 	     (out ctx (format nil "  Your HP:   ~a/~a~%"
 			      (lookup "character" "hp")
 			      (lookup "character" "hp-max")))
@@ -122,7 +122,7 @@
 		:action (lambda ()
 			  (let ((player-dmg (resolve-player-attack 6))
 				(enemy-dmg (resolve-enemy-attack)))
-			    (setf (lookup "combat" "log")
+			    (setf (room-local "log")
 				  (format nil "You deal ~a damage. The goblin deals ~a damage."
 					  player-dmg enemy-dmg)))
 			  (set-vignette (room 'test-combat)))))))))

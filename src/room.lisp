@@ -10,7 +10,10 @@
 	   #:exit
 	   #:gate
 	   #:p
-	   #:prompt))
+	   #:prompt
+	   #:room-locals
+	   #:room-local
+	   #:local-ref))
 
 (in-package #:dunge/room)
 
@@ -57,7 +60,25 @@
   ((title :initarg :title
 	  :accessor room-title)
    (elements :initarg :elements
-		  :accessor room-elements)))
+	     :accessor room-elements)
+   (locals :accessor room-locals
+	   :initform (make-hash-table :test 'equal))))
+
+(defun room-local (key)
+  (let ((room (current-vignette)))
+    (when (typep room 'room)
+      (gethash key (room-locals room)))))
+
+(defun (setf room-local) (value key)
+  (let ((room (current-vignette)))
+    (when (typep room 'room)
+      (if (null value)
+	  (remhash key (room-locals room))
+	  (setf (gethash key (room-locals room)) value))))
+  value)
+
+(defun local-ref (key)
+  (lambda () (room-local key)))
 
 (defmethod perform (ctx (room room))
   (out ctx

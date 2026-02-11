@@ -1,5 +1,6 @@
 (uiop:define-package #:dunge/combat
   (:use #:cl)
+  (:import-from #:dunge/room #:room-local)
   (:mix #:dunge/data-store
 	#:dunge/dice)
   (:export #:setup-encounter
@@ -12,23 +13,23 @@
 (in-package #:dunge/combat)
 
 (defun setup-encounter (name hp armor attack-die)
-  (setf (lookup "combat" "enemy-name") name)
-  (setf (lookup "combat" "enemy-hp") hp)
-  (setf (lookup "combat" "enemy-hp-max") hp)
-  (setf (lookup "combat" "enemy-armor") armor)
-  (setf (lookup "combat" "enemy-attack") attack-die)
-  (setf (lookup "combat" "active") t))
+  (setf (room-local "enemy-name") name)
+  (setf (room-local "enemy-hp") hp)
+  (setf (room-local "enemy-hp-max") hp)
+  (setf (room-local "enemy-armor") armor)
+  (setf (room-local "enemy-attack") attack-die)
+  (setf (room-local "active") t))
 
 (defun resolve-player-attack (damage-die)
   (let* ((roll (first (roll-dice damage-die)))
-	 (armor (lookup "combat" "enemy-armor"))
+	 (armor (room-local "enemy-armor"))
 	 (damage (max 0 (- roll armor)))
-	 (new-hp (max 0 (- (lookup "combat" "enemy-hp") damage))))
-    (setf (lookup "combat" "enemy-hp") new-hp)
+	 (new-hp (max 0 (- (room-local "enemy-hp") damage))))
+    (setf (room-local "enemy-hp") new-hp)
     damage))
 
 (defun resolve-enemy-attack ()
-  (let* ((attack-die (lookup "combat" "enemy-attack"))
+  (let* ((attack-die (room-local "enemy-attack"))
 	 (roll (first (roll-dice attack-die)))
 	 (armor (lookup "character" "armor"))
 	 (damage (max 0 (- roll armor)))
@@ -37,10 +38,10 @@
     damage))
 
 (defun clear-encounter ()
-  (setf (lookup "combat" "active") nil))
+  (setf (room-local "active") nil))
 
 (defun enemy-alive-p ()
-  (> (lookup "combat" "enemy-hp") 0))
+  (> (room-local "enemy-hp") 0))
 
 (defun player-alive-p ()
   (> (lookup "character" "hp") 0))
