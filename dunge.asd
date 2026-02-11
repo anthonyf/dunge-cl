@@ -19,6 +19,7 @@
 		 (:file "engine")
 		 (:file "room")
 		 (:file "item")
+		 (:file "character-creation")
 		 (:file "main"))))
   :in-order-to ((test-op (test-op "dunge/tests"))))
 

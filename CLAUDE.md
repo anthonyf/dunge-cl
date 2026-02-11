@@ -39,6 +39,7 @@ sbcl --load web-export.lisp
 - Package per file: `dunge/utils`, `dunge/data-store`, `dunge/engine`, `dunge/room`, etc.
 - `dunge` package re-exports everything via `:mix-reexport`
 - No changes to src/ files for web compatibility — patches go in web-export.lisp
+- main.lisp should be the last file to load.
 
 ## JSCL Web Export Gotchas
 
