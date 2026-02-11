@@ -409,6 +409,32 @@ body {
 </html>
 ")
 
+;;; ——— Test build support ———
+
+(defvar *test-dir*
+  (merge-pathnames "tests/web/" *project-root*))
+
+(defvar *test-boot-source*
+  ";;; Test boot — run web tests
+(in-package #:dunge/web-tests)
+(dunge/web-tests::run-web-tests)
+")
+
+(defvar *test-html-template*
+  "<!DOCTYPE html>
+<html lang=\"en\">
+<head>
+<meta charset=\"utf-8\">
+<title>Dunge Web Tests</title>
+</head>
+<body>
+<div id=\"test-results\"></div>
+<script src=\"jscl.js\"></script>
+<script src=\"tests.js\"></script>
+</body>
+</html>
+")
+
 ;;; ——— Build steps ———
 
 (defun write-temp-file (name content)
@@ -422,67 +448,101 @@ body {
 (defun src-file (name)
   (merge-pathnames name *src-dir*))
 
+(defun test-file (name)
+  (merge-pathnames name *test-dir*))
+
+(defun source-files ()
+  "List of game source files compiled in both normal and test builds."
+  (list (src-file "utils.lisp")
+        (src-file "data-store.lisp")
+        (src-file "dice.lisp")
+        (src-file "text-layout.lisp")
+        (src-file "engine.lisp")
+        (src-file "room.lisp")
+        (src-file "item.lisp")
+        (src-file "character.lisp")
+        (src-file "character-creation.lisp")
+        (src-file "combat.lisp")
+        (src-file "main.lisp")))
+
 (defun main ()
-  (format t "~&=== Dunge Web Export ===~%")
+  (let ((test-mode (member :web-test *features*)))
+    (format t "~&=== Dunge Web Export~A ===~%"
+            (if test-mode " (Tests)" ""))
 
-  ;; 1. Bootstrap JSCL
-  ;; NOTE: We use uiop:symbol-call because the JSCL package does not exist
-  ;; at read time — it is created when jscl.lisp is loaded.
-  (format t "~&Loading JSCL...~%")
-  (let ((*default-pathname-defaults* *jscl-dir*))
-    (load (merge-pathnames "jscl.lisp" *jscl-dir*)))
-  (format t "~&Bootstrapping JSCL...~%")
-  (uiop:symbol-call :jscl :bootstrap)
-  (format t "~&JSCL bootstrap complete.~%")
+    ;; 1. Bootstrap JSCL
+    ;; NOTE: We use uiop:symbol-call because the JSCL package does not exist
+    ;; at read time — it is created when jscl.lisp is loaded.
+    (format t "~&Loading JSCL...~%")
+    (let ((*default-pathname-defaults* *jscl-dir*))
+      (load (merge-pathnames "jscl.lisp" *jscl-dir*)))
+    (format t "~&Bootstrapping JSCL...~%")
+    (uiop:symbol-call :jscl :bootstrap)
+    (format t "~&JSCL bootstrap complete.~%")
 
-  ;; 2. Write temp files
-  (let ((shim-path    (write-compat-shim (merge-pathnames "compat-shim.lisp" *project-root*)))
-        (patches-path (write-temp-file "patches.lisp"     *patches-source*))
-        (browser-path (write-temp-file "browser-context.lisp" *browser-context-source*))
-        (boot-path    (write-temp-file "boot.lisp"        *boot-source*)))
+    ;; 2. Write common temp files
+    (let ((shim-path    (write-compat-shim (merge-pathnames "compat-shim.lisp" *project-root*)))
+          (patches-path (write-temp-file "patches.lisp" *patches-source*)))
+      (ensure-directories-exist *dist-dir*)
 
-    ;; 3. Compile application
-    (format t "~&Compiling game...~%")
-    (ensure-directories-exist *dist-dir*)
-    (uiop:symbol-call :jscl :compile-application
-     (list shim-path
-           (src-file "utils.lisp")
-           (src-file "data-store.lisp")
-           (src-file "dice.lisp")
-           (src-file "text-layout.lisp")
-           (src-file "engine.lisp")
-           (src-file "room.lisp")
-           (src-file "item.lisp")
-           (src-file "character.lisp")
-           (src-file "character-creation.lisp")
-           (src-file "combat.lisp")
-           (src-file "main.lisp")
-           patches-path
-           browser-path
-           boot-path)
-     (merge-pathnames "dunge.js" *dist-dir*))
-    (format t "~&Compilation complete.~%")
+      (if test-mode
+          ;; ——— Test build ———
+          (let ((test-boot-path (write-temp-file "test-boot.lisp" *test-boot-source*)))
+            (format t "~&Compiling tests...~%")
+            (uiop:symbol-call :jscl :compile-application
+             (append (list shim-path)
+                     (source-files)
+                     (list patches-path
+                           (test-file "test-framework.lisp")
+                           (test-file "test-clos.lisp")
+                           (test-file "test-data-store.lisp")
+                           test-boot-path))
+             (merge-pathnames "tests.js" *dist-dir*))
+            (format t "~&Compilation complete.~%")
 
-    ;; 4. Copy jscl.js runtime
-    (format t "~&Copying JSCL runtime...~%")
-    (uiop:copy-file
-     (merge-pathnames "dist/jscl.js" *jscl-dir*)
-     (merge-pathnames "jscl.js" *dist-dir*))
+            (format t "~&Copying JSCL runtime...~%")
+            (uiop:copy-file
+             (merge-pathnames "dist/jscl.js" *jscl-dir*)
+             (merge-pathnames "jscl.js" *dist-dir*))
 
-    ;; 5. Write index.html
-    (format t "~&Writing index.html...~%")
-    (with-open-file (out (merge-pathnames "index.html" *dist-dir*)
-                         :direction :output :if-exists :supersede)
-      (write-string *html-template* out))
+            (format t "~&Writing test.html...~%")
+            (with-open-file (out (merge-pathnames "test.html" *dist-dir*)
+                                 :direction :output :if-exists :supersede)
+              (write-string *test-html-template* out))
 
-    ;; 6. Clean up temp files
-    (dolist (p (list shim-path patches-path browser-path boot-path))
-      (when (probe-file p)
-        (delete-file p)))
+            (dolist (p (list shim-path patches-path test-boot-path))
+              (when (probe-file p)
+                (delete-file p))))
+
+          ;; ——— Normal build ———
+          (let ((browser-path (write-temp-file "browser-context.lisp" *browser-context-source*))
+                (boot-path    (write-temp-file "boot.lisp" *boot-source*)))
+            (format t "~&Compiling game...~%")
+            (uiop:symbol-call :jscl :compile-application
+             (append (list shim-path)
+                     (source-files)
+                     (list patches-path
+                           browser-path
+                           boot-path))
+             (merge-pathnames "dunge.js" *dist-dir*))
+            (format t "~&Compilation complete.~%")
+
+            (format t "~&Copying JSCL runtime...~%")
+            (uiop:copy-file
+             (merge-pathnames "dist/jscl.js" *jscl-dir*)
+             (merge-pathnames "jscl.js" *dist-dir*))
+
+            (format t "~&Writing index.html...~%")
+            (with-open-file (out (merge-pathnames "index.html" *dist-dir*)
+                                 :direction :output :if-exists :supersede)
+              (write-string *html-template* out))
+
+            (dolist (p (list shim-path patches-path browser-path boot-path))
+              (when (probe-file p)
+                (delete-file p))))))
 
     (format t "~&=== Build complete! ===~%")
-    (format t "~&Output: ~a~%" (namestring *dist-dir*))
-    (format t "~&Open dist/index.html in a browser to play.~%")))
+    (format t "~&Output: ~a~%" (namestring *dist-dir*))))
 
 (main)
 

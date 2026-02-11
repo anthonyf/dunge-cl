@@ -30,6 +30,20 @@ jobs:
       - name: Build web export
         run: sbcl --non-interactive --load web-export.lisp
 
+      - name: Build web tests
+        run: sbcl --non-interactive --eval '(push :web-test *features*)' --load web-export.lisp
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Playwright
+        run: npm ci && npx playwright install chromium --with-deps
+
+      - name: Run web tests
+        run: npx playwright test
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
