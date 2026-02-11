@@ -160,6 +160,43 @@ browser needs those exact sub-packages to exist."
 
 (defun (setf lookup) (value &rest keys)
   (apply #'set-lookup value keys))
+
+;;; CLOS accessor setf workaround.
+;;; JSCL's defclass registers writer methods on a mangled symbol via FSET,
+;;; but cross-compiled (setf (accessor obj) val) reads symbol.setfvalue.
+;;; Bridge the gap with explicit (defun (setf ...) ...) using slot-value.
+
+(in-package #:dunge/character)
+
+(defun (setf combatant-hp) (value obj)
+  (setf (slot-value obj 'hp) value))
+(defun (setf combatant-hp-max) (value obj)
+  (setf (slot-value obj 'hp-max) value))
+(defun (setf combatant-armor) (value obj)
+  (setf (slot-value obj 'armor) value))
+(defun (setf char-name) (value obj)
+  (setf (slot-value obj 'name) value))
+(defun (setf char-background) (value obj)
+  (setf (slot-value obj 'background) value))
+(defun (setf char-str) (value obj)
+  (setf (slot-value obj 'str) value))
+(defun (setf char-dex) (value obj)
+  (setf (slot-value obj 'dex) value))
+(defun (setf char-wil) (value obj)
+  (setf (slot-value obj 'wil) value))
+(defun (setf char-gold) (value obj)
+  (setf (slot-value obj 'gold) value))
+(defun (setf char-fate) (value obj)
+  (setf (slot-value obj 'fate) value))
+(defun (setf char-inventory) (value obj)
+  (setf (slot-value obj 'inventory) value))
+
+(in-package #:dunge/combat)
+
+(defun (setf encounter-active-p) (value obj)
+  (setf (slot-value obj 'active-p) value))
+(defun (setf encounter-log) (value obj)
+  (setf (slot-value obj 'log) value))
 ")
 
 
