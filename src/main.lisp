@@ -12,24 +12,7 @@
 		 #:dunge/room
 		 #:dunge/item
 		 #:dunge/text-layout
-		 #:dunge/dice)
-  
-  (:shadow #:write)
-  (:export #:set-vignette
-	   #:push-vignette
-	   #:pop-vignette
-
-	   #:perform
-	   #:menu
-	   #:choice
-	   #:choice-label
-	   #:choice-action
-	   #:execute-action
-
-	   #:print-context
-	   #:out
-
-	   #:game-repl))
+		 #:dunge/dice))
 
 (uiop:define-package #:dunge-user
   (:mix #:cl #:dunge))
