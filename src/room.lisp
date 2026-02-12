@@ -11,7 +11,6 @@
 	   #:gate
 	   #:p
 	   #:prompt
-	   #:room-locals
 	   #:room-local
 	   #:local-ref))
 

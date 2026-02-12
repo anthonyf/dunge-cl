@@ -1,7 +1,6 @@
 (uiop:define-package #:dunge/data-store
   (:use #:cl)
   (:export #:lookup
-	   #:ref
 	   #:*data-store*))
 
 (in-package #:dunge/data-store)
@@ -33,5 +32,3 @@
 	  (setf (gethash final-key current) value))))
   value)
 
-(defun ref (&rest keys)
-  (lambda () (apply #'lookup keys)))

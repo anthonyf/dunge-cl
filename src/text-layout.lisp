@@ -1,10 +1,7 @@
 (uiop:define-package #:dunge/text-layout
   (:use #:cl)
-  (:export #:column-layout
-	   #:nl
-	   #:text
-	   #:lines
-	   #:columns))
+  (:export #:nl
+	   #:text))
 
 (in-package :dunge/text-layout)
 

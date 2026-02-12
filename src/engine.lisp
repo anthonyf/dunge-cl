@@ -4,8 +4,6 @@
   (:export #:*vignette-stack*
 	   #:current-vignette
 	   #:set-vignette
-	   #:push-vignette
-	   #:pop-vignette
 
 	   #:perform
 	   #:menu
@@ -13,7 +11,6 @@
 	   #:choice-label
 	   #:choice-action
 	   #:execute-action
-	   #:goto-choice
 
 	   #:print-context
 	   #:out
