@@ -5,7 +5,7 @@
 (defsystem "dunge"
   :version "0.1.0"
   :author ""
-  :license ""
+  :license "GPL-3.0"
   :description ""
   :depends-on ("uiop"
 	       "alexandria")
@@ -27,7 +27,7 @@
 
 (defsystem "dunge/tests"
   :author ""
-  :license ""
+  :license "GPL-3.0"
   :depends-on ("dunge" "rove")
   :description "Test system for dunge"
   :components ((:module "tests"
