@@ -14,7 +14,9 @@
 		#:char-inventory)
   (:import-from #:dunge/engine
 		#:choice
-		#:set-vignette)
+		#:set-vignette
+		#:perform
+		#:out)
   (:import-from #:dunge/item
 		#:usable-p
 		#:item-use-label
@@ -34,9 +36,7 @@
 	   #:encounter-enemy
 	   #:encounter-active-p
 	   #:encounter-log
-	   #:encounter-enemy-dead
-	   #:encounter-player-down
-	   #:encounter-player-fled
+	   #:encounter-state
 
 	   #:current-encounter
 	   #:encounter-active
@@ -54,7 +54,8 @@
 	   #:resolve-flee
 	   #:format-heal-log
 	   #:format-flee-log
-	   #:combat-choices))
+	   #:combat-choices
+	   #:combat-encounter))
 
 (in-package #:dunge/combat)
 
@@ -66,9 +67,7 @@
   ((enemy       :initarg :enemy       :accessor encounter-enemy)
    (active-p    :initarg :active-p    :accessor encounter-active-p    :initform t)
    (log         :initarg :log         :accessor encounter-log         :initform nil)
-   (enemy-dead  :initarg :enemy-dead  :accessor encounter-enemy-dead  :initform nil)
-   (player-down :initarg :player-down :accessor encounter-player-down :initform nil)
-   (player-fled :initarg :player-fled :accessor encounter-player-fled :initform nil)))
+   (state       :initarg :state       :accessor encounter-state       :initform :active)))
 
 (defun current-encounter ()
   (room-local "encounter"))
@@ -253,19 +252,32 @@ Returns a plist (:success t/nil :enemy-result ...)."
 
 ;;; Combat choices
 
-(defun mark-enemy-dead (enc result)
-  "Check attack result and mark enemy dead if appropriate."
-  (when (or (getf result :dead)
-	    (and (not (eq (getf result :critical-save) :none))
-		 (not (getf result :critical-save))))
-    (setf (encounter-enemy-dead enc) t)))
-
-(defun mark-player-down (enc result)
-  "Check attack result and mark player down if appropriate."
-  (when (and (not (getf result :dead))
-	     (not (eq (getf result :critical-save) :none))
-	     (not (getf result :critical-save)))
-    (setf (encounter-player-down enc) t)))
+(defun update-encounter-state (enc &key player-attack-result enemy-attack-result fled)
+  "Determine and set encounter state from round results.
+   player-attack-result: result of player's attack on the enemy.
+   enemy-attack-result: result of enemy's attack on the player.
+   Priority: victory > death > incapacitated > fled > active."
+  (setf (encounter-state enc)
+        (cond
+          ;; Enemy killed (STR=0 or failed STR save)
+          ((and player-attack-result
+                (or (getf player-attack-result :dead)
+                    (and (not (eq (getf player-attack-result :critical-save) :none))
+                         (not (getf player-attack-result :critical-save)))))
+           :victory)
+          ;; Player dead (STR=0)
+          ((and enemy-attack-result (getf enemy-attack-result :dead))
+           :death)
+          ;; Player incapacitated (failed STR save)
+          ((and enemy-attack-result
+                (not (getf enemy-attack-result :dead))
+                (not (eq (getf enemy-attack-result :critical-save) :none))
+                (not (getf enemy-attack-result :critical-save)))
+           :incapacitated)
+          ;; Fled
+          (fled :fled)
+          ;; Still fighting
+          (t :active))))
 
 (defun combat-choices (room-id)
   "Build the list of combat choices from player inventory.
@@ -288,8 +300,9 @@ Returns a lambda suitable as a room element."
 				 (let* ((enc (current-encounter))
 					(player-result (resolve-player-attack (item-damage-die it)))
 					(enemy-result (resolve-enemy-attack)))
-				   (mark-enemy-dead enc player-result)
-				   (mark-player-down enc enemy-result)
+				   (update-encounter-state enc
+				     :player-attack-result player-result
+				     :enemy-attack-result enemy-result)
 				   (setf (encounter-log enc)
 					 (format-combat-log player-result enemy-result)))
 				 (set-vignette (room room-id))))
@@ -304,7 +317,8 @@ Returns a lambda suitable as a room element."
 					(enemy-result (resolve-enemy-attack)))
 				   (setf (char-inventory *player*)
 					 (consume-item it (char-inventory *player*)))
-				   (mark-player-down enc enemy-result)
+				   (update-encounter-state enc
+				     :enemy-attack-result enemy-result)
 				   (setf (encounter-log enc)
 					 (format-heal-log heal-result enemy-result)))
 				 (set-vignette (room room-id))))
@@ -317,8 +331,9 @@ Returns a lambda suitable as a room element."
 			  (let* ((enc (current-encounter))
 				 (player-result (resolve-player-attack 4))
 				 (enemy-result (resolve-enemy-attack)))
-			    (mark-enemy-dead enc player-result)
-			    (mark-player-down enc enemy-result)
+			    (update-encounter-state enc
+			      :player-attack-result player-result
+			      :enemy-attack-result enemy-result)
 			    (setf (encounter-log enc)
 				  (format-combat-log player-result enemy-result)))
 			  (set-vignette (room room-id))))
@@ -329,11 +344,9 @@ Returns a lambda suitable as a room element."
 	      :action (lambda ()
 			(let* ((enc (current-encounter))
 			       (flee-result (resolve-flee)))
-			  (setf (encounter-player-fled enc) t)
-			  ;; Check for death/down from parting blow
-			  (let ((enemy-result (getf flee-result :enemy-result)))
-			    (when enemy-result
-			      (mark-player-down enc enemy-result)))
+			  (update-encounter-state enc
+			    :enemy-attack-result (getf flee-result :enemy-result)
+			    :fled t)
 			  (setf (encounter-log enc)
 				(format-flee-log flee-result)))
 			(set-vignette (room room-id))))
@@ -348,8 +361,54 @@ Returns a lambda suitable as a room element."
 (defun enemy-alive-p ()
   (let ((enc (current-encounter)))
     (and enc
-	 (not (encounter-enemy-dead enc))
-	 (> (combatant-str (encounter-enemy enc)) 0))))
+	 (encounter-active-p enc)
+	 (eq (encounter-state enc) :active))))
 
 (defun player-alive-p ()
   (> (combatant-str *player*) 0))
+
+;;; Combat encounter — state-machine room element
+
+(defclass combat-encounter ()
+  ((enemy-spec :initarg :enemy-spec :accessor ce-enemy-spec)
+   (intro      :initarg :intro      :accessor ce-intro)
+   (states     :initarg :states     :accessor ce-states)))
+
+(defun combat-encounter (&key enemy-spec intro states)
+  (make-instance 'combat-encounter
+    :enemy-spec enemy-spec
+    :intro intro
+    :states states))
+
+(defun cleanup-combat (state)
+  "Reset player stats after combat ends if needed."
+  (when (member state '(:death :incapacitated))
+    (setf (combatant-hp *player*) (combatant-hp-max *player*))
+    (setf (combatant-str *player*) 10))
+  (clear-encounter))
+
+(defmethod perform (ctx (ce combat-encounter))
+  (let ((enc (current-encounter)))
+    (cond
+      ;; No active encounter → setup + show intro
+      ((not (encounter-active))
+       (apply #'setup-encounter (ce-enemy-spec ce))
+       (loop for element in (ce-intro ce)
+	     for result = (perform ctx element)
+	     if (listp result) append result
+	     else return result))
+      ;; Active encounter
+      (t
+       ;; Drain combat log
+       (when (encounter-log enc)
+	 (out ctx (format nil "~a~%" (encounter-log enc)))
+	 (setf (encounter-log enc) nil))
+       (let ((state (encounter-state enc)))
+	 ;; Terminal states: cleanup
+	 (when (member state '(:victory :death :incapacitated :fled))
+	   (cleanup-combat state))
+	 ;; Perform state elements
+	 (loop for element in (getf (ce-states ce) state)
+	       for result = (perform ctx element)
+	       if (listp result) append result
+	       else return result))))))

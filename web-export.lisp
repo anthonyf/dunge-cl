@@ -204,12 +204,8 @@ browser needs those exact sub-packages to exist."
   (setf (slot-value obj 'active-p) value))
 (defun (setf encounter-log) (value obj)
   (setf (slot-value obj 'log) value))
-(defun (setf encounter-enemy-dead) (value obj)
-  (setf (slot-value obj 'enemy-dead) value))
-(defun (setf encounter-player-down) (value obj)
-  (setf (slot-value obj 'player-down) value))
-(defun (setf encounter-player-fled) (value obj)
-  (setf (slot-value obj 'player-fled) value))
+(defun (setf encounter-state) (value obj)
+  (setf (slot-value obj 'state) value))
 ")
 
 

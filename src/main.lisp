@@ -42,97 +42,41 @@
 ;;; Combat encounter
 
 (make-room 'test-combat "Combat!"
-  ;; Setup: if combat not active, initialize the encounter
-  (gate (lambda () (not (encounter-active)))
-    :then (list
-	   (lambda (ctx)
-	     (declare (ignore ctx))
-	     (setup-encounter "Goblin" 4 0 6 :str 8 :dex 12 :wil 8)
-	     nil)
-	   (p "A goblin leaps out of the shadows!")
-	   (p "")))
-
-  ;; Show last round's results if log exists
-  (gate (lambda () (let ((enc (current-encounter)))
-		     (and enc (encounter-log enc))))
-    :then (list
-	   (lambda (ctx)
-	     (let ((enc (current-encounter)))
-	       (out ctx (format nil "~a~%" (encounter-log enc)))
-	       (setf (encounter-log enc) nil))
-	     nil)))
-
-  ;; Victory: enemy is dead (STR=0 or failed STR save)
-  (gate (lambda () (and (encounter-active)
-			(not (enemy-alive-p))))
-    :then (list
-	   (lambda (ctx)
-	     (declare (ignore ctx))
-	     (clear-encounter)
-	     nil)
-	   (p "The goblin crumples to the ground. Victory!")
-	   (p "")
-	   (exit "Return to Adventure Board" 'adventure-board)))
-
-  ;; Defeat (death): player STR=0
-  (gate (lambda () (and (encounter-active)
-			(<= (combatant-str *player*) 0)))
-    :then (list
-	   (lambda (ctx)
-	     (declare (ignore ctx))
-	     (setf (combatant-hp *player*) (combatant-hp-max *player*))
-	     (setf (combatant-str *player*) 10)
-	     (clear-encounter)
-	     nil)
-	   (p "Your wounds are fatal. You collapse and breathe your last.")
-	   (p "")
-	   (exit "Return to Town Square" 'town-square)))
-
-  ;; Defeat (incapacitated): player failed STR save
-  (gate (lambda () (and (encounter-active)
-			(encounter-player-down (current-encounter))))
-    :then (list
-	   (lambda (ctx)
-	     (declare (ignore ctx))
-	     (setf (combatant-hp *player*) (combatant-hp-max *player*))
-	     (setf (combatant-str *player*) 10)
-	     (setf (encounter-player-down (current-encounter)) nil)
-	     (clear-encounter)
-	     nil)
-	   (p "You fall unconscious from your wounds. You wake up back in town, battered but alive.")
-	   (p "")
-	   (exit "Return to Town Square" 'town-square)))
-
-  ;; Fled: player escaped combat
-  (gate (lambda () (and (encounter-active)
-			(encounter-player-fled (current-encounter))))
-    :then (list
-	   (lambda (ctx)
-	     (declare (ignore ctx))
-	     (clear-encounter)
-	     nil)
-	   (p "You flee the scene, putting distance between you and the goblin.")
-	   (p "")
-	   (exit "Return to Adventure Board" 'adventure-board)))
-
-  ;; Active combat: show status and combat choices
-  (gate (lambda () (and (encounter-active)
-			(enemy-alive-p)
-			(player-alive-p)))
-    :then (list
-	   (lambda (ctx)
-	     (let ((e (encounter-enemy (current-encounter))))
-	       (out ctx (format nil "  Goblin HP: ~a/~a  STR: ~a~%"
-				(combatant-hp e)
-				(combatant-hp-max e)
-				(combatant-str e))))
-	     (out ctx (format nil "  Your HP:   ~a/~a  STR: ~a~%"
-			      (combatant-hp *player*)
-			      (combatant-hp-max *player*)
-			      (combatant-str *player*)))
-	     nil)
-	   (p "")
-	   (combat-choices 'test-combat))))
+  (combat-encounter
+    :enemy-spec '("Goblin" 4 0 6 :str 8 :dex 12 :wil 8)
+    :intro (list (p "A goblin leaps out of the shadows!")
+		 (p ""))
+    :states (list
+      :active (list
+	(lambda (ctx)
+	  (let ((e (encounter-enemy (current-encounter))))
+	    (out ctx (format nil "  Goblin HP: ~a/~a  STR: ~a~%"
+			     (combatant-hp e)
+			     (combatant-hp-max e)
+			     (combatant-str e))))
+	  (out ctx (format nil "  Your HP:   ~a/~a  STR: ~a~%"
+			   (combatant-hp *player*)
+			   (combatant-hp-max *player*)
+			   (combatant-str *player*)))
+	  nil)
+	(p "")
+	(combat-choices 'test-combat))
+      :victory (list
+	(p "The goblin crumples to the ground. Victory!")
+	(p "")
+	(exit "Return to Adventure Board" 'adventure-board))
+      :death (list
+	(p "Your wounds are fatal. You collapse and breathe your last.")
+	(p "")
+	(exit "Return to Town Square" 'town-square))
+      :incapacitated (list
+	(p "You fall unconscious from your wounds. You wake up back in town, battered but alive.")
+	(p "")
+	(exit "Return to Town Square" 'town-square))
+      :fled (list
+	(p "You flee the scene, putting distance between you and the goblin.")
+	(p "")
+	(exit "Return to Adventure Board" 'adventure-board)))))
 
 
 (make-room 'blacksmith "Blacksmith"

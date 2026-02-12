@@ -12,5 +12,5 @@
 
 (defun roll-d20 ()
   "Roll a single d20."
-  (1+ (random 20)))
+  (first (roll-dice 20)))
 
