@@ -26,6 +26,13 @@ qlot exec sbcl --non-interactive --load web-export.lisp
 qlot exec sbcl --eval '(asdf:test-system :dunge)' --quit
 #+end_src
 
+** Dependencies
+
+- [[https://www.sbcl.org/][SBCL]] — Common Lisp compiler
+- [[https://github.com/fukamachi/qlot][Qlot]] — project-local CL dependency manager (installs Alexandria, Rove, etc.)
+- [[https://github.com/jscl-project/jscl][JSCL]] — CL-to-JavaScript compiler (vendored in =vendor/jscl/=)
+- [[https://nodejs.org/][Node.js]] + [[https://playwright.dev/][Playwright]] — browser tests only (=npm install=)
+
 ** Documentation
 
 - [[file:CLAUDE.md][CLAUDE.md]] — architecture, conventions, quick reference
