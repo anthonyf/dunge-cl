@@ -298,16 +298,16 @@ Returns a plist (:success t/nil :enemy-result ...)."
 ;;; Combat encounter — state-machine room element
 
 (defclass combat-encounter ()
-  ((enemy-spec     :initarg :enemy-spec     :accessor ce-enemy-spec)
+  ((enemy          :initarg :enemy          :accessor ce-enemy-spec)
    (intro          :initarg :intro          :accessor ce-intro)
    (victory        :initarg :victory        :accessor ce-victory)
    (death          :initarg :death          :accessor ce-death)
    (incapacitated  :initarg :incapacitated  :accessor ce-incapacitated)
    (fled           :initarg :fled           :accessor ce-fled)))
 
-(defun combat-encounter (&key enemy-spec intro victory death incapacitated fled)
+(defun combat-encounter (&key enemy intro victory death incapacitated fled)
   (make-instance 'combat-encounter
-    :enemy-spec enemy-spec
+    :enemy enemy
     :intro intro
     :victory victory
     :death death

@@ -46,7 +46,7 @@
 
 (make-room 'test-combat "Combat!"
   (combat-encounter
-    :enemy-spec (make-goblin)
+    :enemy (make-goblin)
     :intro (list (p "A goblin leaps out of the shadows!"))
     :victory (list
       (p "The goblin crumples to the ground. Victory!")
