@@ -242,6 +242,166 @@ For future consideration. Spells marked with * are in the shortlist above.
 | 99 | Wizard Mark | Finger shoots ulfire-colored paint visible only to caster |
 | 100 | X-Ray Vision | See through walls, dirt, clothing, etc. |
 
+### Bestiary
+
+Monsters use the engine's enemy-spec format: `("Name" HP ARMOR ATTACK-DIE :str STR :dex DEX :wil WIL)`. Cairn monsters with dual attacks (d8+d8) are simplified to a single die representing their strongest hit. Stat guidelines from Cairn: 3 = deficient, 6 = weak, 10 = average, 14 = noteworthy, 18 = legendary. HP: 3 = average, 6 = hardy, 10+ = serious threat.
+
+#### Random Encounter Tables by Tier
+
+Roll d8 on the appropriate table for the dungeon depth.
+
+**Tier 1 — Shallow / Early Dungeon**
+
+| d8 | Monster | HP | Armor | Atk | STR | DEX | WIL | Notes |
+|----|---------|----|-------|-----|-----|-----|-----|-------|
+| 1 | Goblin | 4 | 0 | d6 | 8 | 12 | 8 | Hit-and-run tactics |
+| 2 | Skeleton | 5 | 1 | d6 | 8 | 13 | 0 | Reforms unless bones scattered |
+| 3 | Zombie | 2 | 0 | d6 | 12 | 6 | 3 | Slow but tough; spreads infection |
+| 4 | Kobold | 3 | 0 | d6 | 8 | 13 | 4 | Sets traps; avoids fair fights |
+| 5 | Bandit | 4 | 1 | d6 | 12 | 12 | 9 | May negotiate or flee |
+| 6 | Viper | 3 | 0 | d6 | 5 | 12 | 3 | Poisonous bite |
+| 7 | Cave Locust | 2 | 0 | d6 | 6 | 12 | 3 | Swarming insects |
+| 8 | Acolyte | 4 | 1 | d6 | 8 | 11 | 14 | Dark cultist; may cast spells |
+
+**Tier 2 — Mid Dungeon**
+
+| d8 | Monster | HP | Armor | Atk | STR | DEX | WIL | Notes |
+|----|---------|----|-------|-----|-----|-----|-----|-------|
+| 1 | Gnoll | 6 | 1 | d8 | 12 | 14 | 8 | Hyena-headed pack hunter |
+| 2 | Hobgoblin | 6 | 2 | d8 | 14 | 8 | 11 | Disciplined; fights in formation |
+| 3 | Bugbear | 8 | 1 | d8 | 14 | 12 | 11 | Ambush predator |
+| 4 | Ghoul | 6 | 0 | d8 | 14 | 8 | 3 | Paralyzing claws; eats corpses |
+| 5 | Ogre | 6 | 1 | d10 | 16 | 8 | 6 | Brute; easily bribed with treasure |
+| 6 | Werewolf | 8 | 0 | d8 | 15 | 14 | 6 | Silver weapons enhanced; mundane impaired |
+| 7 | Harpy | 8 | 0 | d8 | 7 | 12 | 14 | Charming song (WIL save) |
+| 8 | Rust Monster | 5 | 0 | d6 | 16 | 13 | 5 | Destroys metal armor on critical |
+
+**Tier 3 — Deep Dungeon**
+
+| d8 | Monster | HP | Armor | Atk | STR | DEX | WIL | Notes |
+|----|---------|----|-------|-----|-----|-----|-----|-------|
+| 1 | Troll | 14 | 1 | d10 | 14 | 12 | 4 | Regenerates; only fire/acid kills |
+| 2 | Owlbear | 9 | 0 | d10 | 16 | 12 | 5 | Ferocious; destroys armor on crit |
+| 3 | Basilisk | 10 | 1 | d10 | 12 | 13 | 13 | Petrifying gaze |
+| 4 | Wight | 12 | 3 | d10 | 16 | 8 | 12 | Drains STR permanently on crit |
+| 5 | Gargoyle | 8 | 3 | d8 | 14 | 4 | 12 | Immune to charm/sleep; stone skin |
+| 6 | Minotaur | 12 | 1 | d10 | 16 | 12 | 8 | Charging gore (d12) |
+| 7 | Wyvern | 11 | 0 | d10 | 15 | 14 | 13 | Poisonous stinger |
+| 8 | Vampire | 12 | 1 | d10 | 14 | 12 | 16 | Regenerates from blood; only sunlight kills |
+
+#### Boss Encounters
+
+Bosses are hand-placed in dungeon designs, not rolled randomly. They have higher stats, special mechanics, and narrative significance. Each should have a weakness or strategic angle the player can discover beforehand.
+
+| Monster | HP | Armor | Atk | STR | DEX | WIL | Special |
+|---------|----|-------|-----|-----|-----|-----|---------|
+| Green Dragon | 12 | 2 | d12 | 14 | 15 | 18 | Chlorine breath (d4 STR damage); detachment |
+| Lich | 14 | 1 | d8 | 8 | 8 | 18 | Casts up to 6 spells; bound to artifact (must destroy to kill) |
+| Eye of Terror | 15 | 0 | d8 | 9 | 8 | 16 | Casts Charm, Sleep, Telekinesis at will |
+| Hydra | 12 | 2 | d12 | 13 | 7 | 12 | Multi-headed; loses heads on critical but keeps fighting |
+| Mind Lasher | 12 | 0 | d8 | 8 | 12 | 18 | Mind blast stuns (WIL save); extracts brains |
+| Purple Worm | 18 | 1 | d12 | 18 | 8 | 6 | Swallows whole on critical (d8 STR acid) |
+| Sphinx | 18 | 0 | d10 | 12 | 13 | 18 | Magic-immune; poses riddles; terrifying roar |
+| Storm Giant | 18 | 2 | d12 | 18 | 16 | 18 | Lightning immune; thunderclap (4 STR, doubled vs metal) |
+| Titan | 18 | 3 | d12 | 16 | 15 | 18 | Shape-shifts; controls elements; levitates |
+
+**Boss design notes:**
+- Bosses should be foreshadowed (NPC warnings, environmental clues, lore)
+- Each boss should have at least one exploitable weakness discoverable through exploration
+- Consider offering non-combat victory paths for high-WIL bosses (Sphinx riddle, Lich artifact destruction)
+- Boss loot should be memorable: spellbooks, relics, or significant gold
+
+#### Full Cairn Bestiary Reference
+
+All creatures from the Cairn 2e Warden's Guide, for future use. Dual attacks shown as originally specified.
+
+| Monster | HP | Armor | STR | DEX | WIL | Attack | Special |
+|---------|----|-------|-----|-----|-----|--------|---------|
+| Acolyte | 4 | 1 | 8 | 11 | 14 | Dagger d6 | Cultist |
+| Aranea | 6 | 0 | 13 | 12 | 15 | Bite d8 | Fire enhanced; carries Charm & Command |
+| Bandit | 4 | 1 | 12 | 12 | 9 | Short sword d6 | Leader: 2 Armor, d10 |
+| Banshee | 8 | 0 | 6 | 12 | 15 | Touch d8 | Iron enhanced; wail stuns |
+| Basilisk | 10 | 1 | 12 | 13 | 13 | Bite d10 | Petrifying gaze |
+| Blink Dog | 5 | 0 | 11 | 14 | 5 | Bite d6 | Phases; melee impaired |
+| Blood Elk | 4 | 0 | 12 | 13 | 5 | Horns d8 | Eviscerates on critical |
+| Boggart | 3 | 0 | 4 | 17 | 13 | Special | Controlled by true name; magic abilities |
+| Bone Construct | 8 | 3 | 15 | 5 | 3 | Arms d8+d8 | Mindless guardian |
+| Bugbear | 8 | 1 | 14 | 12 | 11 | Club d8 | Ambush predator |
+| Burrowing Horror | 6 | 1 | 16 | 11 | 4 | Bite d10, acid d8 blast | Severs on critical |
+| Cave Locust | 2 | 0 | 6 | 12 | 3 | Bite d6 | Swarm insect |
+| Centaur | 6 | 1 | 14 | 12 | 14 | Spear d8 | — |
+| Cobblehounds | 12 | 2 | 14 | 1 | 8 | Bite d10 | Immobile guardian |
+| Creeping Vines | 8 | 0 | 10 | 12 | 2 | Vines d4 blast | Asphyxiates on critical |
+| Crypt Guardian | 12 | 0 | 12 | 11 | 14 | Claws d8+d8 | Non-magical impaired; teleports |
+| Dryad | 4 | 0 | 8 | 12 | 14 | Arms d6 | Befuddles; bound to tree |
+| Ettin | 10 | 0 | 16 | 8 | 6 | Club d10 | Two-headed; cannot be surprised |
+| Eye of Terror | 15 | 0 | 9 | 8 | 16 | Bite d8 | Casts spells at will |
+| Frost Elf | 14 | 1 | 8 | 13 | 14 | Dagger d6 | Magic-resistant; casts Sleep, Teleport |
+| Gargoyle | 8 | 3 | 14 | 4 | 12 | Claws d8+d8 | Frozen by day; charm/sleep immune |
+| Gelatinous Ooze | 8 | 1 | 15 | 6 | 3 | Touch d8 | Engulfs on critical |
+| Ghost | 8 | 0 | 14 | 12 | 15 | Drain d6 | Possesses on critical |
+| Ghoul | 6 | 0 | 14 | 8 | 3 | Claws d6+d6 | Paralyzes; reanimates corpses |
+| Giant Scorpion | 8 | 1 | 11 | 12 | 4 | Claws d10+d10 | Poison: permanent d8 STR loss |
+| Gnoll | 6 | 1 | 12 | 14 | 8 | Spear d8 | Pack hunter |
+| Goblin | 4 | 0 | 8 | 12 | 8 | Dagger d6 | Hit-and-run |
+| Green Dragon | 12 | 2 | 14 | 15 | 18 | Bite d12 | Chlorine breath d4 STR |
+| Griffon | 7 | 0 | 14 | 15 | 12 | Claws d6+d6 | Tears flesh on critical |
+| Grizzly Bear | 6 | 0 | 15 | 13 | 5 | Claws d8+d8 | Bleeds on critical |
+| Harpy | 8 | 0 | 7 | 12 | 14 | Claws d6+d6 | Song charms (WIL save) |
+| Hellhound | 8 | 0 | 12 | 15 | 9 | Bite d8, breath d6 blast | Fire immune |
+| Hobgoblin | 6 | 2 | 14 | 8 | 11 | Mace d8 | Enhanced with allies |
+| Hooded Men | 12 | 0 | 9 | 12 | 14 | Leystaff d8 | d4 WIL drain on crit; 2 spellbooks |
+| Hydra | 12 | 2 | 13 | 7 | 12 | Bite d12 blast | 9 heads; loses heads on critical |
+| Invisible Stalker | 8 | 0 | 12 | 12 | 15 | Fists d4+d4 | Invisible; ignores armor |
+| Killer Bees | 6 | 0 | 6 | 14 | 8 | Sting d6 | Stinger lodges d4/round |
+| Kobold | 3 | 0 | 8 | 13 | 4 | Bite d6 | Darkvision; traps |
+| Lamia | 6 | 0 | 11 | 12 | 16 | Bite d8 | Charms; d6 WIL drain on crit |
+| Lich | 14 | 1 | 8 | 8 | 18 | Soul dagger d8 | Up to 6 spellbooks; artifact-bound |
+| Manticore | 6 | 0 | 15 | 14 | 12 | Claws d6+d6, spike d8 | Deprivation on critical |
+| Mimic | 9 | 2 | 13 | 6 | 12 | Bite d8 | Disguises as objects |
+| Mind Lasher | 12 | 0 | 8 | 12 | 18 | Tentacles d6 blast | Mind blast stuns; extracts brains |
+| Minotaur | 12 | 1 | 16 | 12 | 8 | Axe d10, charge d12 | Tracker |
+| Mummy | 6 | 0 | 12 | 8 | 6 | Touch d10 | Prevents recovery; deprivation |
+| Naga | 6 | 1 | 14 | 12 | 14 | Sword d6, bite d10 | Hypnotic gaze |
+| Night Cat | 6 | 0 | 9 | 14 | 5 | Claws d6+d6 | Nocturnal pack hunter |
+| Night Hag | 8 | 0 | 9 | 11 | 16 | Talons d8+d8 | Carries 3 spellbooks |
+| Nightmare | 8 | 0 | 15 | 12 | 8 | Hooves d8+d8 | Demonic horse; smoke obscures |
+| Ogre | 6 | 1 | 16 | 8 | 6 | Club d10 | Bribable with treasure |
+| Owlbear | 9 | 0 | 16 | 12 | 5 | Beak d10, claws d8+d8 | Destroys armor on critical |
+| Phoenix | 4 | 0 | 15 | 13 | 12 | Talons d10+d10 | Explodes on death; reborn in d3 days |
+| Pixie | 3 | 0 | 3 | 15 | 13 | — | Invisible; casts Sleep & Masquerade |
+| Purple Worm | 18 | 1 | 18 | 8 | 6 | Bite d12 | Swallows whole; d8 STR acid |
+| Red Cap | 6 | 0 | 6 | 12 | 8 | Sickles d6+d6 | Restores STR from blood |
+| Reptilian | 5 | 1 | 14 | 12 | 5 | Spear d8 | Amphibious |
+| Root Goblin | 4 | 0 | 8 | 14 | 8 | Spear d6 | Prizes spellbooks |
+| Root Witch | 8 | 0 | 9 | 16 | 14 | Fingers d6 | Tunnels underground |
+| Rust Monster | 5 | 0 | 16 | 13 | 5 | Bite d6 | Rusts metal; destroys armor on crit |
+| Sea Hag | 6 | 0 | 11 | 15 | 14 | Claws d6+d6 | Magic-immune; gaze drops HP to 0 |
+| Shadow | 14 | 0 | 1 | 18 | 14 | Touch d6 | Incorporeal; ignores armor; d4 STR drain |
+| Shambling Mound | 9 | 0 | 15 | 6 | 8 | Tendrils d8+d8 | Swallows on critical |
+| Skeleton | 5 | 1 | 8 | 13 | 0 | Sword d6 | Reforms unless scattered |
+| Sky Giant | 12 | 1 | 16 | 12 | 14 | Mace d10 | Missiles impaired |
+| Sphinx | 18 | 0 | 12 | 13 | 18 | Claws d8+d8 blast, beak d10 | Magic-immune; riddles; roar |
+| Storm Giant | 18 | 2 | 18 | 16 | 18 | Sword d12 | Lightning immune; thunderclap |
+| Swine Thing | 9 | 0 | 16 | 8 | 13 | Gore d6+d6 | Night shape-shifter; charms |
+| Titan | 18 | 3 | 16 | 15 | 18 | Sword d12 | Shape-shifts; controls elements |
+| Treant | 10 | 3 | 15 | 3 | 12 | Roots d8+d8 blast | Sentient tree; ancient |
+| Triton | 6 | 0 | 12 | 15 | 12 | Trident d8 | Aquatic; commands fish |
+| Troll | 14 | 1 | 14 | 12 | 4 | Bite d10, claws d8+d8 | Regenerates; fire/acid stops |
+| Unicorn | 6 | 0 | 14 | 12 | 14 | Horn d10 | Ignores armor |
+| Vampire | 12 | 1 | 14 | 12 | 16 | Bite d10 | Regen 6 HP from blood; d12 WIL drain |
+| Viper | 3 | 0 | 5 | 12 | 3 | Bite d6 | Lethal poison |
+| Warp Panther | 8 | 0 | 13 | 16 | 12 | Tentacles d8+d8 blast, bite d10 | Teleports; magic-resistant |
+| Warrior Snail | 4 | 2 | 14 | 6 | 3 | Tentacles d8+d8 | Some reflect magic |
+| Water Elemental | 14 | 0 | 15 | 16 | 4 | Spray d8 | Mundane impaired; drowns on crit |
+| Werewolf | 8 | 0 | 15 | 14 | 6 | Claws d6+d6, bite d8 | Silver enhanced; mundane impaired |
+| Wight | 12 | 3 | 16 | 8 | 12 | Sword d10 | Permanent STR drain on critical |
+| Will-o-Wisp | 3 | 0 | 6 | 17 | 12 | — | Leads astray; nocturnal spirit |
+| Wolf | 6 | 0 | 12 | 14 | 8 | Bite d8 | Trainable |
+| Wood Troll | 10 | 0 | 15 | 12 | 7 | Bite d8, club d10 | Regenerates in forest |
+| Wyvern | 11 | 0 | 15 | 14 | 13 | Stinger d10 | Impales on critical |
+| Zombie | 2 | 0 | 12 | 6 | 3 | Nails d6 | Mind-immune; reforms; infection |
+
 ### Rest & Recovery
 
 | Rest Type | Duration | Effect |
