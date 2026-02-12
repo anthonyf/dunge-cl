@@ -54,7 +54,7 @@ ssh -L 8080:localhost:8080 user@your-vps "python3 -m http.server 8080 --director
 ```lisp
 (make-room 'test-combat "Combat!"
   (combat-encounter
-    :enemy-spec '("Goblin" 4 0 6 :str 8 :dex 12 :wil 8)
+    :enemy (make-goblin)
     :intro (list (p "A goblin leaps out of the shadows!"))
     :victory (list (p "Victory!") (exit "Continue" 'next-room))
     :death (list (p "You died.") (exit "Restart" 'town))
