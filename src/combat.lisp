@@ -9,6 +9,7 @@
 	#:dunge/item
 	#:dunge/dice)
   (:export #:enemy
+	   #:encounter
 	   #:encounter-active-p
 	   #:encounter-first-round-p
 	   #:encounter-log
