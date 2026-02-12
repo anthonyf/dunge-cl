@@ -49,7 +49,20 @@ ssh -L 8080:localhost:8080 user@your-vps "python3 -m http.server 8080 --director
 
 **Item system:** Mixin-based via CLOS multiple inheritance. `weapon` mixin adds `damage-die` slot. `consumable` mixin marks items as usable via `consume` generic. `stackable` mixin adds quantity tracking. Concrete classes combine mixins: `weapon-item` (weapon + item), `healing-herb` (consumable + stackable + item). Constructors: `(weapon name :damage-die N)`, `(healing-herb :quantity N)`, `(make-item name)`.
 
-**Combat system:** `combat-choices` builds choice list dynamically from player inventory — each weapon becomes an attack choice, consumables become use choices, unarmed d4 fallback if no weapons. Flee attempts a DEX save; failure means a parting blow. `resolve-attack` handles Cairn damage: roll weapon die, subtract armor, overflow from HP to STR, STR save on critical.
+**Combat system:** Uses a state machine via the `combat-encounter` room element. The encounter tracks an explicit `:state` slot (`:active`, `:victory`, `:death`, `:incapacitated`, `:fled`). `combat-encounter` handles the full lifecycle: setup, stats display, combat choices (derived from `*player*` inventory), log draining, cleanup, and outcome rendering. Room definitions are purely declarative — only enemy spec, intro text, and outcome elements per state:
+
+```lisp
+(make-room 'test-combat "Combat!"
+  (combat-encounter
+    :enemy-spec '("Goblin" 4 0 6 :str 8 :dex 12 :wil 8)
+    :intro (list (p "A goblin leaps out of the shadows!"))
+    :victory (list (p "Victory!") (exit "Continue" 'next-room))
+    :death (list (p "You died.") (exit "Restart" 'town))
+    :incapacitated (list (p "You fall unconscious.") (exit "Wake up" 'town))
+    :fled (list (p "You escape.") (exit "Continue" 'town))))
+```
+
+`combat-choices` builds the choice list from `*player*` inventory — each weapon becomes an attack choice, consumables become use choices, unarmed d4 fallback if no weapons. Flee attempts a DEX save; failure means a parting blow. `resolve-attack` handles Cairn damage: roll weapon die, subtract armor, overflow from HP to STR, STR save on critical. `update-encounter-state` determines the resulting state after each round with priority: victory > death > incapacitated > fled > active.
 
 ## Conventions
 
