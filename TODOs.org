@@ -8,9 +8,9 @@
 
 * Phase 2: Mechanics
 - [X] Dice rolling utilities
-- [ ] Save system (d20 ≤ stat)
-- [ ] Damage and HP/STR tracking
-- [ ] Death and critical damage
+- [X] Save system (d20 ≤ stat)
+- [X] Damage and HP/STR tracking
+- [X] Death and critical damage
 
 * Phase 3: Exploration
 - [ ] Turn tracking
@@ -19,8 +19,8 @@
 - [ ] Rest mechanics
 
 * Phase 4: Combat
-- [ ] Initiative system
-- [ ] Combat choices (attack, flee, item)
+- [X] Initiative system
+- [X] Combat choices (attack, flee, item)
 - [ ] Enemy AI (simple)
 - [ ] Morale checks
 
