@@ -16,35 +16,35 @@
 
 (defparameter *backgrounds*
   `(("Soldier"  :description "trained in combat, disciplined"
-		:equipment (,(make-item "Sword (d8)")
+		:equipment (,(weapon "Sword" :damage-die 8)
 			    ,(make-item "Gambeson (Armor 1)")
 			    ,(make-item "Helm (+1 Armor)"))
 		:armor 2  :gold 8)
     ("Scholar"  :description "educated, curious, physically weak"
 		:equipment (,(make-item "Spellbook")
-			    ,(make-item "Dagger (d6)")
+			    ,(weapon "Dagger" :damage-die 6)
 			    ,(make-item "Ink & Quill"))
 		:armor 0  :gold 8)
     ("Criminal" :description "streetwise, light-fingered, untrustworthy"
 		:equipment (,(make-item "Lockpicks")
-			    ,(make-item "Dagger (d6)")
+			    ,(weapon "Dagger" :damage-die 6)
 			    ,(make-item "Dark Cloak")
 			    ,(make-item "Grappling Hook"))
 		:armor 0  :gold 8)
     ("Pilgrim"  :description "faithful, traveled, poor"
-		:equipment (,(make-item "Staff (d6)")
+		:equipment (,(weapon "Staff" :damage-die 6)
 			    ,(make-item "Holy Symbol")
-			    ,(make-item "Healing Herbs" :stackable t :stack-limit 10 :quantity 3))
+			    ,(healing-herb :quantity 3))
 		:armor 0  :gold 8)
     ("Hunter"   :description "survivalist, patient, rural"
-		:equipment (,(make-item "Bow (d6)")
+		:equipment (,(weapon "Bow" :damage-die 6)
 			    ,(make-item "Arrows")
-			    ,(make-item "Knife (d6)")
+			    ,(weapon "Knife" :damage-die 6)
 			    ,(make-item "Snare Kit")
 			    ,(make-item "Furs"))
 		:armor 0  :gold 8)
     ("Merchant" :description "wealthy, connected, soft"
-		:equipment (,(make-item "Dagger (d6)")
+		:equipment (,(weapon "Dagger" :damage-die 6)
 			    ,(make-item "Fine Clothes"))
 		:armor 0  :gold 38)))
 

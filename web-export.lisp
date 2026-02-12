@@ -191,6 +191,13 @@ browser needs those exact sub-packages to exist."
 (defun (setf char-inventory) (value obj)
   (setf (slot-value obj 'inventory) value))
 
+(in-package #:dunge/item)
+
+(defun (setf item-damage-die) (value obj)
+  (setf (slot-value obj 'damage-die) value))
+(defun (setf item-quantity) (value obj)
+  (setf (slot-value obj 'quantity) value))
+
 (in-package #:dunge/combat)
 
 (defun (setf encounter-active-p) (value obj)
@@ -201,6 +208,8 @@ browser needs those exact sub-packages to exist."
   (setf (slot-value obj 'enemy-dead) value))
 (defun (setf encounter-player-down) (value obj)
   (setf (slot-value obj 'player-down) value))
+(defun (setf encounter-player-fled) (value obj)
+  (setf (slot-value obj 'player-fled) value))
 ")
 
 

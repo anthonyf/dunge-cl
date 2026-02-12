@@ -103,7 +103,19 @@
 	   (p "")
 	   (exit "Return to Town Square" 'town-square)))
 
-  ;; Active combat: show status and attack option
+  ;; Fled: player escaped combat
+  (gate (lambda () (and (encounter-active)
+			(encounter-player-fled (current-encounter))))
+    :then (list
+	   (lambda (ctx)
+	     (declare (ignore ctx))
+	     (clear-encounter)
+	     nil)
+	   (p "You flee the scene, putting distance between you and the goblin.")
+	   (p "")
+	   (exit "Return to Adventure Board" 'adventure-board)))
+
+  ;; Active combat: show status and combat choices
   (gate (lambda () (and (encounter-active)
 			(enemy-alive-p)
 			(player-alive-p)))
@@ -120,28 +132,7 @@
 			      (combatant-str *player*)))
 	     nil)
 	   (p "")
-	   (lambda (ctx)
-	     (declare (ignore ctx))
-	     (list
-	      (make-instance 'choice
-		:label "Attack"
-		:action (lambda ()
-			  (let* ((enc (current-encounter))
-				 (player-result (resolve-player-attack 6))
-				 (enemy-result (resolve-enemy-attack)))
-			    ;; Mark enemy dead if STR=0 or failed STR save
-			    (when (or (getf player-result :dead)
-				      (and (not (eq (getf player-result :critical-save) :none))
-					   (not (getf player-result :critical-save))))
-			      (setf (encounter-enemy-dead enc) t))
-			    ;; Mark player down if failed STR save (but not dead)
-			    (when (and (not (getf enemy-result :dead))
-				       (not (eq (getf enemy-result :critical-save) :none))
-				       (not (getf enemy-result :critical-save)))
-			      (setf (encounter-player-down enc) t))
-			    (setf (encounter-log enc)
-				  (format-combat-log player-result enemy-result)))
-			  (set-vignette (room 'test-combat)))))))))
+	   (combat-choices 'test-combat))))
 
 
 (make-room 'blacksmith "Blacksmith"
