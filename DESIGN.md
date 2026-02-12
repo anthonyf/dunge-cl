@@ -64,6 +64,45 @@ Examples:
 
 **Death:** STR reduced to 0.
 
+**Multiple Attackers:** When several attackers target the same foe, roll all damage dice and keep only the single highest result.
+
+**Blast:** Attacks tagged "blast" hit all targets in an area, rolling damage separately for each.
+
+**Impaired/Enhanced:** Attacking from a bad position → roll d4 instead of normal die. Attacking from advantage → roll d12 instead.
+
+#### Multiple Enemies & Detachments
+
+Cairn treats large groups of similar creatures as **detachments** — a single unit with shared HP and stats. Our engine uses this approach for all multi-enemy encounters: rather than tracking individual combatants, a group is represented as one enemy with boosted stats.
+
+| Group Size | HP Modifier | Attack Modifier | Notes |
+|------------|-------------|-----------------|-------|
+| 1 (solo) | As listed | As listed | Standard encounter |
+| 2-3 (small group) | +50% HP | Keep highest of 2 dice | e.g. "2 Goblins": 6 HP, roll 2d6 keep highest |
+| 4-6 (pack) | Double HP | Enhanced (d12) | e.g. "Pack of Wolves": 12 HP, d12 attack |
+| 7+ (detachment) | Triple HP | Enhanced (d12), blast | Player attacks impaired (d4) unless blast |
+
+**How it works in-engine:**
+- A group encounter is still a single `combat-encounter` with one enemy-spec
+- The enemy name reflects the group: "2 Goblins", "Wolf Pack", "Skeleton Horde"
+- HP and attack die are pre-calculated from the base creature stats using the table above
+- When the group takes critical damage, it's "routed or broken" — narratively some flee, the rest fall
+- Blast spells (e.g. Elemental Wall) bypass the impaired penalty against detachments
+
+**Example enemy-specs:**
+```lisp
+;; Solo goblin
+'("Goblin" 4 0 6 :str 8 :dex 12 :wil 8)
+
+;; Small group: 2 goblins (HP 4→6, attack 2d6 keep highest ≈ d8)
+'("2 Goblins" 6 0 8 :str 8 :dex 12 :wil 8)
+
+;; Pack: 5 wolves (HP 6→12, enhanced d12 attack)
+'("Wolf Pack" 12 0 12 :str 12 :dex 14 :wil 8)
+
+;; Detachment: skeleton horde (HP 5→15, enhanced d12, player impaired)
+'("Skeleton Horde" 15 1 12 :str 8 :dex 13 :wil 0)
+```
+
 ### Armor
 
 | Type | Armor Value | Slots |
@@ -85,8 +124,7 @@ Armor subtracts from incoming damage before HP/STR.
 | Medium (sword, axe) | d8 | 1 | Standard |
 | Heavy (polearm, greatsword) | d10 | 2 | Two hands, bulky |
 
-**Impaired:** Attacking from a bad position or while wounded → roll d4 instead
-**Enhanced:** Attacking from advantage or exploiting weakness → roll d12 instead
+Impaired/Enhanced rules (see Combat above) also apply to weapon attacks.
 
 ### Inventory
 
