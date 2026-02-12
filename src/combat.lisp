@@ -9,32 +9,9 @@
 	#:dunge/item
 	#:dunge/dice)
   (:export #:enemy
-	   #:enemy-name
-	   #:enemy-attack-die
-
-	   #:encounter
-	   #:encounter-enemy
 	   #:encounter-active-p
 	   #:encounter-log
 	   #:encounter-state
-
-	   #:current-encounter
-	   #:encounter-active
-	   #:setup-encounter
-	   #:resolve-attack
-	   #:resolve-player-attack
-	   #:resolve-enemy-attack
-	   #:format-combat-log
-	   #:clear-encounter
-	   #:enemy-alive-p
-	   #:player-alive-p
-	   #:str-save
-	   #:dex-save
-	   #:resolve-heal
-	   #:resolve-flee
-	   #:format-heal-log
-	   #:format-flee-log
-	   #:combat-choices
 	   #:combat-encounter))
 
 (in-package #:dunge/combat)
@@ -330,15 +307,6 @@ Returns a plist (:success t/nil :enemy-result ...)."
   (let ((enc (current-encounter)))
     (when enc
       (setf (encounter-active-p enc) nil))))
-
-(defun enemy-alive-p ()
-  (let ((enc (current-encounter)))
-    (and enc
-	 (encounter-active-p enc)
-	 (eq (encounter-state enc) :active))))
-
-(defun player-alive-p ()
-  (> (combatant-str *player*) 0))
 
 ;;; Combat encounter — state-machine room element
 
