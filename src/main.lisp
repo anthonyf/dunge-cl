@@ -3,7 +3,8 @@
   (:shadowing-import-from #:dunge/room #:room)
   (:shadowing-import-from #:dunge/item #:item)
   (:shadowing-import-from #:dunge/character #:char-name)
-  (:mix-reexport #:dunge/combat
+  (:mix-reexport #:dunge/bestiary
+		 #:dunge/combat
 		 #:dunge/character-creation
 		 #:dunge/character
 		 #:dunge/data-store
@@ -45,7 +46,7 @@
 
 (make-room 'test-combat "Combat!"
   (combat-encounter
-    :enemy-spec '("Goblin" 4 0 6 :str 8 :dex 12 :wil 8)
+    :enemy-spec (make-goblin)
     :intro (list (p "A goblin leaps out of the shadows!"))
     :victory (list
       (p "The goblin crumples to the ground. Victory!")
