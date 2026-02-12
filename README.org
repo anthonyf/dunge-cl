@@ -41,3 +41,5 @@ This project is licensed under the [[https://www.gnu.org/licenses/gpl-3.0.html][
 
 - [[file:CLAUDE.md][CLAUDE.md]] — architecture, conventions, quick reference
 - [[file:DESIGN.md][DESIGN.md]] — full game design document (Cairn rules, oracle system, dungeon generation)
+- [[file:TODOs.org][TODOs.org]] — Remaining work
+  
