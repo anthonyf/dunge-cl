@@ -45,7 +45,7 @@ ssh -L 8080:localhost:8080 user@your-vps "python3 -m http.server 8080 --director
 
 **Engine dispatch:** Generic functions `perform`, `menu`, `out`, `execute-action` dispatch on context type. Rooms are declarative trees of elements (p, exit, gate, prompt) that `perform` walks.
 
-**Data store:** Global `*data-store*` with nested hash tables. Access via `(lookup key1 key2 ...)` and `(setf (lookup ...) value)`. `ref` creates lazy lookup closures for use in room content.
+**Data store:** Global `*data-store*` with nested hash tables. Access via `(lookup key1 key2 ...)` and `(setf (lookup ...) value)`.
 
 **Item system:** Mixin-based via CLOS multiple inheritance. `weapon` mixin adds `damage-die` slot. `consumable` mixin marks items as usable via `consume` generic. `stackable` mixin adds quantity tracking. Concrete classes combine mixins: `weapon-item` (weapon + item), `healing-herb` (consumable + stackable + item). Constructors: `(weapon name :damage-die N)`, `(healing-herb :quantity N)`, `(make-item name)`.
 
@@ -68,6 +68,7 @@ ssh -L 8080:localhost:8080 user@your-vps "python3 -m http.server 8080 --director
 
 - All packages use `uiop:define-package` (not `defpackage`)
 - Package per file: `dunge/utils`, `dunge/data-store`, `dunge/engine`, `dunge/room`, etc.
+- Use `:mix` to import symbols from other packages (not `:import-from`)
 - `dunge` package re-exports everything via `:mix-reexport`
 - No changes to src/ files for web compatibility — patches go in web-export.lisp
 - main.lisp should be the last file to load.
