@@ -44,39 +44,23 @@
 (make-room 'test-combat "Combat!"
   (combat-encounter
     :enemy-spec '("Goblin" 4 0 6 :str 8 :dex 12 :wil 8)
-    :intro (list (p "A goblin leaps out of the shadows!")
-		 (p ""))
-    :states (list
-      :active (list
-	(lambda (ctx)
-	  (let ((e (encounter-enemy (current-encounter))))
-	    (out ctx (format nil "  Goblin HP: ~a/~a  STR: ~a~%"
-			     (combatant-hp e)
-			     (combatant-hp-max e)
-			     (combatant-str e))))
-	  (out ctx (format nil "  Your HP:   ~a/~a  STR: ~a~%"
-			   (combatant-hp *player*)
-			   (combatant-hp-max *player*)
-			   (combatant-str *player*)))
-	  nil)
-	(p "")
-	(combat-choices 'test-combat))
-      :victory (list
-	(p "The goblin crumples to the ground. Victory!")
-	(p "")
-	(exit "Return to Adventure Board" 'adventure-board))
-      :death (list
-	(p "Your wounds are fatal. You collapse and breathe your last.")
-	(p "")
-	(exit "Return to Town Square" 'town-square))
-      :incapacitated (list
-	(p "You fall unconscious from your wounds. You wake up back in town, battered but alive.")
-	(p "")
-	(exit "Return to Town Square" 'town-square))
-      :fled (list
-	(p "You flee the scene, putting distance between you and the goblin.")
-	(p "")
-	(exit "Return to Adventure Board" 'adventure-board)))))
+    :intro (list (p "A goblin leaps out of the shadows!"))
+    :victory (list
+      (p "The goblin crumples to the ground. Victory!")
+      (p "")
+      (exit "Return to Adventure Board" 'adventure-board))
+    :death (list
+      (p "Your wounds are fatal. You collapse and breathe your last.")
+      (p "")
+      (exit "Return to Town Square" 'town-square))
+    :incapacitated (list
+      (p "You fall unconscious from your wounds. You wake up back in town, battered but alive.")
+      (p "")
+      (exit "Return to Town Square" 'town-square))
+    :fled (list
+      (p "You flee the scene, putting distance between you and the goblin.")
+      (p "")
+      (exit "Return to Adventure Board" 'adventure-board))))
 
 
 (make-room 'blacksmith "Blacksmith"
