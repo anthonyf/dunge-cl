@@ -1,33 +1,13 @@
 (uiop:define-package #:dunge/combat
   (:use #:cl)
   (:shadowing-import-from #:dunge/room #:room)
-  (:import-from #:dunge/room #:room-local)
-  (:import-from #:dunge/character
-		#:combatant
-		#:combatant-hp
-		#:combatant-hp-max
-		#:combatant-armor
-		#:combatant-str
-		#:combatant-dex
-		#:combatant-wil
-		#:*player*
-		#:char-inventory)
-  (:import-from #:dunge/engine
-		#:choice
-		#:set-vignette
-		#:perform
-		#:out)
-  (:import-from #:dunge/item
-		#:usable-p
-		#:item-use-label
-		#:weapon
-		#:item-damage-die
-		#:item-display-name
-		#:consumable
-		#:consume
-		#:healing-herb
-		#:consume-item)
-  (:mix #:dunge/dice)
+  (:shadowing-import-from #:dunge/character #:char-name)
+  (:shadowing-import-from #:dunge/item #:item)
+  (:mix #:dunge/room
+	#:dunge/character
+	#:dunge/engine
+	#:dunge/item
+	#:dunge/dice)
   (:export #:enemy
 	   #:enemy-name
 	   #:enemy-attack-die
