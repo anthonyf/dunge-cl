@@ -100,9 +100,147 @@ Armor subtracts from incoming damage before HP/STR.
 ### Magic
 
 - Spells contained in **Spellbooks** (1 slot each)
-- Anyone can cast by holding the book
-- After casting, make WIL save or gain 1 Fatigue
+- Anyone can cast by holding the book and reading aloud
+- After casting, gain 1 **Fatigue** (takes an inventory slot)
+- Casting in danger (combat) requires a **WIL save**; failure risks extra Fatigue, spellbook destruction, injury, or death
+- **Scrolls** are single-use, no Fatigue, no inventory slot
+- **Relics** are magical items with limited charges and a recharge condition (no Fatigue)
 - Fatigue clears after full rest
+- No class restrictions — any character can cast any spell
+
+#### Shortlist — Spells for Implementation
+
+These spells map well to our current engine (combat encounters, room gates, inventory system):
+
+**Combat spells:**
+
+| Spell | Effect in Engine | Mechanic |
+|-------|-----------------|----------|
+| Cure Wounds | Restore 1d4 STR to target | Consumable-style combat choice |
+| Shield | Target gains +2 Armor for encounter | Set flag, modify armor |
+| Sleep | Enemy falls asleep, auto-victory | Set encounter state to :victory |
+| Charm | Enemy becomes friendly, end encounter | New encounter state :charmed |
+| Pacify | Enemy loses will to fight | Set encounter state :fled (enemy flees) |
+| Frenzy | Next attack is Enhanced (roll d12) | Temporary damage die override |
+| Web | Immobilize enemy, skip their attack 1 round | Flag on encounter, skip enemy turn |
+
+**Exploration spells:**
+
+| Spell | Effect in Engine | Mechanic |
+|-------|-----------------|----------|
+| Knock | Open a locked door/gate | Satisfy gate condition |
+| Illuminate | Reveal hidden exits in current room | Unlock hidden gate |
+| Detect Magic | Sense magical items/traps nearby | Unlock hidden gate or show info |
+| Arcane Eye | Scout adjacent room before entering | Show room description without entering |
+| Fog Cloud | Avoid or escape encounters | Auto-succeed flee or bypass combat room |
+| Disguise | Bypass social/guard encounters | Satisfy gate condition |
+
+#### Full Cairn Spell Reference (d100)
+
+For future consideration. Spells marked with * are in the shortlist above.
+
+| # | Spell | Description |
+|---|-------|-------------|
+| 1 | Adhere | Objects become extremely sticky |
+| 2 | Anchor | Wire sprouts from arms, affixing to points within 50ft |
+| 3 | Animate Object | Object obeys your commands |
+| 4 | Anthropomorphize | Animal gains human intelligence or appearance |
+| 5 | Arcane Eye* | See through a magical floating eyeball |
+| 6 | Astral Prison | Freeze object in invulnerable crystal shell |
+| 7 | Attract | Objects magnetically attract within 10ft |
+| 8 | Auditory Illusion | Create illusory sounds from chosen direction |
+| 9 | Babble | Creature repeats your thoughts aloud |
+| 10 | Bait Flower | Plant emanates decaying flesh smell |
+| 11 | Beast Form | Transform into a mundane animal |
+| 12 | Befuddle | Creature cannot form short-term memories |
+| 13 | Body Swap | Switch bodies with touched creature |
+| 14 | Charm* | Target treats you as a friend |
+| 15 | Command | Target obeys a single three-word command |
+| 16 | Comprehend | Become fluent in all languages temporarily |
+| 17 | Cone of Foam | Dense foam sprays from hand |
+| 18 | Control Plants | Nearby plants obey and move slowly |
+| 19 | Control Weather | Alter weather type at will |
+| 20 | Cure Wounds* | Restore 1d4 STR per day via touch |
+| 21 | Deafen | All nearby creatures lose hearing |
+| 22 | Detect Magic* | See or hear nearby magical auras |
+| 23 | Disassemble | Detach and reattach body parts at will |
+| 24 | Disguise* | Alter one character's humanoid appearance |
+| 25 | Displace | Object appears 15ft from actual position |
+| 26 | Earthquake | Ground shakes violently, damaging structures |
+| 27 | Elasticity | Body stretches up to 10ft |
+| 28 | Elemental Wall | 50ft ice or fire wall rises from ground |
+| 29 | Filch | Visible item teleports to your hands |
+| 30 | Fish Lung | Target breathes underwater until surfacing |
+| 31 | Flare | Bright energy ball reveals location |
+| 32 | Fog Cloud* | Dense fog spreads from caster |
+| 33 | Frenzy* | Nearby creature erupts in violence |
+| 34 | Gate | Portal to random plane opens |
+| 35 | Gravity Shift | Change gravity direction for self only |
+| 36 | Greed | Creature desires visible item overwhelmingly |
+| 37 | Haste | Movement speed tripled |
+| 38 | Hatred | Creature develops deep hatred of target |
+| 39 | Hear Whispers | Hear faint sounds clearly |
+| 40 | Hover | Object hovers 2ft above ground frictionlessly |
+| 41 | Hypnotize | Creature enters trance, answers yes/no question |
+| 42 | Icy Touch | Ice layer spreads on touched surface (10ft radius) |
+| 43 | Identify Owner | Letters appear spelling object's owners |
+| 44 | Illuminate* | Floating light moves at command |
+| 45 | Invisible Tether | Two objects cannot move >10ft apart |
+| 46 | Knock* | Mundane or magical lock unlocks loudly |
+| 47 | Leap | Jump up to 10ft high once |
+| 48 | Liquid Air | Air becomes swimmable |
+| 49 | Magic Dampener | Nearby magical effects halved in effectiveness |
+| 50 | Manse | Sturdy furnished cottage appears for hours |
+| 51 | Marble Craze | Pockets fill with marbles every 30 seconds |
+| 52 | Masquerade | Appearance and voice match touched character |
+| 53 | Miniaturize | Touched creature shrinks to mouse size |
+| 54 | Mirror Image | Illusory controllable duplicate appears |
+| 55 | Mirrorwalk | Mirror becomes gateway to another mirror |
+| 56 | Multiarm | Gain temporary extra arm |
+| 57 | Night Sphere | 50ft darkness sphere displaying night sky appears |
+| 58 | Objectify | Become inanimate object (piano to apple sized) |
+| 59 | Ooze Form | Become living jelly |
+| 60 | Pacify* | Nearby creature develops aversion to violence |
+| 61 | Passage | Creates temporary path through wood/stone/brick |
+| 62 | Phobia | Creature becomes terrified of chosen object |
+| 63 | Pit | 10ft wide, 10ft deep pit opens in ground |
+| 64 | Primal Surge | Creature evolves into future species version |
+| 65 | Push/Pull | Object pushed/pulled with one man's strength |
+| 66 | Raise Dead | Skeleton rises to serve, follows simple orders |
+| 67 | Raise Spirit | Corpse spirit manifests, answers 1 question |
+| 68 | Read Mind | Hear surface thoughts of nearby creatures |
+| 69 | Repel | Objects magnetically repel within 10ft |
+| 70 | Scry | See through eyes of previously touched creature |
+| 71 | Sculpt Elements | Inanimate material behaves like clay |
+| 72 | Sense | Sense nearest example of chosen object type |
+| 73 | Shield* | Touched creature protected from mundane attacks |
+| 74 | Shroud | Touched creature invisible until moving |
+| 75 | Shuffle | Two creatures instantly switch places |
+| 76 | Skillful Repair | Make minor repairs to nonliving objects |
+| 77 | Sleep* | Creature falls into light sleep |
+| 78 | Slick | 30ft radius becomes extremely slippery |
+| 79 | Smoke Form | Body becomes controllable living smoke |
+| 80 | Sniff | Smell even faintest scent traces |
+| 81 | Snuff | Mundane light sources instantly extinguish |
+| 82 | Sort | Inanimate items sort by chosen categories |
+| 83 | Spellsaw | Whirling blade clears plant material harmlessly |
+| 84 | Spider Climb | Climb surfaces like spider |
+| 85 | Swarm | Become swarm of crows, rats, or piranhas |
+| 86 | Target Lure | Touched object becomes target of nearby spells |
+| 87 | Telekinesis | Mentally move item under 60lbs |
+| 88 | Telepathy | Two creatures hear each other's thoughts remotely |
+| 89 | Teleport | Move object/person within 50ft radius |
+| 90 | Thicket | Up to 50ft thicket of trees and brush sprouts |
+| 91 | Time Control | 50ft bubble slows/increases time by 10% |
+| 92 | True Sight | See through all nearby illusions |
+| 93 | Upwell | Spring of seawater appears |
+| 94 | Vision | Completely control what creature sees |
+| 95 | Visual Illusion | Room-sized silent immobile illusion appears |
+| 96 | Ward | 50ft silver circle prevents chosen species crossing |
+| 97 | Web* | Wrists shoot thick webbing |
+| 98 | Widget | Primitive drawn tool/item appears temporarily |
+| 99 | Wizard Mark | Finger shoots ulfire-colored paint visible only to caster |
+| 100 | X-Ray Vision | See through walls, dirt, clothing, etc. |
 
 ### Rest & Recovery
 
