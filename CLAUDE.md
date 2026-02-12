@@ -1,6 +1,6 @@
 # Dunge — Text Adventure Engine in Common Lisp
 
-See also: [DESIGN.md](DESIGN.md) — full game design document (Cairn rules, oracle system, dungeon generation)
+See also: [README.org](README.org) | [DESIGN.md](DESIGN.md) — full game design document (Cairn rules, oracle system, dungeon generation)
 
 ## Quick Reference
 
