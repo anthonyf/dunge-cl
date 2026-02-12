@@ -5,6 +5,8 @@
 - [X] Basic scene/vignette system
 - [X] Choice display and selection
 - [X] Simple navigation between scenes
+- [ ] Web game should survive page reload
+- [ ] Custom games
 
 * Phase 2: Mechanics
 - [X] Dice rolling utilities
@@ -21,6 +23,7 @@
 * Phase 4: Combat
 - [X] Initiative system
 - [X] Combat choices (attack, flee, item)
+- [ ] Spells
 - [ ] Enemy AI (simple)
 - [ ] Morale checks
 
@@ -37,6 +40,7 @@
 - [ ] Random events
 
 * Phase 7: Polish
+- [ ] Polish Web UI, separate css file
 - [ ] Roll visibility settings
 - [ ] Roll log UI
 - [ ] Save/load game state
