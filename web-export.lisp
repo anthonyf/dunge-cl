@@ -202,6 +202,8 @@ browser needs those exact sub-packages to exist."
 
 (defun (setf encounter-active-p) (value obj)
   (setf (slot-value obj 'active-p) value))
+(defun (setf encounter-first-round-p) (value obj)
+  (setf (slot-value obj 'first-round-p) value))
 (defun (setf encounter-log) (value obj)
   (setf (slot-value obj 'log) value))
 (defun (setf encounter-state) (value obj)

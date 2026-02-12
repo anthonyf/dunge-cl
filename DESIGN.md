@@ -504,14 +504,16 @@ Conditions: _______________
 ```
 ┌─────────────────────────────────────────────────────────┐
 │                  COMBAT START                           │
-│  1. Check surprise (d6, 1-2 = surprised)                │
-│  2. Roll initiative (d6 per side, high goes first)      │
+│  First round: PC makes DEX save                        │
+│    Pass → PC acts first (normal round)                  │
+│    Fail → enemy attacks unopposed, then normal rounds   │
+│  Rounds 2+: PC always acts first, then enemy            │
 └─────────────────────┬───────────────────────────────────┘
 					  │
 					  ▼
 ┌─────────────────────────────────────────────────────────┐
 │                  COMBAT ROUND                           │
-│  Determine turn order from initiative                   │
+│  PC acts, then enemy acts                               │
 └─────────────────────┬───────────────────────────────────┘
 					  │
 		  ┌───────────┴───────────┐
@@ -767,13 +769,13 @@ Returns a plist with :damage, :hp-damage, :str-damage, :critical, :dead."
 ## Implementation Phases
 
 ### Phase 1: Core Engine
-- [ ] Character data structure and creation
-- [ ] Basic scene/vignette system
-- [ ] Choice display and selection
-- [ ] Simple navigation between scenes
+- [x] Character data structure and creation
+- [x] Basic scene/vignette system
+- [x] Choice display and selection
+- [x] Simple navigation between scenes
 
 ### Phase 2: Mechanics
-- [ ] Dice rolling utilities
+- [x] Dice rolling utilities
 - [ ] Save system (d20 ≤ stat)
 - [ ] Damage and HP/STR tracking
 - [ ] Death and critical damage

@@ -10,6 +10,7 @@
 	#:dunge/dice)
   (:export #:enemy
 	   #:encounter-active-p
+	   #:encounter-first-round-p
 	   #:encounter-log
 	   #:encounter-state
 	   #:combat-encounter))
@@ -21,10 +22,11 @@
    (attack-die :initarg :attack-die :accessor enemy-attack-die)))
 
 (defclass encounter ()
-  ((enemy       :initarg :enemy       :accessor encounter-enemy)
-   (active-p    :initarg :active-p    :accessor encounter-active-p    :initform t)
-   (log         :initarg :log         :accessor encounter-log         :initform nil)
-   (state       :initarg :state       :accessor encounter-state       :initform :active)))
+  ((enemy         :initarg :enemy         :accessor encounter-enemy)
+   (active-p      :initarg :active-p      :accessor encounter-active-p      :initform t)
+   (first-round-p :initarg :first-round-p :accessor encounter-first-round-p :initform t)
+   (log           :initarg :log           :accessor encounter-log           :initform nil)
+   (state         :initarg :state         :accessor encounter-state         :initform :active)))
 
 (defun current-encounter ()
   (room-local "encounter"))
@@ -90,42 +92,51 @@
 (defun resolve-enemy-attack ()
   (resolve-attack (enemy-attack-die (encounter-enemy (current-encounter))) *player*))
 
+(defun format-player-attack-lines (result)
+  "Return a list of strings describing the player's attack."
+  (let ((lines nil)
+	(dmg (getf result :damage))
+	(str-dmg (getf result :str-damage))
+	(crit (getf result :critical-save))
+	(dead (getf result :dead)))
+    (if (and (zerop dmg) (zerop str-dmg))
+	(push "Your attack glances off harmlessly." lines)
+	(progn
+	  (when (> dmg 0)
+	    (push (format nil "You deal ~a damage." dmg) lines))
+	  (when (> str-dmg 0)
+	    (push (format nil "A critical blow! ~a STR damage!" str-dmg) lines)
+	    (cond
+	      (dead (push "The enemy collapses, dead!" lines))
+	      ((eq crit nil) (push "The enemy fails its STR save and is slain!" lines))
+	      ((eq crit t) (push "The enemy endures the wound." lines))))))
+    (nreverse lines)))
+
+(defun format-enemy-attack-lines (result)
+  "Return a list of strings describing the enemy's attack on the player."
+  (let ((lines nil)
+	(dmg (getf result :damage))
+	(str-dmg (getf result :str-damage))
+	(crit (getf result :critical-save))
+	(dead (getf result :dead)))
+    (if (and (zerop dmg) (zerop str-dmg))
+	(push "The enemy's attack glances off harmlessly." lines)
+	(progn
+	  (when (> dmg 0)
+	    (push (format nil "The enemy deals ~a damage." dmg) lines))
+	  (when (> str-dmg 0)
+	    (push (format nil "A devastating hit! ~a STR damage!" str-dmg) lines)
+	    (cond
+	      (dead (push "You collapse. Your wounds are fatal." lines))
+	      ((eq crit nil) (push "You fail your STR save and fall unconscious!" lines))
+	      ((eq crit t) (push "You grit your teeth and endure." lines))))))
+    (nreverse lines)))
+
 (defun format-combat-log (player-result enemy-result)
   "Build a combat log string from attack result plists."
-  (let ((lines nil))
-    ;; Player's attack
-    (let ((dmg (getf player-result :damage))
-	  (str-dmg (getf player-result :str-damage))
-	  (crit (getf player-result :critical-save))
-	  (dead (getf player-result :dead)))
-      (if (and (zerop dmg) (zerop str-dmg))
-	  (push "Your attack glances off harmlessly." lines)
-	  (progn
-	    (when (> dmg 0)
-	      (push (format nil "You deal ~a damage." dmg) lines))
-	    (when (> str-dmg 0)
-	      (push (format nil "A critical blow! ~a STR damage!" str-dmg) lines)
-	      (cond
-		(dead (push "The enemy collapses, dead!" lines))
-		((eq crit nil) (push "The enemy fails its STR save and is slain!" lines))
-		((eq crit t) (push "The enemy endures the wound." lines)))))))
-    ;; Enemy's attack
-    (let ((dmg (getf enemy-result :damage))
-	  (str-dmg (getf enemy-result :str-damage))
-	  (crit (getf enemy-result :critical-save))
-	  (dead (getf enemy-result :dead)))
-      (if (and (zerop dmg) (zerop str-dmg))
-	  (push "The enemy's attack glances off harmlessly." lines)
-	  (progn
-	    (when (> dmg 0)
-	      (push (format nil "The enemy deals ~a damage." dmg) lines))
-	    (when (> str-dmg 0)
-	      (push (format nil "A devastating hit! ~a STR damage!" str-dmg) lines)
-	      (cond
-		(dead (push "You collapse. Your wounds are fatal." lines))
-		((eq crit nil) (push "You fail your STR save and fall unconscious!" lines))
-		((eq crit t) (push "You grit your teeth and endure." lines)))))))
-    (format nil "~{~a~^ ~}" (nreverse lines))))
+  (format nil "~{~a~^ ~}"
+	  (append (format-player-attack-lines player-result)
+		  (format-enemy-attack-lines enemy-result))))
 
 ;;; Heal
 
@@ -140,29 +151,12 @@
 
 (defun format-heal-log (heal-result enemy-result)
   "Build a log string for a heal + enemy attack round."
-  (let ((lines nil))
-    (push (format nil "You use Healing Herbs and restore ~a HP. (~a/~a)"
-		  (getf heal-result :healed)
-		  (getf heal-result :new-hp)
-		  (getf heal-result :new-hp))
-	  lines)
-    ;; Enemy's attack
-    (let ((dmg (getf enemy-result :damage))
-	  (str-dmg (getf enemy-result :str-damage))
-	  (crit (getf enemy-result :critical-save))
-	  (dead (getf enemy-result :dead)))
-      (if (and (zerop dmg) (zerop str-dmg))
-	  (push "The enemy's attack glances off harmlessly." lines)
-	  (progn
-	    (when (> dmg 0)
-	      (push (format nil "The enemy deals ~a damage." dmg) lines))
-	    (when (> str-dmg 0)
-	      (push (format nil "A devastating hit! ~a STR damage!" str-dmg) lines)
-	      (cond
-		(dead (push "You collapse. Your wounds are fatal." lines))
-		((eq crit nil) (push "You fail your STR save and fall unconscious!" lines))
-		((eq crit t) (push "You grit your teeth and endure." lines)))))))
-    (format nil "~{~a~^ ~}" (nreverse lines))))
+  (format nil "~{~a~^ ~}"
+	  (cons (format nil "You use Healing Herbs and restore ~a HP. (~a/~a)"
+			(getf heal-result :healed)
+			(getf heal-result :new-hp)
+			(getf heal-result :new-hp))
+		(format-enemy-attack-lines enemy-result))))
 
 ;;; Flee
 
@@ -351,6 +345,17 @@ Returns a plist (:success t/nil :enemy-result ...)."
        (when (encounter-log enc)
 	 (out ctx (format nil "~a~%" (encounter-log enc)))
 	 (setf (encounter-log enc) nil))
+       ;; First-round DEX save
+       (when (and (eq state :active) (encounter-first-round-p enc))
+	 (setf (encounter-first-round-p enc) nil)
+	 (if (dex-save *player*)
+	     (out ctx (format nil "You react quickly!~%"))
+	     (let* ((enemy-result (resolve-enemy-attack))
+		    (lines (cons "Caught off guard! The enemy strikes first."
+				 (format-enemy-attack-lines enemy-result))))
+	       (out ctx (format nil "~{~a~^ ~}~%" lines))
+	       (update-encounter-state enc :enemy-attack-result enemy-result)
+	       (setf state (encounter-state enc)))))
        (if (eq state :active)
 	   ;; Show stats + return combat choices
 	   (let ((e (encounter-enemy enc)))
