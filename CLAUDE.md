@@ -1,17 +1,23 @@
 # Dunge — Text Adventure Engine in Common Lisp
 
+See also: [DESIGN.md](DESIGN.md) — full game design document (Cairn rules, oracle system, dungeon generation)
+
 ## Quick Reference
 
 ```bash
-# Terminal REPL (in SBCL)
-(asdf:load-system :dunge)
-(dunge:game-repl (dunge:room 'start))
+# Terminal REPL
+qlot exec sbcl --eval '(asdf:load-system :dunge)' \
+               --eval '(dunge:game-repl (dunge:room (quote start)))'
 
 # Web build (produces dist/)
-sbcl --load web-export.lisp
+qlot exec sbcl --non-interactive --load web-export.lisp
 
 # Run tests
-(asdf:test-system :dunge)
+qlot exec sbcl --eval '(asdf:test-system :dunge)' --quit
+
+# Web test build + Playwright
+qlot exec sbcl --non-interactive --eval '(push :web-test *features*)' --load web-export.lisp
+npx playwright test
 
 # Serve web build from remote VPS (run from local machine)
 ssh -L 8080:localhost:8080 user@your-vps "python3 -m http.server 8080 --directory /home/dev/git/dunge-cl/dist/"
@@ -23,11 +29,15 @@ ssh -L 8080:localhost:8080 user@your-vps "python3 -m http.server 8080 --director
 **Source files** load in order (src/):
 1. `utils.lisp` — string utilities (trim-whitespace, validate-non-empty-string)
 2. `data-store.lisp` — nested hash table storage (*data-store*, lookup, ref)
-3. `dice.lisp` — dice rolling
+3. `dice.lisp` — dice rolling (roll-dice, roll-d20)
 4. `text-layout.lisp` — text formatting (columns, text macro, nl, spaces)
 5. `engine.lisp` — game loop, generic functions, context classes
 6. `room.lisp` — room system (room, exit, gate, p, prompt elements)
-7. `main.lisp` — game content (room definitions)
+7. `item.lisp` — item system (item, stackable, weapon, consumable, healing-herb)
+8. `character.lisp` — combatant base class, player-character, *player*
+9. `character-creation.lisp` — background data, character creation room sequence
+10. `combat.lisp` — enemy, encounter, attack resolution, combat choices (weapons/heal/flee)
+11. `main.lisp` — game content (room definitions, combat encounters)
 
 **Key pattern:** Two UI contexts share the same engine:
 - `print-context` — terminal REPL (synchronous read-line loop)
@@ -37,6 +47,10 @@ ssh -L 8080:localhost:8080 user@your-vps "python3 -m http.server 8080 --director
 
 **Data store:** Global `*data-store*` with nested hash tables. Access via `(lookup key1 key2 ...)` and `(setf (lookup ...) value)`. `ref` creates lazy lookup closures for use in room content.
 
+**Item system:** Mixin-based via CLOS multiple inheritance. `weapon` mixin adds `damage-die` slot. `consumable` mixin marks items as usable via `consume` generic. `stackable` mixin adds quantity tracking. Concrete classes combine mixins: `weapon-item` (weapon + item), `healing-herb` (consumable + stackable + item). Constructors: `(weapon name :damage-die N)`, `(healing-herb :quantity N)`, `(make-item name)`.
+
+**Combat system:** `combat-choices` builds choice list dynamically from player inventory — each weapon becomes an attack choice, consumables become use choices, unarmed d4 fallback if no weapons. Flee attempts a DEX save; failure means a parting blow. `resolve-attack` handles Cairn damage: roll weapon die, subtract armor, overflow from HP to STR, STR save on critical.
+
 ## Conventions
 
 - All packages use `uiop:define-package` (not `defpackage`)
@@ -44,6 +58,7 @@ ssh -L 8080:localhost:8080 user@your-vps "python3 -m http.server 8080 --director
 - `dunge` package re-exports everything via `:mix-reexport`
 - No changes to src/ files for web compatibility — patches go in web-export.lisp
 - main.lisp should be the last file to load.
+- Background equipment uses thunks (lambdas) to create fresh item instances per playthrough
 
 ## JSCL Web Export Gotchas
 
@@ -54,3 +69,4 @@ ssh -L 8080:localhost:8080 user@your-vps "python3 -m http.server 8080 --director
 - JSCL doesn't support `~{~A~}` format directive — use dolist+princ instead
 - `#j:` reader syntax works in cross-compilation context
 - `uiop:symbol-call` needed for JSCL functions since the package doesn't exist at read time
+- New CLOS accessor setf methods need explicit `(defun (setf accessor) ...)` patches in web-export.lisp

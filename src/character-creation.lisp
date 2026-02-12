@@ -15,38 +15,45 @@
 ;;; Background data
 
 (defparameter *backgrounds*
-  `(("Soldier"  :description "trained in combat, disciplined"
-		:equipment (,(weapon "Sword" :damage-die 8)
-			    ,(make-item "Gambeson (Armor 1)")
-			    ,(make-item "Helm (+1 Armor)"))
-		:armor 2  :gold 8)
-    ("Scholar"  :description "educated, curious, physically weak"
-		:equipment (,(make-item "Spellbook")
-			    ,(weapon "Dagger" :damage-die 6)
-			    ,(make-item "Ink & Quill"))
-		:armor 0  :gold 8)
-    ("Criminal" :description "streetwise, light-fingered, untrustworthy"
-		:equipment (,(make-item "Lockpicks")
-			    ,(weapon "Dagger" :damage-die 6)
-			    ,(make-item "Dark Cloak")
-			    ,(make-item "Grappling Hook"))
-		:armor 0  :gold 8)
-    ("Pilgrim"  :description "faithful, traveled, poor"
-		:equipment (,(weapon "Staff" :damage-die 6)
-			    ,(make-item "Holy Symbol")
-			    ,(healing-herb :quantity 3))
-		:armor 0  :gold 8)
-    ("Hunter"   :description "survivalist, patient, rural"
-		:equipment (,(weapon "Bow" :damage-die 6)
-			    ,(make-item "Arrows")
-			    ,(weapon "Knife" :damage-die 6)
-			    ,(make-item "Snare Kit")
-			    ,(make-item "Furs"))
-		:armor 0  :gold 8)
-    ("Merchant" :description "wealthy, connected, soft"
-		:equipment (,(weapon "Dagger" :damage-die 6)
-			    ,(make-item "Fine Clothes"))
-		:armor 0  :gold 38)))
+  (list
+   (list "Soldier"  :description "trained in combat, disciplined"
+	 :equipment (lambda ()
+		      (list (weapon "Sword" :damage-die 8)
+			    (make-item "Gambeson (Armor 1)")
+			    (make-item "Helm (+1 Armor)")))
+	 :armor 2  :gold 8)
+   (list "Scholar"  :description "educated, curious, physically weak"
+	 :equipment (lambda ()
+		      (list (make-item "Spellbook")
+			    (weapon "Dagger" :damage-die 6)
+			    (make-item "Ink & Quill")))
+	 :armor 0  :gold 8)
+   (list "Criminal" :description "streetwise, light-fingered, untrustworthy"
+	 :equipment (lambda ()
+		      (list (make-item "Lockpicks")
+			    (weapon "Dagger" :damage-die 6)
+			    (make-item "Dark Cloak")
+			    (make-item "Grappling Hook")))
+	 :armor 0  :gold 8)
+   (list "Pilgrim"  :description "faithful, traveled, poor"
+	 :equipment (lambda ()
+		      (list (weapon "Staff" :damage-die 6)
+			    (make-item "Holy Symbol")
+			    (healing-herb :quantity 3)))
+	 :armor 0  :gold 8)
+   (list "Hunter"   :description "survivalist, patient, rural"
+	 :equipment (lambda ()
+		      (list (weapon "Bow" :damage-die 6)
+			    (make-item "Arrows")
+			    (weapon "Knife" :damage-die 6)
+			    (make-item "Snare Kit")
+			    (make-item "Furs")))
+	 :armor 0  :gold 8)
+   (list "Merchant" :description "wealthy, connected, soft"
+	 :equipment (lambda ()
+		      (list (weapon "Dagger" :damage-die 6)
+			    (make-item "Fine Clothes")))
+	 :armor 0  :gold 38)))
 
 (defun background-prop (name prop)
   (getf (cdr (assoc name *backgrounds* :test #'string=)) prop))
@@ -143,7 +150,7 @@
 	   (lambda (ctx)
 	     (declare (ignore ctx))
 	     (let* ((bg (char-background *player*))
-		    (items (append (background-prop bg :equipment)
+		    (items (append (funcall (background-prop bg :equipment))
 				   (list (make-item "Rations" :stackable t :stack-limit 10 :quantity 3)
 					 (make-item "Torch" :stackable t :stack-limit 5 :quantity 2)
 					 (make-item "Waterskin")))))
