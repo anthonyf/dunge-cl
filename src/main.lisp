@@ -22,7 +22,9 @@
 ;;; Start
 
 (make-room 'start "Welcome to Dunge!"
-  (exit "Continue" 'character-info))
+  (p "A text-based dungeon crawler. Prepare to explore, fight, and survive.")
+  (exit "Quick Start (random character)" 'quick-start)
+  (exit "Create a custom character" 'character-info))
 
 ;;; World rooms
 

@@ -8,6 +8,7 @@
 	#:dunge/engine
 	#:dunge/dice)
   (:export #:character-info
+	   #:quick-start
 	   #:town-square))
 
 (in-package #:dunge/character-creation)
@@ -57,6 +58,78 @@
 
 (defun background-prop (name prop)
   (getf (cdr (assoc name *backgrounds* :test #'string=)) prop))
+
+;;; Random character generation
+
+(defparameter *random-names*
+  '("Aldric" "Bren" "Cael" "Dara" "Eira" "Fenn"
+    "Greta" "Hale" "Isolde" "Jory" "Kael" "Lyra"
+    "Maren" "Niall" "Orin" "Petra" "Quinne" "Rook"
+    "Sable" "Tarn" "Una" "Vex" "Wren" "Yara" "Zev"))
+
+(defun generate-random-character ()
+  (let* ((name (nth (random (length *random-names*)) *random-names*))
+	 (bg-entry (nth (random (length *backgrounds*)) *backgrounds*))
+	 (bg-name (car bg-entry))
+	 (str (apply #'+ (roll-dice 6 6 6)))
+	 (dex (apply #'+ (roll-dice 6 6 6)))
+	 (wil (apply #'+ (roll-dice 6 6 6)))
+	 (hp (first (roll-dice 6)))
+	 (items (append (funcall (background-prop bg-name :equipment))
+			(list (make-item "Rations" :stackable t :stack-limit 10 :quantity 3)
+			      (make-item "Torch" :stackable t :stack-limit 5 :quantity 2)
+			      (make-item "Waterskin")))))
+    (setf *player* (make-instance 'player-character :name name))
+    (setf (char-background *player*) bg-name)
+    (setf (combatant-str *player*) str)
+    (setf (combatant-dex *player*) dex)
+    (setf (combatant-wil *player*) wil)
+    (setf (combatant-hp *player*) hp)
+    (setf (combatant-hp-max *player*) hp)
+    (setf (char-inventory *player*) items)
+    (setf (combatant-armor *player*) (background-prop bg-name :armor))
+    (setf (char-gold *player*) (background-prop bg-name :gold))
+    (setf (char-fate *player*) 2)))
+
+;;; Quick start room
+
+(make-room 'quick-start "Quick Start"
+  (gate (local-ref "generated")
+    :else (list
+	   (lambda (ctx)
+	     (declare (ignore ctx))
+	     (generate-random-character)
+	     (setf (room-local "generated") t)
+	     nil)))
+  (lambda (ctx)
+    (out ctx (format nil "  Name:       ~a~%" (char-name *player*)))
+    (out ctx (format nil "  Background: ~a~%" (char-background *player*)))
+    (out ctx (format nil "~%"))
+    (out ctx (format nil "  STR: ~a   DEX: ~a   WIL: ~a~%"
+		     (combatant-str *player*)
+		     (combatant-dex *player*)
+		     (combatant-wil *player*)))
+    (out ctx (format nil "~%"))
+    (out ctx (format nil "  HP:    ~a/~a~%"
+		     (combatant-hp *player*)
+		     (combatant-hp-max *player*)))
+    (out ctx (format nil "  Armor: ~a~%" (combatant-armor *player*)))
+    (out ctx (format nil "  Gold:  ~a~%" (char-gold *player*)))
+    (out ctx (format nil "  Fate:  ~a~%" (char-fate *player*)))
+    (out ctx (format nil "~%"))
+    (out ctx (format nil "  Inventory:~%"))
+    (dolist (i (char-inventory *player*))
+      (out ctx (format nil "    - ~a~%" (item-display-name i))))
+    nil)
+  (p "")
+  (exit "Begin your adventure!" 'town-square)
+  (lambda (ctx)
+    (declare (ignore ctx))
+    (list (make-instance 'choice
+	    :label "Customize instead"
+	    :action (lambda ()
+		      (setf *player* nil)
+		      (set-vignette (room 'character-info)))))))
 
 ;;; Character creation rooms
 
