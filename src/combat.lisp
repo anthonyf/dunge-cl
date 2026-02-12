@@ -48,14 +48,6 @@
 	 (enc (make-instance 'encounter :enemy e)))
     (setf (room-local "encounter") enc)))
 
-(defun str-save (combatant)
-  "STR save: roll d20 <= current STR to pass. Returns t on success."
-  (<= (roll-d20) (combatant-str combatant)))
-
-(defun dex-save (combatant)
-  "DEX save: roll d20 <= current DEX to pass. Returns t on success."
-  (<= (roll-d20) (combatant-dex combatant)))
-
 (defun resolve-attack (attacker-die target)
   "Resolve an attack against TARGET. Returns a plist:
    :damage — HP damage dealt

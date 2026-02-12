@@ -1,5 +1,6 @@
 (uiop:define-package #:dunge/character
   (:use #:cl)
+  (:mix #:dunge/dice)
   (:shadow #:char-name)
   (:export #:combatant
 	   #:combatant-hp
@@ -17,7 +18,10 @@
 	   #:char-inventory
 
 	   #:*player*
-	   #:player-ref))
+	   #:player-ref
+	   #:str-save
+	   #:dex-save
+	   #:wil-save))
 
 (in-package #:dunge/character)
 
@@ -41,3 +45,15 @@
 (defun player-ref (accessor)
   "Lazy slot reader for gate conditions — returns nil when *player* is nil."
   (lambda () (when *player* (funcall accessor *player*))))
+
+(defun str-save (combatant)
+  "STR save: roll d20 <= current STR to pass. Returns t on success."
+  (<= (roll-d20) (combatant-str combatant)))
+
+(defun dex-save (combatant)
+  "DEX save: roll d20 <= current DEX to pass. Returns t on success."
+  (<= (roll-d20) (combatant-dex combatant)))
+
+(defun wil-save (combatant)
+  "WIL save: roll d20 <= current WIL to pass. Returns t on success."
+  (<= (roll-d20) (combatant-wil combatant)))
