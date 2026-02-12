@@ -321,18 +321,14 @@ Returns a plist (:success t/nil :enemy-result ...)."
   (clear-encounter))
 
 (defmethod perform (ctx (ce combat-encounter))
-  (cond
-    ;; No active encounter → setup + show intro
-    ((not (encounter-active))
-     (apply #'setup-encounter (ce-enemy-spec ce))
-     (loop for element in (ce-intro ce)
-	   for result = (perform ctx element)
-	   if (listp result) append result
-	   else return result))
-    ;; Active encounter
-    (t
-     (let* ((enc (current-encounter))
-	    (state (encounter-state enc)))
+  ;; Setup on first visit: create encounter + show intro
+  (when (not (encounter-active))
+    (apply #'setup-encounter (ce-enemy-spec ce))
+    (dolist (element (ce-intro ce))
+      (perform ctx element)))
+  ;; Active encounter
+  (let* ((enc (current-encounter))
+	 (state (encounter-state enc)))
        ;; Drain combat log
        (when (encounter-log enc)
 	 (out ctx (format nil "~a~%" (encounter-log enc)))
@@ -371,4 +367,4 @@ Returns a plist (:success t/nil :enemy-result ...)."
 	     (loop for element in elements
 		   for result = (perform ctx element)
 		   if (listp result) append result
-		   else return result)))))))
+		   else return result)))))
