@@ -1,13 +1,32 @@
-* Dunge 
-:PROPERTIES:
-:ID:       E866D563-4D34-4FE0-85EE-CC3FBDA1F56E
-:END:
+* Dunge
 
-** TODOs
-*** TODO Make a character builder
-*** TODO Make a house, with rooms and interactable items
-*** TODO Battle encounter
+A text adventure engine built in Common Lisp, playable in the terminal or browser.
 
-** Usage
+[[https://anthonyf.github.io/dunge-cl/][Play in your browser]]
 
-** Installation
+** Overview
+
+Dunge is a solo RPG text adventure using [[https://cairnrpg.com/cairn-srd/][Cairn]] mechanics — three stats (STR/DEX/WIL), automatic damage with armor reduction, and critical damage via HP→STR spillover. Players create a character, choose a background, and explore a choice-based world with combat encounters.
+
+The engine supports two UI contexts from the same codebase:
+- *Terminal REPL* — synchronous read-line loop via SBCL
+- *Browser* — event-driven DOM rendering via JSCL cross-compilation to JavaScript
+
+** Quick Start
+
+#+begin_src bash
+# Terminal REPL
+qlot exec sbcl --eval '(asdf:load-system :dunge)' \
+               --eval '(dunge:game-repl (dunge:room (quote start)))'
+
+# Web build (produces dist/)
+qlot exec sbcl --non-interactive --load web-export.lisp
+
+# Run tests
+qlot exec sbcl --eval '(asdf:test-system :dunge)' --quit
+#+end_src
+
+** Documentation
+
+- [[file:CLAUDE.md][CLAUDE.md]] — architecture, conventions, quick reference
+- [[file:DESIGN.md][DESIGN.md]] — full game design document (Cairn rules, oracle system, dungeon generation)
