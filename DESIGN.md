@@ -766,52 +766,6 @@ Returns a plist with :damage, :hp-damage, :str-damage, :critical, :dead."
 
 ---
 
-## Implementation Phases
-
-### Phase 1: Core Engine
-- [x] Character data structure and creation
-- [x] Basic scene/vignette system
-- [x] Choice display and selection
-- [x] Simple navigation between scenes
-
-### Phase 2: Mechanics
-- [x] Dice rolling utilities
-- [ ] Save system (d20 ≤ stat)
-- [ ] Damage and HP/STR tracking
-- [ ] Death and critical damage
-
-### Phase 3: Exploration
-- [ ] Turn tracking
-- [ ] Light source duration
-- [ ] Wandering monster checks
-- [ ] Rest mechanics
-
-### Phase 4: Combat
-- [ ] Initiative system
-- [ ] Combat choices (attack, flee, item)
-- [ ] Enemy AI (simple)
-- [ ] Morale checks
-
-### Phase 5: Procedural Generation
-- [ ] Room content generation
-- [ ] Room exit generation
-- [ ] Monster placement
-- [ ] Treasure generation
-
-### Phase 6: Oracle System
-- [ ] Yes/No oracle with probability
-- [ ] Twist/complication system
-- [ ] Spark tables
-- [ ] Random events
-
-### Phase 7: Polish
-- [ ] Roll visibility settings
-- [ ] Roll log UI
-- [ ] Save/load game state
-- [ ] Character progression (if any)
-
----
-
 ## Design Decisions
 
 1. **Character Progression:** Pure Cairn - no XP or leveling. Characters grow through:
