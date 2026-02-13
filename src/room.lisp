@@ -13,7 +13,8 @@
 	   #:p
 	   #:prompt
 	   #:room-local
-	   #:local-ref))
+	   #:local-ref
+	   #:set-lookup))
 
 (in-package #:dunge/room)
 
@@ -134,6 +135,17 @@
 
 (defun (setf room) (room id)
   (setf (lookup "rooms" id) room))
+
+(defun set-lookup (&rest keys-and-value)
+  "Return a room element that sets a data-store value.
+Last argument is the value; the rest are lookup keys.
+Example: (set-lookup \"game\" \"save-enabled\" t)"
+  (let ((keys (butlast keys-and-value))
+        (value (car (last keys-and-value))))
+    (lambda (ctx)
+      (declare (ignore ctx))
+      (apply #'(setf lookup) value keys)
+      nil)))
 
 (defun make-room (id title &rest elements)
   (setf (room id)
