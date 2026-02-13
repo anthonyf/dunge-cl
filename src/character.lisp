@@ -75,7 +75,7 @@
         :fate (char-fate p)
         :inventory (mapcar #'serialize (char-inventory p))))
 
-(defmethod deserialize ((type (eql :player)) plist)
+(define-deserializer :player (plist)
   (let ((p (make-instance 'player-character :name (getf plist :name))))
     (setf (char-background p) (getf plist :background))
     (setf (combatant-hp p) (getf plist :hp))
@@ -92,3 +92,4 @@
                   (getf plist :inventory)))
     (setf *player* p)
     p))
+

@@ -166,19 +166,20 @@ removes from inventory when exhausted. Returns the new inventory list."
   (list :type :item
         :name (item-name item)))
 
-(defmethod deserialize ((type (eql :weapon)) plist)
+(define-deserializer :weapon (plist)
   (weapon (getf plist :name)
           :damage-die (getf plist :damage-die)))
 
-(defmethod deserialize ((type (eql :healing-herb)) plist)
+(define-deserializer :healing-herb (plist)
   (healing-herb :quantity (getf plist :quantity)
                 :stack-limit (getf plist :stack-limit)))
 
-(defmethod deserialize ((type (eql :stackable)) plist)
+(define-deserializer :stackable (plist)
   (make-item (getf plist :name)
              :stackable t
              :quantity (getf plist :quantity)
              :stack-limit (getf plist :stack-limit)))
 
-(defmethod deserialize ((type (eql :item)) plist)
+(define-deserializer :item (plist)
   (make-item (getf plist :name)))
+
