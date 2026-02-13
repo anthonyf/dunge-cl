@@ -11,6 +11,10 @@
 	   #:choice-label
 	   #:choice-action
 	   #:execute-action
+	   
+	   #:goto-choice
+	   #:gosub-choice
+	   #:return-choice
 
 	   #:print-context
 	   #:out
@@ -89,6 +93,18 @@
 		 :label label
 		 :action (lambda ()
 			   (set-vignette vignette))))
+
+(defun gosub-choice (label vignette)
+  (make-instance 'choice
+		 :label label
+		 :action (lambda ()
+			   (push-vignette vignette))))
+
+(defun return-choice (label)
+  (make-instance 'choice
+		 :label label
+		 :action (lambda ()
+			   (pop-vignette))))
 
 (defclass prompt ()
   ((question :initarg :question :accessor prompt-question)

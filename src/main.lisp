@@ -3,7 +3,8 @@
   (:shadowing-import-from #:dunge/room #:room)
   (:shadowing-import-from #:dunge/item #:item)
   (:shadowing-import-from #:dunge/character #:char-name)
-  (:mix-reexport #:dunge/bestiary
+  (:mix-reexport #:dunge/container
+		 #:dunge/bestiary
 		 #:dunge/combat
 		 #:dunge/character-creation
 		 #:dunge/serialize
@@ -69,7 +70,14 @@
 
 
 (make-room 'blacksmith "Blacksmith"
-  (p "This is the blacksmith.")
+  (p "The forge glows hot. Weapons and armor line the walls.")
+  (p "")
+  (make-container "Storage Chest" "An old wooden chest sits in the corner, its iron hinges rusted with age." "Open the chest"
+    (list
+      (p "Inside the chest you find:")
+      (p "  - A rusty key")
+      (p "  - A tattered map")))
+  (p "")
   (exit "Return to town square" 'town-square))
 
 #+nil(defun run-game ()
