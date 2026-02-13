@@ -220,7 +220,7 @@ browser needs those exact sub-packages to exist."
 
 (defun ls-get (key)
   (let ((val ((jscl::oget #j:window \"localStorage\" \"getItem\") (jscl::jsstring key))))
-    (if (jscl::js-null-p val)
+    (if (eq val #j:null)
         nil
         (jscl::clstring val))))
 
