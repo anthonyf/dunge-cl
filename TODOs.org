@@ -5,8 +5,8 @@
 - [X] Basic scene/vignette system
 - [X] Choice display and selection
 - [X] Simple navigation between scenes
-- [ ] Web game should survive page reload
-- [ ] Custom games
+- [X] Web game should survive page reload
+- [ ] Support custom games
 
 * Phase 2: Mechanics
 - [X] Dice rolling utilities
