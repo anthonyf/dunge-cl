@@ -6,6 +6,7 @@
 	#:dunge/data-store
 	#:dunge/text-layout)
   (:export #:room
+	   #:room-id
 	   #:make-room
 	   #:exit
 	   #:gate
@@ -56,7 +57,9 @@
   nil)
 
 (defclass room ()
-  ((title :initarg :title
+  ((id :initarg :id
+       :reader room-id)
+   (title :initarg :title
 	  :accessor room-title)
    (elements :initarg :elements
 	     :accessor room-elements)
@@ -135,5 +138,6 @@
 (defun make-room (id title &rest elements)
   (setf (room id)
 	(make-instance 'room
+		       :id id
 		       :title title
 		       :elements elements)))

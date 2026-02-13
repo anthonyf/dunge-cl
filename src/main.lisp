@@ -30,6 +30,10 @@
 ;;; World rooms
 
 (make-room 'town-square "Town Square"
+  (lambda (ctx)
+    (declare (ignore ctx))
+    (setf (lookup "game" "save-enabled") t)
+    nil)
   (p "This is the town square, the central hub of this very small, unnamed town.")
   (exit "Look at the Adventure Board" 'adventure-board :description "You see an adventure board here where the townsfolk have posted their bounties.  Perfect for an adventurer like yourself.")
   (exit "Go to the blacksmith" 'blacksmith :description "To the east you see smoke from the forge of the town blacksmith."))

@@ -211,6 +211,130 @@ browser needs those exact sub-packages to exist."
 ")
 
 
+(defvar *persistence-source*
+  ";;; Persistence — save/restore game state via localStorage
+
+(in-package #:dunge/engine)
+
+;;; localStorage helpers
+
+(defun ls-get (key)
+  (let ((val ((jscl::oget #j:window \"localStorage\" \"getItem\") (jscl::jsstring key))))
+    (if (jscl::js-null-p val)
+        nil
+        (jscl::clstring val))))
+
+(defun ls-set (key value)
+  ((jscl::oget #j:window \"localStorage\" \"setItem\")
+   (jscl::jsstring key)
+   (jscl::jsstring value)))
+
+(defun ls-remove (key)
+  ((jscl::oget #j:window \"localStorage\" \"removeItem\")
+   (jscl::jsstring key)))
+
+;;; Item serialization
+
+(defun serialize-item (item)
+  (cond
+    ((typep item 'dunge/item::weapon-item)
+     (list :type :weapon
+           :name (dunge/item::item-name item)
+           :damage-die (dunge/item::item-damage-die item)))
+    ((typep item 'dunge/item::healing-herb)
+     (list :type :healing-herb
+           :quantity (dunge/item::item-quantity item)
+           :stack-limit (dunge/item::item-stack-limit item)))
+    ((typep item 'dunge/item::stackable-item)
+     (list :type :stackable
+           :name (dunge/item::item-name item)
+           :quantity (dunge/item::item-quantity item)
+           :stack-limit (dunge/item::item-stack-limit item)))
+    (t
+     (list :type :item
+           :name (dunge/item::item-name item)))))
+
+(defun deserialize-item (plist)
+  (let ((type (getf plist :type)))
+    (cond
+      ((eq type :weapon)
+       (dunge/item::weapon (getf plist :name)
+                           :damage-die (getf plist :damage-die)))
+      ((eq type :healing-herb)
+       (dunge/item::healing-herb
+        :quantity (getf plist :quantity)
+        :stack-limit (getf plist :stack-limit)))
+      ((eq type :stackable)
+       (dunge/item::make-item (getf plist :name)
+                              :stackable t
+                              :quantity (getf plist :quantity)
+                              :stack-limit (getf plist :stack-limit)))
+      (t
+       (dunge/item::make-item (getf plist :name))))))
+
+;;; Game state serialization
+
+(defun serialize-game-state ()
+  (let* ((p dunge/character::*player*)
+         (room-sym (dunge/room::room-id (current-vignette)))
+         (room-name (symbol-name room-sym))
+         (items (mapcar #'serialize-item (dunge/character::char-inventory p))))
+    (list :room room-name
+          :name (dunge/character::char-name p)
+          :background (dunge/character::char-background p)
+          :hp (dunge/character::combatant-hp p)
+          :hp-max (dunge/character::combatant-hp-max p)
+          :armor (dunge/character::combatant-armor p)
+          :str (dunge/character::combatant-str p)
+          :dex (dunge/character::combatant-dex p)
+          :wil (dunge/character::combatant-wil p)
+          :gold (dunge/character::char-gold p)
+          :fate (dunge/character::char-fate p)
+          :inventory items)))
+
+(defun deserialize-game-state (plist)
+  (let ((p (make-instance 'dunge/character::player-character
+                          :name (getf plist :name))))
+    (setf (dunge/character::char-background p) (getf plist :background))
+    (setf (dunge/character::combatant-hp p) (getf plist :hp))
+    (setf (dunge/character::combatant-hp-max p) (getf plist :hp-max))
+    (setf (dunge/character::combatant-armor p) (getf plist :armor))
+    (setf (dunge/character::combatant-str p) (getf plist :str))
+    (setf (dunge/character::combatant-dex p) (getf plist :dex))
+    (setf (dunge/character::combatant-wil p) (getf plist :wil))
+    (setf (dunge/character::char-gold p) (getf plist :gold))
+    (setf (dunge/character::char-fate p) (getf plist :fate))
+    (setf (dunge/character::char-inventory p)
+          (mapcar #'deserialize-item (getf plist :inventory)))
+    (setf dunge/character::*player* p)
+    (intern (getf plist :room) \"DUNGE\")))
+
+;;; Save / load / clear
+
+(defun save-game ()
+  (when (and dunge/character::*player*
+             (dunge/data-store::lookup \"game\" \"save-enabled\")
+             (typep (current-vignette) 'dunge/room::room))
+    (let ((state (serialize-game-state)))
+      (ls-set \"dunge-save\" (write-to-string state)))))
+
+(defun load-saved-game ()
+  (let ((raw (ls-get \"dunge-save\")))
+    (when raw
+      (let ((plist (read-from-string raw)))
+        (deserialize-game-state plist)))))
+
+(defun clear-save ()
+  (ls-remove \"dunge-save\"))
+
+;;; New game function — exposed to JS
+
+(setf (jscl::oget #j:window \"dungeNewGame\")
+      (lambda ()
+        (clear-save)
+        ((jscl::oget #j:window \"location\" \"reload\"))))
+")
+
 (defvar *browser-context-source*
   ";;; Browser context — event-driven UI for the browser
 
@@ -310,7 +434,8 @@ browser needs those exact sub-packages to exist."
     (when vignette
       (let ((choices (perform ctx vignette)))
         (when choices
-          (menu ctx choices))))))
+          (menu ctx choices)))))
+  (save-game))
 
 (defun start-game (starting-vignette)
   (setq *vignette-stack* (list starting-vignette))
@@ -328,7 +453,12 @@ browser needs those exact sub-packages to exist."
 
 (in-package #:dunge/engine)
 
-(dunge/engine::start-game (dunge/room::room 'dunge::start))
+(let ((saved-room (dunge/engine::load-saved-game)))
+  (if saved-room
+      (progn
+        (dunge/data-store::set-lookup t \"game\" \"save-enabled\")
+        (dunge/engine::start-game (dunge/room::room saved-room)))
+      (dunge/engine::start-game (dunge/room::room 'dunge::start))))
 ")
 
 
@@ -353,6 +483,25 @@ body {
 #game {
   max-width: 640px;
   width: 100%;
+}
+#game-header {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 1rem;
+}
+#new-game-btn {
+  background: transparent;
+  color: #666;
+  border: 1px solid #333;
+  padding: 0.3rem 0.8rem;
+  font-family: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+#new-game-btn:hover {
+  color: #e94560;
+  border-color: #e94560;
 }
 #game-output pre {
   white-space: pre-wrap;
@@ -411,6 +560,9 @@ body {
 </head>
 <body>
 <div id=\"game\">
+  <div id=\"game-header\">
+    <button onclick=\"dungeNewGame()\" id=\"new-game-btn\">New Game</button>
+  </div>
   <div id=\"game-output\"></div>
   <div id=\"game-controls\"></div>
 </div>
@@ -527,13 +679,15 @@ body {
                 (delete-file p))))
 
           ;; ——— Normal build ———
-          (let ((browser-path (write-temp-file "browser-context.lisp" *browser-context-source*))
+          (let ((persistence-path (write-temp-file "persistence.lisp" *persistence-source*))
+                (browser-path (write-temp-file "browser-context.lisp" *browser-context-source*))
                 (boot-path    (write-temp-file "boot.lisp" *boot-source*)))
             (format t "~&Compiling game...~%")
             (uiop:symbol-call :jscl :compile-application
              (append (list shim-path)
                      (source-files)
                      (list patches-path
+                           persistence-path
                            browser-path
                            boot-path))
              (merge-pathnames "dunge.js" *dist-dir*))
@@ -549,7 +703,7 @@ body {
                                  :direction :output :if-exists :supersede)
               (write-string *html-template* out))
 
-            (dolist (p (list shim-path patches-path browser-path boot-path))
+            (dolist (p (list shim-path patches-path persistence-path browser-path boot-path))
               (when (probe-file p)
                 (delete-file p))))))
 
