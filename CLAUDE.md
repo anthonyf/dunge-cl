@@ -33,7 +33,7 @@ ssh -L 8080:localhost:8080 user@your-vps "python3 -m http.server 8080 --director
 4. `serialize.lisp` — generic `serialize` + hash-table `deserialize` dispatch
 5. `text-layout.lisp` — text formatting (columns, text macro, nl, spaces)
 6. `engine.lisp` — game loop, generic functions, context classes
-7. `room.lisp` — room system (room, exit, gate, p, prompt, set-lookup elements)
+7. `room.lisp` — room system (room, exit, gate, group, p, prompt, set-lookup elements)
 8. `item.lisp` — item system (item, stackable, weapon, consumable, healing-herb) + item serialize/deserialize
 9. `character.lisp` — combatant base class, player-character, *player* + player serialize/deserialize
 10. `character-creation.lisp` — background data, character creation room sequence
@@ -44,7 +44,7 @@ ssh -L 8080:localhost:8080 user@your-vps "python3 -m http.server 8080 --director
 - `print-context` — terminal REPL (synchronous read-line loop)
 - `browser-context` — web UI (event-driven DOM rendering)
 
-**Engine dispatch:** Generic functions `perform`, `menu`, `out`, `execute-action` dispatch on context type. Rooms are declarative trees of elements (p, exit, gate, prompt) that `perform` walks.
+**Engine dispatch:** Generic functions `perform`, `menu`, `out`, `execute-action` dispatch on context type. Rooms are declarative trees of elements (p, exit, gate, group, prompt) that `perform` walks. `group` bundles multiple elements into one — use it wherever a single element is expected but you need several (e.g. gate branches, combat-encounter outcomes). Single-element cases need no wrapping.
 
 **Data store:** Global `*data-store*` with nested hash tables. Access via `(lookup key1 key2 ...)` and `(setf (lookup ...) value)`.
 
@@ -56,11 +56,11 @@ ssh -L 8080:localhost:8080 user@your-vps "python3 -m http.server 8080 --director
 (make-room 'test-combat "Combat!"
   (combat-encounter
     :enemy (make-goblin)
-    :intro (list (p "A goblin leaps out of the shadows!"))
-    :victory (list (p "Victory!") (exit "Continue" 'next-room))
-    :death (list (p "You died.") (exit "Restart" 'town))
-    :incapacitated (list (p "You fall unconscious.") (exit "Wake up" 'town))
-    :fled (list (p "You escape.") (exit "Continue" 'town))))
+    :intro (p "A goblin leaps out of the shadows!")
+    :victory (group (p "Victory!") (exit "Continue" 'next-room))
+    :death (group (p "You died.") (exit "Restart" 'town))
+    :incapacitated (group (p "You fall unconscious.") (exit "Wake up" 'town))
+    :fled (group (p "You escape.") (exit "Continue" 'town))))
 ```
 
 `combat-choices` builds the choice list from `*player*` inventory — each weapon becomes an attack choice, consumables become use choices, unarmed d4 fallback if no weapons. Flee attempts a DEX save; failure means a parting blow. `resolve-attack` handles Cairn damage: roll weapon die, subtract armor, overflow from HP to STR, STR save on critical. `update-encounter-state` determines the resulting state after each round with priority: victory > death > incapacitated > fled > active.
