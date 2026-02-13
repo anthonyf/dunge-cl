@@ -24,6 +24,7 @@
 		 (:file "character-creation")
 		 (:file "combat")
 		 (:file "bestiary")
+		 (:file "container")
 		 (:file "main"))))
   :in-order-to ((test-op (test-op "dunge/tests"))))
 

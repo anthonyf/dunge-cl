@@ -95,6 +95,10 @@
        (text (room-title room) (nl)))
   (perform-elements ctx (room-elements room)))
 
+(defmethod perform (ctx (choice choice))
+  (declare (ignore ctx))
+  (list choice))
+
 (defclass gate ()
   ((condition :initarg :condition :accessor gate-condition)
    (then :initarg :then :accessor gate-then)

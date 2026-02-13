@@ -555,6 +555,7 @@ body {
         (src-file "character-creation.lisp")
         (src-file "combat.lisp")
         (src-file "bestiary.lisp")
+        (src-file "container.lisp")
         (src-file "main.lisp")))
 
 (defun main ()
