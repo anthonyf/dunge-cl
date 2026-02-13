@@ -30,14 +30,15 @@ ssh -L 8080:localhost:8080 user@your-vps "python3 -m http.server 8080 --director
 1. `utils.lisp` — string utilities (trim-whitespace, validate-non-empty-string)
 2. `data-store.lisp` — nested hash table storage (*data-store*, lookup, ref)
 3. `dice.lisp` — dice rolling (roll-dice, roll-d20)
-4. `text-layout.lisp` — text formatting (columns, text macro, nl, spaces)
-5. `engine.lisp` — game loop, generic functions, context classes
-6. `room.lisp` — room system (room, exit, gate, p, prompt elements)
-7. `item.lisp` — item system (item, stackable, weapon, consumable, healing-herb)
-8. `character.lisp` — combatant base class, player-character, *player*
-9. `character-creation.lisp` — background data, character creation room sequence
-10. `combat.lisp` — enemy, encounter, attack resolution, combat choices (weapons/heal/flee)
-11. `main.lisp` — game content (room definitions, combat encounters)
+4. `serialize.lisp` — generic `serialize` + hash-table `deserialize` dispatch
+5. `text-layout.lisp` — text formatting (columns, text macro, nl, spaces)
+6. `engine.lisp` — game loop, generic functions, context classes
+7. `room.lisp` — room system (room, exit, gate, p, prompt, set-lookup elements)
+8. `item.lisp` — item system (item, stackable, weapon, consumable, healing-herb) + item serialize/deserialize
+9. `character.lisp` — combatant base class, player-character, *player* + player serialize/deserialize
+10. `character-creation.lisp` — background data, character creation room sequence
+11. `combat.lisp` — enemy, encounter, attack resolution, combat choices (weapons/heal/flee)
+12. `main.lisp` — game content (room definitions, combat encounters)
 
 **Key pattern:** Two UI contexts share the same engine:
 - `print-context` — terminal REPL (synchronous read-line loop)
@@ -84,3 +85,6 @@ ssh -L 8080:localhost:8080 user@your-vps "python3 -m http.server 8080 --director
 - `#j:` reader syntax works in cross-compilation context
 - `uiop:symbol-call` needed for JSCL functions since the package doesn't exist at read time
 - New CLOS accessor setf methods need explicit `(defun (setf accessor) ...)` patches in web-export.lisp
+- **EQL specializers across files crash JSCL** — `defmethod` with `(eql :keyword)` specializers works within a single compilation unit, but crashes at runtime (`push-new-class-direct-methods`) when the `defgeneric` and `defmethod` are in different files. Use hash-table dispatch instead (see `define-deserializer` in serialize.lisp).
+- **`jscl::js-null-p` is not a callable function** — it's only a type predicate name in JSCL's type table. Use `(eq val #j:null)` to check for JavaScript null.
+- **JSCL errors can be silent** — CL errors thrown during boot/load may not surface as JS page errors. Wrap suspect code in `handler-case` with `jscl::oget #j:console "log"` calls for debugging.
