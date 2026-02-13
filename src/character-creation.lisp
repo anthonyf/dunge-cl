@@ -136,10 +136,10 @@
 
 (make-room 'character-info "Character Creation"
   (gate (player-ref #'char-name)
-    :then (list
+    :then (group
 	   (p "Welcome " (player-ref #'char-name) "!")
 	   (exit "Continue" 'choose-background))
-    :else (list
+    :else (group
 	   (p "Let's gather some information about your character.")
 	   (prompt "What is your name?"
 		   :validate :non-empty-string
@@ -162,14 +162,13 @@
 
 (make-room 'roll-stats "Roll Ability Scores"
   (gate (local-ref "stats-rolled")
-    :else (list
-	   (lambda (ctx)
-	     (declare (ignore ctx))
-	     (setf (combatant-str *player*) (apply #'+ (roll-dice 6 6 6)))
-	     (setf (combatant-dex *player*) (apply #'+ (roll-dice 6 6 6)))
-	     (setf (combatant-wil *player*) (apply #'+ (roll-dice 6 6 6)))
-	     (setf (room-local "stats-rolled") t)
-	     nil)))
+    :else (lambda (ctx)
+	    (declare (ignore ctx))
+	    (setf (combatant-str *player*) (apply #'+ (roll-dice 6 6 6)))
+	    (setf (combatant-dex *player*) (apply #'+ (roll-dice 6 6 6)))
+	    (setf (combatant-wil *player*) (apply #'+ (roll-dice 6 6 6)))
+	    (setf (room-local "stats-rolled") t)
+	    nil))
   (p "You rolled:")
   (p "  STR: " (player-ref #'combatant-str))
   (p "  DEX: " (player-ref #'combatant-dex))
@@ -207,32 +206,30 @@
 
 (make-room 'roll-hp "Roll Hit Points"
   (gate (local-ref "hp-rolled")
-    :else (list
-	   (lambda (ctx)
-	     (declare (ignore ctx))
-	     (let ((hp (first (roll-dice 6))))
-	       (setf (combatant-hp *player*) hp)
-	       (setf (combatant-hp-max *player*) hp)
-	       (setf (room-local "hp-rolled") t))
-	     nil)))
+    :else (lambda (ctx)
+	    (declare (ignore ctx))
+	    (let ((hp (first (roll-dice 6))))
+	      (setf (combatant-hp *player*) hp)
+	      (setf (combatant-hp-max *player*) hp)
+	      (setf (room-local "hp-rolled") t))
+	    nil))
   (p "Your hit points: " (player-ref #'combatant-hp))
   (exit "Continue" 'equipment))
 
 (make-room 'equipment "Equipment"
   (gate (local-ref "equipped")
-    :else (list
-	   (lambda (ctx)
-	     (declare (ignore ctx))
-	     (let* ((bg (char-background *player*))
-		    (items (append (funcall (background-prop bg :equipment))
-				   (list (make-item "Rations" :stackable t :stack-limit 10 :quantity 3)
-					 (make-item "Torch" :stackable t :stack-limit 5 :quantity 2)
-					 (make-item "Waterskin")))))
-	       (setf (char-inventory *player*) items)
-	       (setf (combatant-armor *player*) (background-prop bg :armor))
-	       (setf (char-gold *player*) (background-prop bg :gold))
-	       (setf (room-local "equipped") t))
-	     nil)))
+    :else (lambda (ctx)
+	    (declare (ignore ctx))
+	    (let* ((bg (char-background *player*))
+		   (items (append (funcall (background-prop bg :equipment))
+				  (list (make-item "Rations" :stackable t :stack-limit 10 :quantity 3)
+					(make-item "Torch" :stackable t :stack-limit 5 :quantity 2)
+					(make-item "Waterskin")))))
+	      (setf (char-inventory *player*) items)
+	      (setf (combatant-armor *player*) (background-prop bg :armor))
+	      (setf (char-gold *player*) (background-prop bg :gold))
+	      (setf (room-local "equipped") t))
+	    nil))
   (p "As a " (player-ref #'char-background) " you receive:")
   (p "")
   (lambda (ctx)
@@ -249,12 +246,11 @@
 
 (make-room 'fate-points "Fate Points"
   (gate (local-ref "fate-set")
-    :else (list
-	   (lambda (ctx)
-	     (declare (ignore ctx))
-	     (setf (char-fate *player*) 2)
-	     (setf (room-local "fate-set") t)
-	     nil)))
+    :else (lambda (ctx)
+	    (declare (ignore ctx))
+	    (setf (char-fate *player*) 2)
+	    (setf (room-local "fate-set") t)
+	    nil))
   (p "You begin with 2 Fate Points.")
   (p "Fate Points can be spent to narrowly avoid death or reroll a critical save.")
   (p "Use them wisely — they are hard to come by.")

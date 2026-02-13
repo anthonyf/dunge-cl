@@ -49,20 +49,20 @@
 (make-room 'test-combat "Combat!"
   (combat-encounter
     :enemy (make-goblin)
-    :intro (list (p "A goblin leaps out of the shadows!"))
-    :victory (list
+    :intro (p "A goblin leaps out of the shadows!")
+    :victory (group
       (p "The goblin crumples to the ground. Victory!")
       (p "")
       (exit "Return to Adventure Board" 'adventure-board))
-    :death (list
+    :death (group
       (p "Your wounds are fatal. You collapse and breathe your last.")
       (p "")
       (exit "Return to Town Square" 'town-square))
-    :incapacitated (list
+    :incapacitated (group
       (p "You fall unconscious from your wounds. You wake up back in town, battered but alive.")
       (p "")
       (exit "Return to Town Square" 'town-square))
-    :fled (list
+    :fled (group
       (p "You flee the scene, putting distance between you and the goblin.")
       (p "")
       (exit "Return to Adventure Board" 'adventure-board))))
