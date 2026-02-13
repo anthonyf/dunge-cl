@@ -38,13 +38,23 @@ ssh -L 8080:localhost:8080 user@your-vps "python3 -m http.server 8080 --director
 9. `character.lisp` — combatant base class, player-character, *player* + player serialize/deserialize
 10. `character-creation.lisp` — background data, character creation room sequence
 11. `combat.lisp` — enemy, encounter, attack resolution, combat choices (weapons/heal/flee)
-12. `main.lisp` — game content (room definitions, combat encounters)
+12. `container.lisp` — container element (make-container)
+13. `main.lisp` — game content (room definitions, combat encounters)
 
 **Key pattern:** Two UI contexts share the same engine:
 - `print-context` — terminal REPL (synchronous read-line loop)
 - `browser-context` — web UI (event-driven DOM rendering)
 
-**Engine dispatch:** Generic functions `perform`, `menu`, `out`, `execute-action` dispatch on context type. Rooms are declarative trees of elements (p, exit, gate, group, prompt) that `perform` walks. `group` bundles multiple elements into one — use it wherever a single element is expected but you need several (e.g. gate branches, combat-encounter outcomes). Single-element cases need no wrapping.
+**Engine dispatch:** Generic functions `perform`, `menu`, `out`, `execute-action` dispatch on context type. Rooms are declarative trees of elements (p, exit, gate, group, prompt) that `perform` walks. `group` bundles multiple elements into one — use it wherever a single element is expected but you need several (e.g. gate branches, combat-encounter outcomes). Single-element cases need no wrapping. Bare `choice` objects are also valid DSL elements (perform returns them as a single-item choice list).
+
+**Vignette navigation:** `set-vignette` replaces the current room (goto). `push-vignette`/`pop-vignette` provide stack-based sub-room navigation (gosub/return). Choice constructors: `(goto-choice label vignette)`, `(gosub-choice label vignette)`, `(return-choice label)`.
+
+**Container system:** `(make-container title description open-label contents)` creates an openable container as a room element. It renders a description and a gosub choice that navigates into a dynamically-created room showing the contents, with a "Back" button to return. Example:
+
+```lisp
+(make-container "Storage Chest" "An old chest sits in the corner." "Open the chest"
+  (list (p "Inside you find:") (p "  - A rusty key")))
+```
 
 **Data store:** Global `*data-store*` with nested hash tables. Access via `(lookup key1 key2 ...)` and `(setf (lookup ...) value)`.
 
