@@ -20,6 +20,7 @@
 		 (:file "room")
 		 (:file "item")
 		 (:file "character")
+		 (:file "serialize")
 		 (:file "character-creation")
 		 (:file "combat")
 		 (:file "bestiary")

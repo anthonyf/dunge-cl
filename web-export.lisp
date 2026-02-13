@@ -233,96 +233,23 @@ browser needs those exact sub-packages to exist."
   ((jscl::oget #j:window \"localStorage\" \"removeItem\")
    (jscl::jsstring key)))
 
-;;; Item serialization
-
-(defun serialize-item (item)
-  (cond
-    ((typep item 'dunge/item::weapon-item)
-     (list :type :weapon
-           :name (dunge/item::item-name item)
-           :damage-die (dunge/item::item-damage-die item)))
-    ((typep item 'dunge/item::healing-herb)
-     (list :type :healing-herb
-           :quantity (dunge/item::item-quantity item)
-           :stack-limit (dunge/item::item-stack-limit item)))
-    ((typep item 'dunge/item::stackable-item)
-     (list :type :stackable
-           :name (dunge/item::item-name item)
-           :quantity (dunge/item::item-quantity item)
-           :stack-limit (dunge/item::item-stack-limit item)))
-    (t
-     (list :type :item
-           :name (dunge/item::item-name item)))))
-
-(defun deserialize-item (plist)
-  (let ((type (getf plist :type)))
-    (cond
-      ((eq type :weapon)
-       (dunge/item::weapon (getf plist :name)
-                           :damage-die (getf plist :damage-die)))
-      ((eq type :healing-herb)
-       (dunge/item::healing-herb
-        :quantity (getf plist :quantity)
-        :stack-limit (getf plist :stack-limit)))
-      ((eq type :stackable)
-       (dunge/item::make-item (getf plist :name)
-                              :stackable t
-                              :quantity (getf plist :quantity)
-                              :stack-limit (getf plist :stack-limit)))
-      (t
-       (dunge/item::make-item (getf plist :name))))))
-
-;;; Game state serialization
-
-(defun serialize-game-state ()
-  (let* ((p dunge/character::*player*)
-         (room-sym (dunge/room::room-id (current-vignette)))
-         (room-name (symbol-name room-sym))
-         (items (mapcar #'serialize-item (dunge/character::char-inventory p))))
-    (list :room room-name
-          :name (dunge/character::char-name p)
-          :background (dunge/character::char-background p)
-          :hp (dunge/character::combatant-hp p)
-          :hp-max (dunge/character::combatant-hp-max p)
-          :armor (dunge/character::combatant-armor p)
-          :str (dunge/character::combatant-str p)
-          :dex (dunge/character::combatant-dex p)
-          :wil (dunge/character::combatant-wil p)
-          :gold (dunge/character::char-gold p)
-          :fate (dunge/character::char-fate p)
-          :inventory items)))
-
-(defun deserialize-game-state (plist)
-  (let ((p (make-instance 'dunge/character::player-character
-                          :name (getf plist :name))))
-    (setf (dunge/character::char-background p) (getf plist :background))
-    (setf (dunge/character::combatant-hp p) (getf plist :hp))
-    (setf (dunge/character::combatant-hp-max p) (getf plist :hp-max))
-    (setf (dunge/character::combatant-armor p) (getf plist :armor))
-    (setf (dunge/character::combatant-str p) (getf plist :str))
-    (setf (dunge/character::combatant-dex p) (getf plist :dex))
-    (setf (dunge/character::combatant-wil p) (getf plist :wil))
-    (setf (dunge/character::char-gold p) (getf plist :gold))
-    (setf (dunge/character::char-fate p) (getf plist :fate))
-    (setf (dunge/character::char-inventory p)
-          (mapcar #'deserialize-item (getf plist :inventory)))
-    (setf dunge/character::*player* p)
-    (intern (getf plist :room) \"DUNGE\")))
-
 ;;; Save / load / clear
 
 (defun save-game ()
   (when (and dunge/character::*player*
              (dunge/data-store::lookup \"game\" \"save-enabled\")
              (typep (current-vignette) 'dunge/room::room))
-    (let ((state (serialize-game-state)))
-      (ls-set \"dunge-save\" (write-to-string state)))))
+    (let* ((state (dunge/serialize::serialize dunge/character::*player*))
+           (room-name (symbol-name (dunge/room::room-id (current-vignette)))))
+      (ls-set \"dunge-save\" (write-to-string (list* :room room-name state))))))
 
 (defun load-saved-game ()
   (let ((raw (ls-get \"dunge-save\")))
     (when raw
-      (let ((plist (read-from-string raw)))
-        (deserialize-game-state plist)))))
+      (let* ((plist (read-from-string raw))
+             (room-name (getf plist :room)))
+        (dunge/serialize::deserialize :player plist)
+        (intern room-name \"DUNGE\")))))
 
 (defun clear-save ()
   (ls-remove \"dunge-save\"))
@@ -624,6 +551,7 @@ body {
         (src-file "room.lisp")
         (src-file "item.lisp")
         (src-file "character.lisp")
+        (src-file "serialize.lisp")
         (src-file "character-creation.lisp")
         (src-file "combat.lisp")
         (src-file "bestiary.lisp")

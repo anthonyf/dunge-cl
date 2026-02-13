@@ -22,6 +22,7 @@
 
 	   #:healing-herb
 
+	   #:stackable-item
 	   #:consume-item
 
 	   #:make-item))
