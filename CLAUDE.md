@@ -65,6 +65,14 @@ ssh -L 8080:localhost:8080 user@your-vps "python3 -m http.server 8080 --director
 
 `combat-choices` builds the choice list from `*player*` inventory — each weapon becomes an attack choice, consumables become use choices, unarmed d4 fallback if no weapons. Flee attempts a DEX save; failure means a parting blow. `resolve-attack` handles Cairn damage: roll weapon die, subtract armor, overflow from HP to STR, STR save on critical. `update-encounter-state` determines the resulting state after each round with priority: victory > death > incapacitated > fled > active.
 
+## Rules
+
+- Always use `qlot exec sbcl` — never invoke bare `sbcl`
+- When asked to clean up or remove code, ONLY touch what was explicitly requested — do not proactively delete functions, variables, or other code
+- Before committing, verify `git diff --cached` includes only intended changes — do not bundle unrelated staged files (e.g. lockfiles) into feature commits
+- When asked to plan or design a feature, produce a written plan and wait for approval before implementing
+- When changing package definitions or exports, check for symbol conflicts and run tests immediately
+
 ## Conventions
 
 - All packages use `uiop:define-package` (not `defpackage`)
