@@ -136,16 +136,22 @@
 (defun (setf room) (room id)
   (setf (lookup "rooms" id) room))
 
+(defclass set-lookup ()
+  ((keys  :initarg :keys  :accessor set-lookup-keys)
+   (value :initarg :value :accessor set-lookup-value)))
+
 (defun set-lookup (&rest keys-and-value)
-  "Return a room element that sets a data-store value.
+  "Create a room element that sets a data-store value.
 Last argument is the value; the rest are lookup keys.
 Example: (set-lookup \"game\" \"save-enabled\" t)"
-  (let ((keys (butlast keys-and-value))
-        (value (car (last keys-and-value))))
-    (lambda (ctx)
-      (declare (ignore ctx))
-      (apply #'(setf lookup) value keys)
-      nil)))
+  (make-instance 'set-lookup
+    :keys (butlast keys-and-value)
+    :value (car (last keys-and-value))))
+
+(defmethod perform (ctx (sl set-lookup))
+  (declare (ignore ctx))
+  (apply #'(setf lookup) (set-lookup-value sl) (set-lookup-keys sl))
+  nil)
 
 (defun make-room (id title &rest elements)
   (setf (room id)

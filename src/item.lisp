@@ -1,6 +1,7 @@
 (uiop:define-package #:dunge/item
   (:use #:cl)
   (:shadow #:item)
+  (:mix #:dunge/serialize)
   (:export #:item
 	   #:item-name
 	   #:item-display-name
@@ -142,3 +143,42 @@ removes from inventory when exhausted. Returns the new inventory list."
 (defmethod print-object ((item item) stream)
   (print-unreadable-object (item stream :type t)
     (princ (item-display-name item) stream)))
+
+;;; Serialization
+
+(defmethod serialize ((item weapon-item))
+  (list :type :weapon
+        :name (item-name item)
+        :damage-die (item-damage-die item)))
+
+(defmethod serialize ((item healing-herb))
+  (list :type :healing-herb
+        :quantity (item-quantity item)
+        :stack-limit (item-stack-limit item)))
+
+(defmethod serialize ((item stackable-item))
+  (list :type :stackable
+        :name (item-name item)
+        :quantity (item-quantity item)
+        :stack-limit (item-stack-limit item)))
+
+(defmethod serialize ((item item))
+  (list :type :item
+        :name (item-name item)))
+
+(defmethod deserialize ((type (eql :weapon)) plist)
+  (weapon (getf plist :name)
+          :damage-die (getf plist :damage-die)))
+
+(defmethod deserialize ((type (eql :healing-herb)) plist)
+  (healing-herb :quantity (getf plist :quantity)
+                :stack-limit (getf plist :stack-limit)))
+
+(defmethod deserialize ((type (eql :stackable)) plist)
+  (make-item (getf plist :name)
+             :stackable t
+             :quantity (getf plist :quantity)
+             :stack-limit (getf plist :stack-limit)))
+
+(defmethod deserialize ((type (eql :item)) plist)
+  (make-item (getf plist :name)))
