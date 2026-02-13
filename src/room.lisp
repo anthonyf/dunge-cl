@@ -10,6 +10,7 @@
 	   #:make-room
 	   #:exit
 	   #:gate
+	   #:group
 	   #:p
 	   #:prompt
 	   #:room-local
@@ -83,13 +84,16 @@
 (defun local-ref (key)
   (lambda () (room-local key)))
 
+(defun perform-elements (ctx elements)
+  (loop for element in elements
+    for result = (perform ctx element)
+    if (listp result) append result
+    else return result))
+
 (defmethod perform (ctx (room room))
   (out ctx
        (text (room-title room) (nl)))
-  (loop for element in (room-elements room)
-	for result = (perform ctx element)
-	if (listp result) append result
-	else return result))
+  (perform-elements ctx (room-elements room)))
 
 (defclass gate ()
   ((condition :initarg :condition :accessor gate-condition)
@@ -106,10 +110,16 @@
   (let ((branch (if (funcall (gate-condition gate))
 		    (gate-then gate)
 		    (gate-else gate))))
-    (loop for element in branch
-	  for result = (perform ctx element)
-	  if (listp result) append result
-	  else return result)))
+    (when branch (perform ctx branch))))
+
+(defclass group ()
+  ((elements :initarg :elements :accessor group-elements)))
+
+(defun group (&rest elements)
+  (make-instance 'group :elements elements))
+
+(defmethod perform (ctx (g group))
+  (perform-elements ctx (group-elements g)))
 
 (defun resolve-validator (validator)
   (etypecase validator

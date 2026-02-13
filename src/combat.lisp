@@ -325,8 +325,8 @@ Returns a plist (:success t/nil :enemy-result ...)."
   ;; Setup on first visit: create encounter + show intro
   (when (not (encounter-active))
     (apply #'setup-encounter (ce-enemy-spec ce))
-    (dolist (element (ce-intro ce))
-      (perform ctx element)))
+    (when (ce-intro ce)
+      (perform ctx (ce-intro ce))))
   ;; Active encounter
   (let* ((enc (current-encounter))
 	 (state (encounter-state enc)))
@@ -359,13 +359,10 @@ Returns a plist (:success t/nil :enemy-result ...)."
 			      (combatant-str *player*)))
 	     (combat-choices))
 	   ;; Terminal state: cleanup + show outcome elements
-	   (let ((elements (case state
-			     (:victory       (ce-victory ce))
-			     (:death         (ce-death ce))
-			     (:incapacitated (ce-incapacitated ce))
-			     (:fled          (ce-fled ce)))))
+	   (let ((outcome (case state
+			    (:victory       (ce-victory ce))
+			    (:death         (ce-death ce))
+			    (:incapacitated (ce-incapacitated ce))
+			    (:fled          (ce-fled ce)))))
 	     (cleanup-combat state)
-	     (loop for element in elements
-		   for result = (perform ctx element)
-		   if (listp result) append result
-		   else return result)))))
+	     (when outcome (perform ctx outcome))))))
