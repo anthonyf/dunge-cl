@@ -1,11 +1,4 @@
-(uiop:define-package #:dunge/container
-  (:use #:cl)
-  (:shadowing-import-from #:dunge/room #:room)
-  (:mix #:dunge/engine
-	#:dunge/room)
-  (:export #:make-container))
-
-(in-package #:dunge/container)
+(in-package #:dunge)
 
 
 (defun make-container (title description open-label contents)

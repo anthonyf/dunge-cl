@@ -1,45 +1,4 @@
-(uiop:define-package #:dunge/bestiary
-  (:use #:cl)
-  (:export
-   ;; Tier 1
-   #:make-goblin
-   #:make-skeleton
-   #:make-zombie
-   #:make-kobold
-   #:make-bandit
-   #:make-viper
-   #:make-cave-locust
-   #:make-acolyte
-   ;; Tier 2
-   #:make-gnoll
-   #:make-hobgoblin
-   #:make-bugbear
-   #:make-ghoul
-   #:make-ogre
-   #:make-werewolf
-   #:make-harpy
-   #:make-rust-monster
-   ;; Tier 3
-   #:make-troll
-   #:make-owlbear
-   #:make-basilisk
-   #:make-wight
-   #:make-gargoyle
-   #:make-minotaur
-   #:make-wyvern
-   #:make-vampire
-   ;; Bosses
-   #:make-green-dragon
-   #:make-lich
-   #:make-eye-of-terror
-   #:make-hydra
-   #:make-mind-lasher
-   #:make-purple-worm
-   #:make-sphinx
-   #:make-storm-giant
-   #:make-titan))
-
-(in-package #:dunge/bestiary)
+(in-package #:dunge)
 
 ;;; Tier 1 — Shallow / Early Dungeon
 

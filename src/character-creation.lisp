@@ -1,17 +1,4 @@
-(uiop:define-package #:dunge/character-creation
-  (:use #:cl)
-  (:shadowing-import-from #:dunge/room #:room)
-  (:shadowing-import-from #:dunge/character #:char-name)
-  (:mix #:dunge/room
-	#:dunge/item
-	#:dunge/character
-	#:dunge/engine
-	#:dunge/dice)
-  (:export #:character-info
-	   #:quick-start
-	   #:town-square))
-
-(in-package #:dunge/character-creation)
+(in-package #:dunge)
 
 ;;; Background data
 

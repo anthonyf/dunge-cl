@@ -1,16 +1,23 @@
-(uiop:define-package #:dunge/text-layout
-  (:use #:cl)
-  (:export #:nl
-	   #:text))
+(in-package #:dunge)
 
-(in-package :dunge/text-layout)
-
+(defun split-string (string separator)
+  (let ((sep (car separator))
+        (result nil)
+        (current (make-string-output-stream)))
+    (dotimes (i (length string))
+      (let ((ch (char string i)))
+        (if (char= ch sep)
+            (progn (push (get-output-stream-string current) result)
+                   (setq current (make-string-output-stream)))
+            (write-char ch current))))
+    (push (get-output-stream-string current) result)
+    (nreverse result)))
 
 (defun columns-to-grid (column-strs)
   (apply #'mapcar (lambda (&rest line-strs)
                     line-strs)
          (mapcan (lambda (column-str)
-                   (list (uiop:split-string column-str :separator (list #\newline))))
+                   (list (split-string column-str (list #\newline))))
                  column-strs)))
 
 #+nil

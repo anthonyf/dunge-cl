@@ -1,22 +1,4 @@
-(uiop:define-package #:dunge/combat
-  (:use #:cl)
-  (:shadowing-import-from #:dunge/room #:room)
-  (:shadowing-import-from #:dunge/character #:char-name)
-  (:shadowing-import-from #:dunge/item #:item)
-  (:mix #:dunge/room
-	#:dunge/character
-	#:dunge/engine
-	#:dunge/item
-	#:dunge/dice)
-  (:export #:enemy
-	   #:encounter
-	   #:encounter-active-p
-	   #:encounter-first-round-p
-	   #:encounter-log
-	   #:encounter-state
-	   #:combat-encounter))
-
-(in-package #:dunge/combat)
+(in-package #:dunge)
 
 (defclass enemy (combatant)
   ((name       :initarg :name       :accessor enemy-name)

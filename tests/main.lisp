@@ -1,7 +1,6 @@
-(uiop:define-package #:dunge/tests/main
-  (:mix #:cl
-        #:dunge
-        #:rove))
+(defpackage #:dunge/tests/main
+  (:use #:cl #:dunge #:rove)
+  (:shadowing-import-from #:dunge #:room #:char-name #:item))
 (in-package #:dunge/tests/main)
 
 ;; NOTE: To run this test file, execute `(asdf:test-system :dunge)' in your Lisp.

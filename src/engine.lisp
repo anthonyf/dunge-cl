@@ -1,32 +1,4 @@
-(uiop:define-package #:dunge/engine
-  (:use #:cl)
-  (:mix #:dunge/utils)
-  (:export #:*vignette-stack*
-	   #:current-vignette
-	   #:set-vignette
-
-	   #:perform
-	   #:menu
-	   #:choice
-	   #:choice-label
-	   #:choice-action
-	   #:execute-action
-	   
-	   #:goto-choice
-	   #:gosub-choice
-	   #:return-choice
-
-	   #:print-context
-	   #:out
-
-	   #:prompt
-	   #:prompt-question
-	   #:prompt-validate-fn
-	   #:prompt-action
-
-	   #:game-repl))
-
-(in-package #:dunge/engine)
+(in-package #:dunge)
 
 (defparameter *vignette-stack* nil)
 (defun current-vignette ()

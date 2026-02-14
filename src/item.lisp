@@ -1,34 +1,4 @@
-(uiop:define-package #:dunge/item
-  (:use #:cl)
-  (:shadow #:item)
-  (:mix #:dunge/serialize)
-  (:export #:item
-	   #:item-name
-	   #:item-display-name
-	   #:item-actions
-
-	   #:stackable
-	   #:item-stack-limit
-	   #:item-quantity
-
-	   #:usable-p
-	   #:item-use-label
-
-	   #:weapon
-	   #:weapon-item
-	   #:item-damage-die
-
-	   #:consumable
-	   #:consume
-
-	   #:healing-herb
-
-	   #:stackable-item
-	   #:consume-item
-
-	   #:make-item))
-
-(in-package #:dunge/item)
+(in-package #:dunge)
 
 ;;; Base class — all items have a name
 

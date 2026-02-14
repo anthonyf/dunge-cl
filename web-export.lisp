@@ -22,111 +22,10 @@
 
 ;;; ——— Temp file content strings ———
 
-;;; The define-package macro body — inserted into the right package at build time.
-(defvar *define-package-macro-source*
-  "(defmacro define-package (name &rest options)
-  \"Simplified uiop:define-package for JSCL — translates to defpackage.\"
-  (let ((use-list nil)
-        (export-list nil)
-        (shadow-list nil)
-        (import-from-clauses nil)
-        (intern-list nil)
-        (shadowing-imports nil))
-    (dolist (option options)
-      (let ((key (car option))
-            (args (cdr option)))
-        (case key
-          (:use
-           (setq use-list (append use-list args)))
-          ((:mix :mix-reexport)
-           (setq use-list (append use-list args)))
-          (:export
-           (setq export-list (append export-list args)))
-          (:shadow
-           (setq shadow-list (append shadow-list args)))
-          (:shadowing-import-from
-           (let ((pkg (car args))
-                 (syms (cdr args)))
-             (setq shadow-list (append shadow-list syms))
-             (dolist (sym syms)
-               (push (list pkg sym) shadowing-imports))))
-          (:import-from
-           (push option import-from-clauses))
-          (:intern
-           (setq intern-list (append intern-list args))))))
-    `(progn
-       (defpackage ,name
-         ,@(when use-list `((:use ,@use-list)))
-         ,@(when export-list `((:export ,@export-list)))
-         ,@(when shadow-list `((:shadow ,@shadow-list)))
-         ,@(nreverse import-from-clauses))
-       ,@(loop for (pkg sym) in (nreverse shadowing-imports)
-               collect `(shadowing-import
-                         (find-symbol ,(string sym) ,(string pkg))
-                         ,(string name)))
-       ,@(loop for sym in intern-list
-               collect `(intern ,(string sym) ,(string name)))
-       ,@(when (and export-list use-list)
-           `((dolist (sym-name ',(mapcar #'string export-list))
-               (let ((s (find-symbol sym-name ,(string name))))
-                 (when s (export s ,(string name)))))))
-       (find-package ,(string name)))))
-")
-
-(defvar *split-string-source*
-  "(defun split-string (string &key separator)
-  \"Split STRING on SEPARATOR (a list containing a character).\"
-  (let ((sep (if (listp separator) (car separator) separator))
-        (result nil)
-        (current \"\"))
-    (dotimes (i (length string))
-      (let ((ch (char string i)))
-        (if (char= ch sep)
-            (progn
-              (push current result)
-              (setq current \"\"))
-            (setq current (concatenate 'string current (string ch))))))
-    (push current result)
-    (nreverse result)))
-")
-
-(defun write-compat-shim (path)
-  "Generate UIOP compat shim, creating sub-packages that match SBCL's structure.
-The JSCL cross-compiler records each symbol's home package, so at runtime the
-browser needs those exact sub-packages to exist."
-  (let* ((dp-pkg (package-name (symbol-package (find-symbol "DEFINE-PACKAGE" "UIOP"))))
-         (ss-pkg (package-name (symbol-package (find-symbol "SPLIT-STRING" "UIOP"))))
-         (sub-pkgs (remove-duplicates (list dp-pkg ss-pkg) :test #'string=)))
-    (with-open-file (out path :direction :output :if-exists :supersede)
-      (write-line ";;; UIOP compatibility shim for JSCL" out)
-      (write-line ";;; Creates sub-packages matching SBCL's UIOP home-package structure." out)
-      (terpri out)
-      ;; Create each sub-package
-      (dolist (pkg sub-pkgs)
-        (let ((exports (append
-                        (when (string= pkg dp-pkg) '("DEFINE-PACKAGE"))
-                        (when (string= pkg ss-pkg) '("SPLIT-STRING")))))
-          (format out "(defpackage \"~A\" (:use #:cl) (:export~{ #:~A~}))~%" pkg exports)))
-      ;; Create the main UIOP package that uses the sub-packages
-      (format out "(defpackage #:uiop~%  (:use #:cl")
-      (dolist (pkg sub-pkgs)
-        (format out " \"~A\"" pkg))
-      (format out ")~%  (:export #:define-package #:split-string))~%~%")
-      ;; Define define-package macro in its home package
-      (format out "(in-package \"~A\")~%~%" dp-pkg)
-      (write-string *define-package-macro-source* out)
-      (terpri out)
-      ;; Define split-string in its home package
-      (format out "(in-package \"~A\")~%~%" ss-pkg)
-      (write-string *split-string-source* out)
-      (terpri out)))
-  path)
-
-
 (defvar *patches-source*
   ";;; JSCL compatibility patches — loaded after source files
 
-(in-package #:dunge/room)
+(in-package #:dunge)
 
 ;;; Override perform for p class:
 ;;; JSCL does not support ~{~A~} format directive.
@@ -140,7 +39,6 @@ browser needs those exact sub-packages to exist."
 
 ;;; Override (setf lookup) — JSCL may not support (defun (setf X) ...) with &rest.
 ;;; We define set-lookup as a regular function and wire up setf.
-(in-package #:dunge/data-store)
 
 (defun set-lookup (value &rest keys)
   (when (null *data-store*)
@@ -166,8 +64,6 @@ browser needs those exact sub-packages to exist."
 ;;; but cross-compiled (setf (accessor obj) val) reads symbol.setfvalue.
 ;;; Bridge the gap with explicit (defun (setf ...) ...) using slot-value.
 
-(in-package #:dunge/character)
-
 (defun (setf combatant-hp) (value obj)
   (setf (slot-value obj 'hp) value))
 (defun (setf combatant-hp-max) (value obj)
@@ -191,14 +87,10 @@ browser needs those exact sub-packages to exist."
 (defun (setf char-inventory) (value obj)
   (setf (slot-value obj 'inventory) value))
 
-(in-package #:dunge/item)
-
 (defun (setf item-damage-die) (value obj)
   (setf (slot-value obj 'damage-die) value))
 (defun (setf item-quantity) (value obj)
   (setf (slot-value obj 'quantity) value))
-
-(in-package #:dunge/combat)
 
 (defun (setf encounter-active-p) (value obj)
   (setf (slot-value obj 'active-p) value))
@@ -214,7 +106,7 @@ browser needs those exact sub-packages to exist."
 (defvar *persistence-source*
   ";;; Persistence — save/restore game state via localStorage
 
-(in-package #:dunge/engine)
+(in-package #:dunge)
 
 ;;; localStorage helpers
 
@@ -236,11 +128,11 @@ browser needs those exact sub-packages to exist."
 ;;; Save / load / clear
 
 (defun save-game ()
-  (when (and dunge/character::*player*
-             (dunge/data-store::lookup \"game\" \"save-enabled\")
-             (typep (current-vignette) 'dunge/room::room))
-    (let* ((state (dunge/serialize::serialize dunge/character::*player*))
-           (room-name (symbol-name (dunge/room::room-id (current-vignette)))))
+  (when (and *player*
+             (lookup \"game\" \"save-enabled\")
+             (typep (current-vignette) 'room))
+    (let* ((state (serialize *player*))
+           (room-name (symbol-name (room-id (current-vignette)))))
       (ls-set \"dunge-save\" (write-to-string (list* :room room-name state))))))
 
 (defun load-saved-game ()
@@ -248,7 +140,7 @@ browser needs those exact sub-packages to exist."
     (when raw
       (let* ((plist (read-from-string raw))
              (room-name (getf plist :room)))
-        (dunge/serialize::deserialize :player plist)
+        (deserialize :player plist)
         (intern room-name \"DUNGE\")))))
 
 (defun clear-save ()
@@ -265,7 +157,7 @@ browser needs those exact sub-packages to exist."
 (defvar *browser-context-source*
   ";;; Browser context — event-driven UI for the browser
 
-(in-package #:dunge/engine)
+(in-package #:dunge)
 
 ;;; FFI helpers — must use jscl:: qualified oget/oset since we are
 ;;; in the dunge/engine package, not the jscl package.
@@ -378,14 +270,14 @@ browser needs those exact sub-packages to exist."
 (defvar *boot-source*
   ";;; Boot — start the game
 
-(in-package #:dunge/engine)
+(in-package #:dunge)
 
-(let ((saved-room (dunge/engine::load-saved-game)))
+(let ((saved-room (load-saved-game)))
   (if saved-room
       (progn
-        (dunge/data-store::set-lookup t \"game\" \"save-enabled\")
-        (dunge/engine::start-game (dunge/room::room saved-room)))
-      (dunge/engine::start-game (dunge/room::room 'dunge::start))))
+        (set-lookup t \"game\" \"save-enabled\")
+        (start-game (room saved-room)))
+      (start-game (room 'start))))
 ")
 
 
@@ -543,7 +435,8 @@ body {
 
 (defun source-files ()
   "List of game source files compiled in both normal and test builds."
-  (list (src-file "utils.lisp")
+  (list (src-file "packages.lisp")
+        (src-file "utils.lisp")
         (src-file "data-store.lisp")
         (src-file "dice.lisp")
         (src-file "serialize.lisp")
@@ -574,8 +467,7 @@ body {
     (format t "~&JSCL bootstrap complete.~%")
 
     ;; 2. Write common temp files
-    (let ((shim-path    (write-compat-shim (merge-pathnames "compat-shim.lisp" *project-root*)))
-          (patches-path (write-temp-file "patches.lisp" *patches-source*)))
+    (let ((patches-path (write-temp-file "patches.lisp" *patches-source*)))
       (ensure-directories-exist *dist-dir*)
 
       (if test-mode
@@ -583,8 +475,7 @@ body {
           (let ((test-boot-path (write-temp-file "test-boot.lisp" *test-boot-source*)))
             (format t "~&Compiling tests...~%")
             (uiop:symbol-call :jscl :compile-application
-             (append (list shim-path)
-                     (source-files)
+             (append (source-files)
                      (list patches-path
                            (test-file "test-framework.lisp")
                            (test-file "test-clos.lisp")
@@ -603,7 +494,7 @@ body {
                                  :direction :output :if-exists :supersede)
               (write-string *test-html-template* out))
 
-            (dolist (p (list shim-path patches-path test-boot-path))
+            (dolist (p (list patches-path test-boot-path))
               (when (probe-file p)
                 (delete-file p))))
 
@@ -613,8 +504,7 @@ body {
                 (boot-path    (write-temp-file "boot.lisp" *boot-source*)))
             (format t "~&Compiling game...~%")
             (uiop:symbol-call :jscl :compile-application
-             (append (list shim-path)
-                     (source-files)
+             (append (source-files)
                      (list patches-path
                            persistence-path
                            browser-path
@@ -632,7 +522,7 @@ body {
                                  :direction :output :if-exists :supersede)
               (write-string *html-template* out))
 
-            (dolist (p (list shim-path patches-path persistence-path browser-path boot-path))
+            (dolist (p (list patches-path persistence-path browser-path boot-path))
               (when (probe-file p)
                 (delete-file p))))))
 

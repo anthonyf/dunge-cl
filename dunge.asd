@@ -7,12 +7,12 @@
   :author ""
   :license "GPL-3.0"
   :description ""
-  :depends-on ("uiop"
-	       "alexandria")
+  :depends-on ("alexandria")
   :serial t
   :components ((:module "src"
 		:components
-		((:file "utils")
+		((:file "packages")
+		 (:file "utils")
 		 (:file "data-store")
 		 (:file "dice")
 		 (:file "serialize")

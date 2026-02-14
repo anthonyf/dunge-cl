@@ -1,8 +1,7 @@
-(defpackage dunge/tests/item
-  (:use :cl
-	:dunge/item
-	:rove))
-(in-package :dunge/tests/item)
+(defpackage #:dunge/tests/item
+  (:use #:cl #:dunge #:rove)
+  (:shadowing-import-from #:dunge #:room #:char-name #:item))
+(in-package #:dunge/tests/item)
 
 ;;; Non-stackable item tests
 
