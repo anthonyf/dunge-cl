@@ -1,9 +1,4 @@
-(uiop:define-package #:dunge/dice
-  (:use #:cl)
-  (:export #:roll-dice
-	   #:roll-d20))
-
-(in-package :dunge/dice)
+(in-package #:dunge)
 
 (defun roll-dice (&rest sides)
   "Roll dice with the given number of sides."

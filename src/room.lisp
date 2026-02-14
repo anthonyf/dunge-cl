@@ -1,23 +1,4 @@
-(uiop:define-package #:dunge/room
-  (:use #:cl)
-  (:shadow #:room)
-  (:mix #:dunge/engine
-	#:dunge/utils
-	#:dunge/data-store
-	#:dunge/text-layout)
-  (:export #:room
-	   #:room-id
-	   #:make-room
-	   #:exit
-	   #:gate
-	   #:group
-	   #:p
-	   #:prompt
-	   #:room-local
-	   #:local-ref
-	   #:set-lookup))
-
-(in-package #:dunge/room)
+(in-package #:dunge)
 
 (defclass exit ()
   ((description :initarg :description

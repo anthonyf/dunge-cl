@@ -1,8 +1,7 @@
-(defpackage dunge/tests/data-store
-  (:use :cl
-	:dunge/data-store
-        :rove))
-(in-package :dunge/tests/data-store)
+(defpackage #:dunge/tests/data-store
+  (:use #:cl #:rove)
+  (:import-from #:dunge #:lookup #:*data-store*))
+(in-package #:dunge/tests/data-store)
 
 ;;; lookup tests
 

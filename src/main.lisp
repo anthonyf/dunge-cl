@@ -1,25 +1,3 @@
-(uiop:define-package #:dunge
-  (:use #:cl)
-  (:shadowing-import-from #:dunge/room #:room)
-  (:shadowing-import-from #:dunge/item #:item)
-  (:shadowing-import-from #:dunge/character #:char-name)
-  (:mix-reexport #:dunge/container
-		 #:dunge/bestiary
-		 #:dunge/combat
-		 #:dunge/character-creation
-		 #:dunge/serialize
-		 #:dunge/character
-		 #:dunge/data-store
-		 #:dunge/utils
-		 #:dunge/engine
-		 #:dunge/room
-		 #:dunge/item
-		 #:dunge/text-layout
-		 #:dunge/dice))
-
-(uiop:define-package #:dunge-user
-  (:mix #:cl #:dunge))
-
 (in-package #:dunge)
 
 ;;; Start

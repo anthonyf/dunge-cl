@@ -1,10 +1,4 @@
-(uiop:define-package #:dunge/serialize
-  (:use #:cl)
-  (:export #:serialize
-	   #:deserialize
-	   #:define-deserializer))
-
-(in-package #:dunge/serialize)
+(in-package #:dunge)
 
 (defgeneric serialize (object)
   (:documentation "Serialize OBJECT to a type-tagged plist."))

@@ -1,9 +1,4 @@
-(uiop:define-package #:dunge/utils
-  (:use #:cl)
-  (:export #:trim-whitespace
-	   #:validate-non-empty-string))
-
-(in-package #:dunge/utils)
+(in-package #:dunge)
 
 (defun trim-whitespace (text)
   (string-trim '(#\Space #\Tab #\Newline #\Return) text))

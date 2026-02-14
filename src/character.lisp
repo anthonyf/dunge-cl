@@ -1,30 +1,4 @@
-(uiop:define-package #:dunge/character
-  (:use #:cl)
-  (:mix #:dunge/serialize
-	#:dunge/dice)
-  (:shadow #:char-name)
-  (:export #:combatant
-	   #:combatant-hp
-	   #:combatant-hp-max
-	   #:combatant-armor
-	   #:combatant-str
-	   #:combatant-dex
-	   #:combatant-wil
-
-	   #:player-character
-	   #:char-name
-	   #:char-background
-	   #:char-gold
-	   #:char-fate
-	   #:char-inventory
-
-	   #:*player*
-	   #:player-ref
-	   #:str-save
-	   #:dex-save
-	   #:wil-save))
-
-(in-package #:dunge/character)
+(in-package #:dunge)
 
 (defclass combatant ()
   ((hp     :initarg :hp     :accessor combatant-hp     :initform 0)

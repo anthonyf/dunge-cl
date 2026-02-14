@@ -1,9 +1,4 @@
-(uiop:define-package #:dunge/data-store
-  (:use #:cl)
-  (:export #:lookup
-	   #:*data-store*))
-
-(in-package #:dunge/data-store)
+(in-package #:dunge)
 
 (defparameter *data-store* nil)
 

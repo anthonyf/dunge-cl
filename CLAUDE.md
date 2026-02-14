@@ -26,20 +26,24 @@ ssh -L 8080:localhost:8080 user@your-vps "python3 -m http.server 8080 --director
 
 ## Architecture
 
+**Single package:** All source files share the `dunge` package, defined in `packages.lisp` using standard `defpackage`. No UIOP dependency in source. The package shadows `room`, `char-name`, and `item` from CL.
+
 **Source files** load in order (src/):
-1. `utils.lisp` — string utilities (trim-whitespace, validate-non-empty-string)
-2. `data-store.lisp` — nested hash table storage (*data-store*, lookup, ref)
-3. `dice.lisp` — dice rolling (roll-dice, roll-d20)
-4. `serialize.lisp` — generic `serialize` + hash-table `deserialize` dispatch
-5. `text-layout.lisp` — text formatting (columns, text macro, nl, spaces)
-6. `engine.lisp` — game loop, generic functions, context classes
-7. `room.lisp` — room system (room, exit, gate, group, p, prompt, set-lookup elements)
-8. `item.lisp` — item system (item, stackable, weapon, consumable, healing-herb) + item serialize/deserialize
-9. `character.lisp` — combatant base class, player-character, *player* + player serialize/deserialize
-10. `character-creation.lisp` — background data, character creation room sequence
-11. `combat.lisp` — enemy, encounter, attack resolution, combat choices (weapons/heal/flee)
-12. `container.lisp` — container element (make-container)
-13. `main.lisp` — game content (room definitions, combat encounters)
+1. `packages.lisp` — `defpackage` for `dunge` and `dunge-user`
+2. `utils.lisp` — string utilities (trim-whitespace, validate-non-empty-string)
+3. `data-store.lisp` — nested hash table storage (*data-store*, lookup, ref)
+4. `dice.lisp` — dice rolling (roll-dice, roll-d20)
+5. `serialize.lisp` — generic `serialize` + hash-table `deserialize` dispatch
+6. `text-layout.lisp` — text formatting (columns, text macro, nl, spaces, split-string)
+7. `engine.lisp` — game loop, generic functions, context classes
+8. `room.lisp` — room system (room, exit, gate, group, p, prompt, set-lookup elements)
+9. `item.lisp` — item system (item, stackable, weapon, consumable, healing-herb) + item serialize/deserialize
+10. `character.lisp` — combatant base class, player-character, *player* + player serialize/deserialize
+11. `character-creation.lisp` — background data, character creation room sequence
+12. `combat.lisp` — enemy, encounter, attack resolution, combat choices (weapons/heal/flee)
+13. `bestiary.lisp` — enemy constructors (make-goblin, make-skeleton, etc.)
+14. `container.lisp` — container element (make-container)
+15. `main.lisp` — game content (room definitions, combat encounters)
 
 **Key pattern:** Two UI contexts share the same engine:
 - `print-context` — terminal REPL (synchronous read-line loop)
@@ -85,20 +89,17 @@ ssh -L 8080:localhost:8080 user@your-vps "python3 -m http.server 8080 --director
 
 ## Conventions
 
-- All packages use `uiop:define-package` (not `defpackage`)
-- Package per file: `dunge/utils`, `dunge/data-store`, `dunge/engine`, `dunge/room`, etc.
-- Use `:mix` to import symbols from other packages (not `:import-from`)
-- `dunge` package re-exports everything via `:mix-reexport`
+- Single `dunge` package — all src/ files use `(in-package #:dunge)`
+- Package defined in `src/packages.lisp` using standard `defpackage` (no UIOP)
+- New exported symbols must be added to the `:export` list in `packages.lisp`
 - No changes to src/ files for web compatibility — patches go in web-export.lisp
 - main.lisp should be the last file to load.
 - Background equipment uses thunks (lambdas) to create fresh item instances per playthrough
 
 ## JSCL Web Export Gotchas
 
-- JSCL `oget` is in the `JSCL` package — code in other packages must use `jscl::oget`
+- JSCL `oget` is in the `JSCL` package — code in the `dunge` package must use `jscl::oget`
 - JSCL strings are char arrays, not JS strings — use `jscl::jsstring` for DOM APIs, `jscl::clstring` to convert back
-- `uiop:define-package` shim must create sub-packages matching SBCL's home-package structure (e.g. `UIOP/PACKAGE`, `UIOP/UTILITY`)
-- Functions defined in browser-context.lisp are internal to `dunge/engine` — boot code must use qualified names
 - JSCL doesn't support `~{~A~}` format directive — use dolist+princ instead
 - `#j:` reader syntax works in cross-compilation context
 - `uiop:symbol-call` needed for JSCL functions since the package doesn't exist at read time
