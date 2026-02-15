@@ -60,6 +60,10 @@
   ((label :initarg :label :accessor choice-label)
    (action :initarg :action :accessor choice-action)))
 
+(defmethod perform (ctx (choice choice))
+  (declare (ignore ctx))
+  (list choice))
+
 (defun goto-choice (label vignette)
   (make-instance 'choice
 		 :label label
