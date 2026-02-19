@@ -25,6 +25,9 @@
 		 (:file "combat")
 		 (:file "bestiary")
 		 (:file "container")
+		 (:file "overflow")
+		 (:file "character-sheet")
+		 (:file "inventory")
 		 (:file "main"))))
   :in-order-to ((test-op (test-op "dunge/tests"))))
 

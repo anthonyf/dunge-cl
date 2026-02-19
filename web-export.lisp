@@ -253,7 +253,9 @@
     (when vignette
       (let ((choices (perform ctx vignette)))
         (when choices
-          (menu ctx choices)))))
+          (menu ctx (if (listp choices)
+                        (append-overflow-choice choices)
+                        choices))))))
   (save-game))
 
 (defun start-game (starting-vignette)
@@ -449,6 +451,9 @@ body {
         (src-file "combat.lisp")
         (src-file "bestiary.lisp")
         (src-file "container.lisp")
+        (src-file "overflow.lisp")
+        (src-file "character-sheet.lisp")
+        (src-file "inventory.lisp")
         (src-file "main.lisp")))
 
 (defun main ()

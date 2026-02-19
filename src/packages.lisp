@@ -146,7 +146,11 @@
    #:make-titan
 
    ;; container
-   #:make-container))
+   #:make-container
+
+   ;; overflow
+   #:*overflow-choices*
+   #:append-overflow-choice))
 
 (defpackage #:dunge-user
   (:use #:cl #:dunge)
