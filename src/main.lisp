@@ -17,9 +17,7 @@
 
 (make-room 'adventure-board "Adventure Board"
   (p "The board is covered in tattered notices. One catches your eye:")
-  (p "")
   (p "  \"GOBLIN SPOTTED near the old watchtower. Reward for its removal.\"")
-  (p "")
   (exit "Investigate the goblin sighting" 'test-combat)
   (exit "Back" 'town-square))
 
@@ -31,31 +29,25 @@
     :intro (p "A goblin leaps out of the shadows!")
     :victory (group
       (p "The goblin crumples to the ground. Victory!")
-      (p "")
       (exit "Return to Adventure Board" 'adventure-board))
     :death (group
       (p "Your wounds are fatal. You collapse and breathe your last.")
-      (p "")
       (exit "Return to Town Square" 'town-square))
     :incapacitated (group
       (p "You fall unconscious from your wounds. You wake up back in town, battered but alive.")
-      (p "")
       (exit "Return to Town Square" 'town-square))
     :fled (group
       (p "You flee the scene, putting distance between you and the goblin.")
-      (p "")
       (exit "Return to Adventure Board" 'adventure-board))))
 
 
 (make-room 'blacksmith "Blacksmith"
   (p "The forge glows hot. Weapons and armor line the walls.")
-  (p "")
   (make-container "Storage Chest" "An old wooden chest sits in the corner, its iron hinges rusted with age." "Open the chest"
     (list
       (p "Inside the chest you find:")
       (p "  - A rusty key")
       (p "  - A tattered map")))
-  (p "")
   (exit "Return to town square" 'town-square))
 
 #+nil(defun run-game ()

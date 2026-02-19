@@ -105,7 +105,6 @@
     (dolist (i (char-inventory *player*))
       (out ctx (format nil "    - ~a~%" (item-display-name i))))
     nil)
-  (p "")
   (exit "Begin your adventure!" 'town-square)
   (lambda (ctx)
     (declare (ignore ctx))
@@ -136,7 +135,6 @@
 
 (make-room 'choose-background "Choose Your Background"
   (p "Your background determines your starting equipment and skills.")
-  (p "")
   (lambda (ctx)
     (declare (ignore ctx))
     (loop for (bg-name . props) in *backgrounds*
@@ -160,7 +158,6 @@
   (p "  STR: " (player-ref #'combatant-str))
   (p "  DEX: " (player-ref #'combatant-dex))
   (p "  WIL: " (player-ref #'combatant-wil))
-  (p "")
   (p "You may swap two ability scores, or continue.")
   (lambda (ctx)
     (declare (ignore ctx))
@@ -218,17 +215,14 @@
 	      (setf (room-local "equipped") t))
 	    nil))
   (p "As a " (player-ref #'char-background) " you receive:")
-  (p "")
   (lambda (ctx)
     (dolist (i (char-inventory *player*))
       (out ctx (format nil "  - ~a~%" (item-display-name i))))
     nil)
-  (p "")
   (lambda (ctx)
     (out ctx (format nil "  Armor: ~a~%" (combatant-armor *player*)))
     (out ctx (format nil "  Gold:  ~a~%" (char-gold *player*)))
     nil)
-  (p "")
   (exit "Continue" 'fate-points))
 
 (make-room 'fate-points "Fate Points"
@@ -264,5 +258,4 @@
     (dolist (i (char-inventory *player*))
       (out ctx (format nil "    - ~a~%" (item-display-name i))))
     nil)
-  (p "")
   (exit "Begin your adventure!" 'town-square))

@@ -36,7 +36,7 @@
       item))
 
 (defmethod perform (ctx (p p))
-  (out ctx (format nil "~{~A~}~%" (mapcar #'resolve (p-content p))))
+  (out ctx (format nil "~{~A~}~%~%" (mapcar #'resolve (p-content p))))
   nil)
 
 (defclass room ()
@@ -73,7 +73,7 @@
 
 (defmethod perform (ctx (room room))
   (out ctx
-       (text (room-title room) (nl)))
+       (text (room-title room) (nl)(nl)))
   (perform-elements ctx (room-elements room)))
 
 (defclass gate ()
