@@ -76,7 +76,8 @@
     (setf (char-inventory *player*) items)
     (setf (combatant-armor *player*) (background-prop bg-name :armor))
     (setf (char-gold *player*) (background-prop bg-name :gold))
-    (setf (char-fate *player*) 2)))
+    (setf (char-fate *player*) 2)
+    (init-overflow-menu)))
 
 ;;; Quick start room
 
@@ -230,6 +231,7 @@
     :else (lambda (ctx)
 	    (declare (ignore ctx))
 	    (setf (char-fate *player*) 2)
+	    (init-overflow-menu)
 	    (setf (room-local "fate-set") t)
 	    nil))
   (p "You begin with 2 Fate Points.")

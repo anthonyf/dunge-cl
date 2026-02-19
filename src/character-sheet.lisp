@@ -18,5 +18,3 @@
     (out ctx (format nil "  Fate:  ~a~%" (char-fate *player*)))
     nil)
   (return-choice "Back"))
-
-(push (gosub-choice "Character" (room 'character-sheet)) *overflow-choices*)

@@ -9,5 +9,3 @@
           (out ctx (format nil "  (empty)~%"))))
     nil)
   (return-choice "Back"))
-
-(push (gosub-choice "Inventory" (room 'inventory-view)) *overflow-choices*)

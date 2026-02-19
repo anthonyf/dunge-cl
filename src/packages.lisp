@@ -150,6 +150,7 @@
 
    ;; overflow
    #:*overflow-choices*
+   #:init-overflow-menu
    #:append-overflow-choice))
 
 (defpackage #:dunge-user
