@@ -34,14 +34,14 @@ ssh -L 8080:localhost:8080 user@your-vps "python3 -m http.server 8080 --director
 3. `data-store.lisp` — nested hash table storage (*data-store*, lookup, ref)
 4. `dice.lisp` — dice rolling (roll-dice, roll-d20)
 5. `serialize.lisp` — generic `serialize` + hash-table `deserialize` dispatch
-6. `text-layout.lisp` — text formatting (columns, text macro, nl, spaces, split-string)
+6. `text-layout.lisp` — text formatting (`nl`, `text` macro)
 7. `engine.lisp` — game loop, generic functions, context classes
 8. `room.lisp` — room system (room, exit, gate, group, p, prompt, set-lookup elements)
 9. `item.lisp` — item system (item, stackable, weapon, consumable, healing-herb) + item serialize/deserialize
 10. `character.lisp` — combatant base class, player-character, *player* + player serialize/deserialize
 11. `character-creation.lisp` — background data, character creation room sequence
 12. `combat.lisp` — enemy, encounter, attack resolution, combat choices (weapons/heal/flee)
-13. `bestiary.lisp` — enemy constructors (make-goblin, make-skeleton, etc.)
+13. `bestiary.lisp` — enemy data table (`*bestiary*`) and `make-enemy` lookup
 14. `container.lisp` — container element (make-container)
 15. `main.lisp` — game content (room definitions, combat encounters)
 
@@ -69,7 +69,7 @@ ssh -L 8080:localhost:8080 user@your-vps "python3 -m http.server 8080 --director
 ```lisp
 (make-room 'test-combat "Combat!"
   (combat-encounter
-    :enemy (make-goblin)
+    :enemy (make-enemy "Goblin")
     :intro (p "A goblin leaps out of the shadows!")
     :victory (group (p "Victory!") (exit "Continue" 'next-room))
     :death (group (p "You died.") (exit "Restart" 'town))

@@ -54,13 +54,13 @@
    #:p
    #:room-local
    #:local-ref
+   #:run-once
    #:set-lookup
 
    ;; item
    #:item
    #:item-name
    #:item-display-name
-   #:item-actions
    #:stackable
    #:item-stack-limit
    #:item-quantity
@@ -91,6 +91,7 @@
    #:char-fate
    #:char-inventory
    #:*player*
+   #:print-character-sheet
    #:player-ref
    #:str-save
    #:dex-save
@@ -104,46 +105,14 @@
    ;; combat
    #:enemy
    #:encounter
-   #:encounter-active-p
    #:encounter-first-round-p
    #:encounter-log
    #:encounter-state
    #:combat-encounter
 
    ;; bestiary
-   #:make-goblin
-   #:make-skeleton
-   #:make-zombie
-   #:make-kobold
-   #:make-bandit
-   #:make-viper
-   #:make-cave-locust
-   #:make-acolyte
-   #:make-gnoll
-   #:make-hobgoblin
-   #:make-bugbear
-   #:make-ghoul
-   #:make-ogre
-   #:make-werewolf
-   #:make-harpy
-   #:make-rust-monster
-   #:make-troll
-   #:make-owlbear
-   #:make-basilisk
-   #:make-wight
-   #:make-gargoyle
-   #:make-minotaur
-   #:make-wyvern
-   #:make-vampire
-   #:make-green-dragon
-   #:make-lich
-   #:make-eye-of-terror
-   #:make-hydra
-   #:make-mind-lasher
-   #:make-purple-worm
-   #:make-sphinx
-   #:make-storm-giant
-   #:make-titan
+   #:*bestiary*
+   #:make-enemy
 
    ;; container
    #:make-container
