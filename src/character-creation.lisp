@@ -46,6 +46,11 @@
 (defun background-prop (name prop)
   (getf (cdr (assoc name *backgrounds* :test #'string=)) prop))
 
+(defun base-equipment ()
+  (list (make-item "Rations" :stackable t :stack-limit 10 :quantity 3)
+        (make-item "Torch" :stackable t :stack-limit 5 :quantity 2)
+        (make-item "Waterskin")))
+
 ;;; Random character generation
 
 (defparameter *random-names*
@@ -63,9 +68,7 @@
 	 (wil (apply #'+ (roll-dice 6 6 6)))
 	 (hp (first (roll-dice 6)))
 	 (items (append (funcall (background-prop bg-name :equipment))
-			(list (make-item "Rations" :stackable t :stack-limit 10 :quantity 3)
-			      (make-item "Torch" :stackable t :stack-limit 5 :quantity 2)
-			      (make-item "Waterskin")))))
+			(base-equipment))))
     (setf *player* (make-instance 'player-character :name name))
     (setf (char-background *player*) bg-name)
     (setf (combatant-str *player*) str)
@@ -87,24 +90,7 @@
     (generate-random-character)
     nil)
   (lambda (ctx)
-    (out ctx (format nil "  Name:       ~a~%" (char-name *player*)))
-    (out ctx (format nil "  Background: ~a~%" (char-background *player*)))
-    (out ctx (format nil "~%"))
-    (out ctx (format nil "  STR: ~a   DEX: ~a   WIL: ~a~%"
-		     (combatant-str *player*)
-		     (combatant-dex *player*)
-		     (combatant-wil *player*)))
-    (out ctx (format nil "~%"))
-    (out ctx (format nil "  HP:    ~a/~a~%"
-		     (combatant-hp *player*)
-		     (combatant-hp-max *player*)))
-    (out ctx (format nil "  Armor: ~a~%" (combatant-armor *player*)))
-    (out ctx (format nil "  Gold:  ~a~%" (char-gold *player*)))
-    (out ctx (format nil "  Fate:  ~a~%" (char-fate *player*)))
-    (out ctx (format nil "~%"))
-    (out ctx (format nil "  Inventory:~%"))
-    (dolist (i (char-inventory *player*))
-      (out ctx (format nil "    - ~a~%" (item-display-name i))))
+    (print-character-sheet ctx :inventory t)
     nil)
   (exit "Begin your adventure!" 'town-square)
   (lambda (ctx)
@@ -147,14 +133,10 @@
 				(set-vignette (room 'roll-stats))))))))
 
 (make-room 'roll-stats "Roll Ability Scores"
-  (gate (local-ref "stats-rolled")
-    :else (lambda (ctx)
-	    (declare (ignore ctx))
-	    (setf (combatant-str *player*) (apply #'+ (roll-dice 6 6 6)))
-	    (setf (combatant-dex *player*) (apply #'+ (roll-dice 6 6 6)))
-	    (setf (combatant-wil *player*) (apply #'+ (roll-dice 6 6 6)))
-	    (setf (room-local "stats-rolled") t)
-	    nil))
+  (run-once "stats-rolled"
+    (setf (combatant-str *player*) (apply #'+ (roll-dice 6 6 6)))
+    (setf (combatant-dex *player*) (apply #'+ (roll-dice 6 6 6)))
+    (setf (combatant-wil *player*) (apply #'+ (roll-dice 6 6 6))))
   (p "You rolled:")
   (p "  STR: " (player-ref #'combatant-str))
   (p "  DEX: " (player-ref #'combatant-dex))
@@ -190,31 +172,21 @@
 		   (set-vignette (room 'roll-hp))))))))
 
 (make-room 'roll-hp "Roll Hit Points"
-  (gate (local-ref "hp-rolled")
-    :else (lambda (ctx)
-	    (declare (ignore ctx))
-	    (let ((hp (first (roll-dice 6))))
-	      (setf (combatant-hp *player*) hp)
-	      (setf (combatant-hp-max *player*) hp)
-	      (setf (room-local "hp-rolled") t))
-	    nil))
+  (run-once "hp-rolled"
+    (let ((hp (first (roll-dice 6))))
+      (setf (combatant-hp *player*) hp)
+      (setf (combatant-hp-max *player*) hp)))
   (p "Your hit points: " (player-ref #'combatant-hp))
   (exit "Continue" 'equipment))
 
 (make-room 'equipment "Equipment"
-  (gate (local-ref "equipped")
-    :else (lambda (ctx)
-	    (declare (ignore ctx))
-	    (let* ((bg (char-background *player*))
-		   (items (append (funcall (background-prop bg :equipment))
-				  (list (make-item "Rations" :stackable t :stack-limit 10 :quantity 3)
-					(make-item "Torch" :stackable t :stack-limit 5 :quantity 2)
-					(make-item "Waterskin")))))
-	      (setf (char-inventory *player*) items)
-	      (setf (combatant-armor *player*) (background-prop bg :armor))
-	      (setf (char-gold *player*) (background-prop bg :gold))
-	      (setf (room-local "equipped") t))
-	    nil))
+  (run-once "equipped"
+    (let* ((bg (char-background *player*))
+	   (items (append (funcall (background-prop bg :equipment))
+			  (base-equipment))))
+      (setf (char-inventory *player*) items)
+      (setf (combatant-armor *player*) (background-prop bg :armor))
+      (setf (char-gold *player*) (background-prop bg :gold))))
   (p "As a " (player-ref #'char-background) " you receive:")
   (lambda (ctx)
     (dolist (i (char-inventory *player*))
@@ -227,13 +199,9 @@
   (exit "Continue" 'fate-points))
 
 (make-room 'fate-points "Fate Points"
-  (gate (local-ref "fate-set")
-    :else (lambda (ctx)
-	    (declare (ignore ctx))
-	    (setf (char-fate *player*) 2)
-	    (init-overflow-menu)
-	    (setf (room-local "fate-set") t)
-	    nil))
+  (run-once "fate-set"
+    (setf (char-fate *player*) 2)
+    (init-overflow-menu))
   (p "You begin with 2 Fate Points.")
   (p "Fate Points can be spent to narrowly avoid death or reroll a critical save.")
   (p "Use them wisely — they are hard to come by.")
@@ -241,23 +209,6 @@
 
 (make-room 'character-summary "Character Summary"
   (lambda (ctx)
-    (out ctx (format nil "  Name:       ~a~%" (char-name *player*)))
-    (out ctx (format nil "  Background: ~a~%" (char-background *player*)))
-    (out ctx (format nil "~%"))
-    (out ctx (format nil "  STR: ~a   DEX: ~a   WIL: ~a~%"
-		     (combatant-str *player*)
-		     (combatant-dex *player*)
-		     (combatant-wil *player*)))
-    (out ctx (format nil "~%"))
-    (out ctx (format nil "  HP:    ~a/~a~%"
-		     (combatant-hp *player*)
-		     (combatant-hp-max *player*)))
-    (out ctx (format nil "  Armor: ~a~%" (combatant-armor *player*)))
-    (out ctx (format nil "  Gold:  ~a~%" (char-gold *player*)))
-    (out ctx (format nil "  Fate:  ~a~%" (char-fate *player*)))
-    (out ctx (format nil "~%"))
-    (out ctx (format nil "  Inventory:~%"))
-    (dolist (i (char-inventory *player*))
-      (out ctx (format nil "    - ~a~%" (item-display-name i))))
+    (print-character-sheet ctx :inventory t)
     nil)
   (exit "Begin your adventure!" 'town-square))

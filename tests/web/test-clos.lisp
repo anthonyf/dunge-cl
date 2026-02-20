@@ -106,13 +106,6 @@
 
 ;;; --- encounter ---
 
-(define-web-test test-encounter-active-p-setf
-  (let ((enc (make-instance 'dunge:encounter
-                            :enemy nil :active-p t)))
-    (setf (dunge:encounter-active-p enc) nil)
-    (web-assert (null (dunge:encounter-active-p enc))
-                "encounter-active-p round-trip failed")))
-
 (define-web-test test-encounter-log-setf
   (let ((enc (make-instance 'dunge:encounter
                             :enemy nil)))

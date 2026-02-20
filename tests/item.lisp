@@ -49,18 +49,6 @@
     (let ((torch (make-item "Torch" :stackable t :stack-limit 5 :quantity 1)))
       (ok (string= (item-display-name torch) "Torch")))))
 
-;;; item-actions tests
-
-(deftest test-item-actions-returns-nil
-  (testing "base item has no actions"
-    (let ((shield (make-item "Shield")))
-      (ok (null (item-actions shield))))))
-
-(deftest test-stackable-item-actions-returns-nil
-  (testing "stackable item has no actions"
-    (let ((rations (make-item "Rations" :stackable t :stack-limit 10 :quantity 3)))
-      (ok (null (item-actions rations))))))
-
 ;;; Weapon tests
 
 (deftest test-weapon-constructor

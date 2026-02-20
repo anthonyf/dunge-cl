@@ -56,14 +56,6 @@
 (defgeneric consume (item)
   (:documentation "Apply the effect of consuming ITEM. Specialize per type."))
 
-;;; Actions — stub for future mixin specialization (consumable, equippable, etc.)
-
-(defgeneric item-actions (item)
-  (:documentation "Return a list of available actions for the item."))
-
-(defmethod item-actions ((item item))
-  nil)
-
 ;;; Concrete classes — combine base + mixins
 
 (defclass stackable-item (stackable item) ())

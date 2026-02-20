@@ -25,7 +25,7 @@
 
 (make-room 'test-combat "Combat!"
   (combat-encounter
-    :enemy (make-goblin)
+    :enemy (make-enemy "Goblin")
     :intro (p "A goblin leaps out of the shadows!")
     :victory (group
       (p "The goblin crumples to the ground. Victory!")

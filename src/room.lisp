@@ -65,6 +65,14 @@
 (defun local-ref (key)
   (lambda () (room-local key)))
 
+(defmacro run-once (flag-name &body body)
+  `(gate (local-ref ,flag-name)
+     :else (lambda (ctx)
+             (declare (ignore ctx))
+             ,@body
+             (setf (room-local ,flag-name) t)
+             nil)))
+
 (defun perform-elements (ctx elements)
   (loop for element in elements
     for result = (perform ctx element)
