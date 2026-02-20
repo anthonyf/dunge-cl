@@ -133,7 +133,7 @@
 				(set-vignette (room 'roll-stats))))))))
 
 (make-room 'roll-stats "Roll Ability Scores"
-  (run-once "stats-rolled"
+  (run-once
     (setf (combatant-str *player*) (apply #'+ (roll-dice 6 6 6)))
     (setf (combatant-dex *player*) (apply #'+ (roll-dice 6 6 6)))
     (setf (combatant-wil *player*) (apply #'+ (roll-dice 6 6 6))))
@@ -172,7 +172,7 @@
 		   (set-vignette (room 'roll-hp))))))))
 
 (make-room 'roll-hp "Roll Hit Points"
-  (run-once "hp-rolled"
+  (run-once
     (let ((hp (first (roll-dice 6))))
       (setf (combatant-hp *player*) hp)
       (setf (combatant-hp-max *player*) hp)))
@@ -180,7 +180,7 @@
   (exit "Continue" 'equipment))
 
 (make-room 'equipment "Equipment"
-  (run-once "equipped"
+  (run-once
     (let* ((bg (char-background *player*))
 	   (items (append (funcall (background-prop bg :equipment))
 			  (base-equipment))))
@@ -199,7 +199,7 @@
   (exit "Continue" 'fate-points))
 
 (make-room 'fate-points "Fate Points"
-  (run-once "fate-set"
+  (run-once
     (setf (char-fate *player*) 2)
     (init-overflow-menu))
   (p "You begin with 2 Fate Points.")

@@ -65,13 +65,14 @@
 (defun local-ref (key)
   (lambda () (room-local key)))
 
-(defmacro run-once (flag-name &body body)
-  (let ((ctx (gensym "CTX")))
-    `(gate (local-ref ,flag-name)
+(defmacro run-once (&body body)
+  (let ((flag (gensym "RUN-ONCE-"))
+        (ctx (gensym "CTX")))
+    `(gate (local-ref ',flag)
        :else (lambda (,ctx)
                (declare (ignore ,ctx))
                ,@body
-               (setf (room-local ,flag-name) t)
+               (setf (room-local ',flag) t)
                nil))))
 
 (defun perform-elements (ctx elements)
