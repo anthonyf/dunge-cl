@@ -85,10 +85,11 @@
 ;;; Quick start room
 
 (make-room 'quick-start "Quick Start"
-  (lambda (ctx)
-    (declare (ignore ctx))
-    (generate-random-character)
-    nil)
+  (gate (lambda () *player*)
+    :else (lambda (ctx)
+	    (declare (ignore ctx))
+	    (generate-random-character)
+	    nil))
   (lambda (ctx)
     (print-character-sheet ctx :inventory t)
     nil)
@@ -98,6 +99,7 @@
     (list (make-instance 'choice
 	    :label "Reroll"
 	    :action (lambda ()
+		      (setf *player* nil)
 		      (set-vignette (room 'quick-start))))
 	  (make-instance 'choice
 	    :label "Create a custom character"
