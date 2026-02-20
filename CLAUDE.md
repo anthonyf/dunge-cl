@@ -7,7 +7,7 @@ See also: [README.org](README.org) | [DESIGN.md](DESIGN.md) — full game design
 ```bash
 # Terminal REPL
 qlot exec sbcl --eval '(asdf:load-system :dunge)' \
-               --eval '(dunge:game-repl (dunge:room (quote start)))'
+               --eval '(dunge:game-repl (dunge:room (quote dunge::start)))'
 
 # Web build (produces dist/)
 qlot exec sbcl --non-interactive --load web-export.lisp

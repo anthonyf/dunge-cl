@@ -51,7 +51,9 @@
     (loop while *vignette-stack*
 	  for vignette = (current-vignette)
 	  for choices = (perform ctx vignette)
-	  do (menu ctx choices))))
+	  do (menu ctx (if (listp choices)
+			  (append-overflow-choice choices)
+			  choices)))))
 
 (defmethod out ((ctx print-context) str)
   (princ str))
