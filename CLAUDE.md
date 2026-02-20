@@ -82,7 +82,7 @@ ssh -L 8080:localhost:8080 user@your-vps "python3 -m http.server 8080 --director
 ## Rules
 
 - Always use `qlot exec sbcl` — never invoke bare `sbcl`
-- Never push directly to main — always create a PR for review
+- Never push directly to main — always create a PR, even for documentation-only changes
 - Always use `--squash` when merging PRs (GitHub auto-deletes remote branches on merge)
 - Clear ASDF cache (`rm -rf ~/.cache/common-lisp/`) when package definitions change
 - Always run both SBCL tests and web build after changes — tests may pass but JSCL runtime can still crash
