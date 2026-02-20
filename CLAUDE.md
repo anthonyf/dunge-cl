@@ -112,3 +112,5 @@ ssh -L 8080:localhost:8080 user@your-vps "python3 -m http.server 8080 --director
 - **`jscl::js-null-p` is not a callable function** — it's only a type predicate name in JSCL's type table. Use `(eq val #j:null)` to check for JavaScript null.
 - **JSCL errors can be silent** — CL errors thrown during boot/load may not surface as JS page errors. Wrap suspect code in `handler-case` with `jscl::oget #j:console "log"` calls for debugging.
 - `defvar` with `make-hash-table` works across JSCL compilation units; `setf gethash` in later files executes correctly at runtime
+- **Gensyms don't survive JSCL cross-compilation** — two references to the same gensym become different JS objects. Use string keys (compared by `equal`) instead of gensyms for hash table keys in cross-compiled code.
+- **`defvar` used in macros needs `eval-when`** — wrap with `(eval-when (:compile-toplevel :load-toplevel :execute) ...)` so the variable exists at macro-expansion time during JSCL cross-compilation

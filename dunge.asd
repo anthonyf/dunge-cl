@@ -39,5 +39,6 @@
   :components ((:module "tests"
 		:components ((:file "main")
 			     (:file "data-store")
-			     (:file "item"))))
+			     (:file "item")
+			     (:file "room"))))
   :perform (test-op (op c) (symbol-call :rove :run c)))
