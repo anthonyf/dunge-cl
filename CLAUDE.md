@@ -82,6 +82,10 @@ ssh -L 8080:localhost:8080 user@your-vps "python3 -m http.server 8080 --director
 ## Rules
 
 - Always use `qlot exec sbcl` — never invoke bare `sbcl`
+- Never push directly to main — always create a PR for review
+- Always use `--squash` when merging PRs (GitHub auto-deletes remote branches on merge)
+- Clear ASDF cache (`rm -rf ~/.cache/common-lisp/`) when package definitions change
+- Always run both SBCL tests and web build after changes — tests may pass but JSCL runtime can still crash
 - When asked to clean up or remove code, ONLY touch what was explicitly requested — do not proactively delete functions, variables, or other code
 - Before committing, verify `git diff --cached` includes only intended changes — do not bundle unrelated staged files (e.g. lockfiles) into feature commits
 - When asked to plan or design a feature, produce a written plan and wait for approval before implementing
@@ -107,3 +111,4 @@ ssh -L 8080:localhost:8080 user@your-vps "python3 -m http.server 8080 --director
 - **EQL specializers across files crash JSCL** — `defmethod` with `(eql :keyword)` specializers works within a single compilation unit, but crashes at runtime (`push-new-class-direct-methods`) when the `defgeneric` and `defmethod` are in different files. Use hash-table dispatch instead (see `define-deserializer` in serialize.lisp).
 - **`jscl::js-null-p` is not a callable function** — it's only a type predicate name in JSCL's type table. Use `(eq val #j:null)` to check for JavaScript null.
 - **JSCL errors can be silent** — CL errors thrown during boot/load may not surface as JS page errors. Wrap suspect code in `handler-case` with `jscl::oget #j:console "log"` calls for debugging.
+- `defvar` with `make-hash-table` works across JSCL compilation units; `setf gethash` in later files executes correctly at runtime
