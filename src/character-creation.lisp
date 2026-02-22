@@ -119,12 +119,29 @@
   (p "Welcome " (player-ref #'char-name) "!")
   (p "Your background determines your starting equipment and skills.")
   (lambda (ctx)
+    (dolist (entry *backgrounds*)
+      (let* ((bg-name (car entry))
+	     (props (cdr entry))
+	     (desc (getf props :description))
+	     (gold (getf props :gold))
+	     (items (funcall (getf props :equipment)))
+	     (bonus-gold (- gold 8)))
+	(out ctx (format nil "~%~a - ~a~%" bg-name desc))
+	(let ((equip-str (with-output-to-string (s)
+			   (loop for (i . rest) on items
+				 do (princ (item-display-name i) s)
+				 when rest do (princ ", " s))
+			   (when (> bonus-gold 0)
+			     (princ (format nil ", +~a Gold" bonus-gold) s)))))
+	  (out ctx (format nil "  Equipment: ~a~%" equip-str)))))
+    nil)
+  (lambda (ctx)
     (declare (ignore ctx))
     (loop for (bg-name . props) in *backgrounds*
-	  collect (let ((n bg-name))
-		    (make-instance 'choice
-		      :label (format nil "~a - ~a" n (getf props :description))
-		      :action (lambda ()
+	  collect (make-instance 'choice
+		    :label bg-name
+		    :action (let ((n bg-name))
+			      (lambda ()
 				(setf (char-background *player*) n)
 				(set-vignette (room 'roll-stats))))))))
 
