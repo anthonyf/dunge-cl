@@ -109,19 +109,14 @@
 ;;; Character creation rooms
 
 (make-room 'character-info "Character Creation"
-  (gate (player-ref #'char-name)
-    :then (group
-	   (p "Welcome " (player-ref #'char-name) "!")
-	   (exit "Continue" 'choose-background))
-    :else (group
-	   (p "Let's gather some information about your character.")
-	   (prompt "What is your name?"
-		   :validate :non-empty-string
-		   :action (lambda (input)
-			     (setf *player* (make-instance 'player-character :name input)))
-		   :goto 'character-info))))
+  (prompt "What is your name?"
+	  :validate :non-empty-string
+	  :action (lambda (input)
+		    (setf *player* (make-instance 'player-character :name input)))
+	  :goto 'choose-background))
 
 (make-room 'choose-background "Choose Your Background"
+  (p "Welcome " (player-ref #'char-name) "!")
   (p "Your background determines your starting equipment and skills.")
   (lambda (ctx)
     (declare (ignore ctx))
