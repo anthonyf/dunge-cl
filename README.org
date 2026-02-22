@@ -15,19 +15,17 @@ The engine supports two UI contexts from the same codebase:
 ** Quick Start
 
 #+begin_src bash
-# Terminal REPL
-qlot exec sbcl --eval '(asdf:load-system :dunge)' \
-               --eval '(dunge:game-repl (dunge:room (quote start)))'
-
-# Web build (produces dist/)
-qlot exec sbcl --non-interactive --load web-export.lisp
-
-# Run tests
-qlot exec sbcl --eval '(asdf:test-system :dunge)' --quit
+make run       # Terminal REPL
+make build     # Web build (produces dist/)
+make test      # Run tests
+make test-web  # Web test build + Playwright
+make test-all  # Run both test and test-web
+make clean     # Remove ASDF cache, .fasl files, dist/, test-results/
 #+end_src
 
 ** Dependencies
 
+- [[https://www.gnu.org/software/make/][GNU Make]] — build automation
 - [[https://www.sbcl.org/][SBCL]] — Common Lisp compiler
 - [[https://github.com/fukamachi/qlot][Qlot]] — project-local CL dependency manager (installs Alexandria, Rove, etc.)
 - [[https://github.com/jscl-project/jscl][JSCL]] — CL-to-JavaScript compiler (vendored in =vendor/jscl/=)
