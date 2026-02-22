@@ -409,7 +409,7 @@ body {
   "Write CONTENT to a temp file NAME under *project-root*, return pathname."
   (let ((path (merge-pathnames name *project-root*)))
     (with-open-file (out path :direction :output
-                              :if-exists :supersede)
+                         :if-exists :supersede)
       (write-string content out))
     path))
 
@@ -464,13 +464,13 @@ body {
           (let ((test-boot-path (write-temp-file "test-boot.lisp" *test-boot-source*)))
             (format t "~&Compiling tests...~%")
             (uiop:symbol-call :jscl :compile-application
-             (append (source-files)
-                     (list patches-path
-                           (test-file "test-framework.lisp")
-                           (test-file "test-clos.lisp")
-                           (test-file "test-data-store.lisp")
-                           test-boot-path))
-             (merge-pathnames "tests.js" *dist-dir*))
+                              (append (source-files)
+                                      (list patches-path
+                                            (test-file "test-framework.lisp")
+                                            (test-file "test-clos.lisp")
+                                            (test-file "test-data-store.lisp")
+                                            test-boot-path))
+                              (merge-pathnames "tests.js" *dist-dir*))
             (format t "~&Compilation complete.~%")
 
             (format t "~&Copying JSCL runtime...~%")
@@ -493,12 +493,12 @@ body {
                 (boot-path    (write-temp-file "boot.lisp" *boot-source*)))
             (format t "~&Compiling game...~%")
             (uiop:symbol-call :jscl :compile-application
-             (append (source-files)
-                     (list patches-path
-                           persistence-path
-                           browser-path
-                           boot-path))
-             (merge-pathnames "dunge.js" *dist-dir*))
+                              (append (source-files)
+                                      (list patches-path
+                                            persistence-path
+                                            browser-path
+                                            boot-path))
+                              (merge-pathnames "dunge.js" *dist-dir*))
             (format t "~&Compilation complete.~%")
 
             (format t "~&Copying JSCL runtime...~%")
