@@ -79,8 +79,7 @@
     (setf (char-inventory *player*) items)
     (setf (combatant-armor *player*) (background-prop bg-name :armor))
     (setf (char-gold *player*) (background-prop bg-name :gold))
-    (setf (char-fate *player*) 2)
-    (init-overflow-menu)))
+    (setf (char-fate *player*) 2)))
 
 ;;; Quick start room
 
@@ -202,8 +201,7 @@
 
 (make-room 'fate-points "Fate Points"
   (run-once
-    (setf (char-fate *player*) 2)
-    (init-overflow-menu))
+    (setf (char-fate *player*) 2))
   (p "You begin with 2 Fate Points.")
   (p "Fate Points can be spent to narrowly avoid death or reroll a critical save.")
   (p "Use them wisely — they are hard to come by.")

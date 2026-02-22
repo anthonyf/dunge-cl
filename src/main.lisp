@@ -10,6 +10,7 @@
 ;;; World rooms
 
 (make-room 'town-square "Town Square"
+  (run-once (init-overflow-menu))
   (set-lookup "game" "save-enabled" t)
   (p "This is the town square, the central hub of this very small, unnamed town.")
   (exit "Look at the Adventure Board" 'adventure-board :description "You see an adventure board here where the townsfolk have posted their bounties.  Perfect for an adventurer like yourself.")
