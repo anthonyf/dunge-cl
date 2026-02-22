@@ -1,9 +1,9 @@
 .PHONY: test run build clean
 
-test: build
+test:
 	qlot exec sbcl --eval '(asdf:test-system :dunge)' --quit
 
-run: build
+run:
 	qlot exec sbcl --non-interactive \
                        --eval '(asdf:load-system :dunge)' \
 	               --eval '(dunge:game-repl (dunge:room (quote dunge::start)))'
