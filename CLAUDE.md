@@ -5,15 +5,10 @@ See also: [README.org](README.org) | [DESIGN.md](DESIGN.md) — full game design
 ## Quick Reference
 
 ```bash
-# Terminal REPL
-qlot exec sbcl --eval '(asdf:load-system :dunge)' \
-               --eval '(dunge:game-repl (dunge:room (quote dunge::start)))'
-
-# Web build (produces dist/)
-qlot exec sbcl --non-interactive --load web-export.lisp
-
-# Run tests
-qlot exec sbcl --eval '(asdf:test-system :dunge)' --quit
+make run       # Terminal REPL
+make build     # Web build (produces dist/)
+make test      # Run tests
+make clean     # Remove ASDF cache, .fasl files, dist/, test-results/
 
 # Web test build + Playwright
 qlot exec sbcl --non-interactive --eval '(push :web-test *features*)' --load web-export.lisp
