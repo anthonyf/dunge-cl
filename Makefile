@@ -5,8 +5,8 @@ test:
 
 run:
 	qlot exec sbcl --non-interactive \
-                       --eval '(asdf:load-system :dunge)' \
-	               --eval '(dunge:game-repl (dunge:room (quote dunge::start)))'
+		--eval '(asdf:load-system :dunge)' \
+		--eval '(dunge:game-repl (dunge:room (quote dunge::start)))'
 
 test-all: test test-web
 
