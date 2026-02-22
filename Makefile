@@ -4,7 +4,8 @@ test: build
 	qlot exec sbcl --eval '(asdf:test-system :dunge)' --quit
 
 run: build
-	qlot exec sbcl --eval '(asdf:load-system :dunge)' \
+	qlot exec sbcl --non-interactive \
+                       --eval '(asdf:load-system :dunge)' \
 	               --eval '(dunge:game-repl (dunge:room (quote dunge::start)))'
 
 build:
