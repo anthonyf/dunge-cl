@@ -5,11 +5,16 @@ See also: [README.org](README.org) | [DESIGN.md](DESIGN.md) — full game design
 ## Quick Reference
 
 ```bash
+# First-time setup (run once after cloning)
+make setup     # Install git pre-commit hook for format checking
+
 make run       # Terminal REPL
 make build     # Web build (produces dist/)
 make test      # Run tests
 make test-web  # Web test build + Playwright
 make test-all  # Run both test and test-web
+make fmt       # Format all src/*.lisp with Emacs cl-indent
+make check-fmt # Verify formatting (fails if fmt would change anything)
 make clean     # Remove ASDF cache, .fasl files, dist/, test-results/
 
 # Serve web build from remote VPS (run from local machine)
@@ -83,6 +88,11 @@ ssh -L 8080:localhost:8080 user@your-vps "python3 -m http.server 8080 --director
 - Before committing, verify `git diff --cached` includes only intended changes — do not bundle unrelated staged files (e.g. lockfiles) into feature commits
 - Always enter plan mode before writing code — produce a written plan and wait for approval before implementing
 - When changing package definitions or exports, check for symbol conflicts and run tests immediately
+- Run `make fmt` before committing Lisp files — the pre-commit hook enforces this
+
+## Formatting
+
+Source files are formatted with Emacs `common-lisp-indent-function` via `make fmt`. A pre-commit hook (`scripts/pre-commit`) runs `make check-fmt` automatically when `.lisp` files are staged, rejecting commits with incorrect indentation. Install the hook after cloning with `make setup`. The formatting logic lives in `scripts/cl-indent.el`.
 
 ## Conventions
 
