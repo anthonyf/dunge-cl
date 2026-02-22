@@ -1,4 +1,4 @@
-.PHONY: test run build clean
+.PHONY: test test-web run build clean
 
 test:
 	qlot exec sbcl --eval '(asdf:test-system :dunge)' --quit
@@ -7,6 +7,10 @@ run:
 	qlot exec sbcl --non-interactive \
                        --eval '(asdf:load-system :dunge)' \
 	               --eval '(dunge:game-repl (dunge:room (quote dunge::start)))'
+
+test-web:
+	qlot exec sbcl --non-interactive --eval '(push :web-test *features*)' --load web-export.lisp
+	npx playwright test
 
 build:
 	qlot exec sbcl --non-interactive --load web-export.lisp

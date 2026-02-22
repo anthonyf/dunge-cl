@@ -8,11 +8,8 @@ See also: [README.org](README.org) | [DESIGN.md](DESIGN.md) — full game design
 make run       # Terminal REPL
 make build     # Web build (produces dist/)
 make test      # Run tests
+make test-web  # Web test build + Playwright
 make clean     # Remove ASDF cache, .fasl files, dist/, test-results/
-
-# Web test build + Playwright
-qlot exec sbcl --non-interactive --eval '(push :web-test *features*)' --load web-export.lisp
-npx playwright test
 
 # Serve web build from remote VPS (run from local machine)
 ssh -L 8080:localhost:8080 user@your-vps "python3 -m http.server 8080 --directory /home/dev/git/dunge-cl/dist/"
