@@ -69,24 +69,24 @@
 with quantity clamped to stack-limit. Otherwise creates a plain item."
   (if stackable
       (make-instance 'stackable-item
-	:name name
-	:stack-limit stack-limit
-	:quantity (min quantity stack-limit))
+                     :name name
+                     :stack-limit stack-limit
+                     :quantity (min quantity stack-limit))
       (make-instance 'item
-	:name name)))
+                     :name name)))
 
 (defun weapon (name &key damage-die)
   "Create a weapon-item with the given NAME and DAMAGE-DIE (integer sides)."
   (make-instance 'weapon-item
-    :name name
-    :damage-die damage-die))
+                 :name name
+                 :damage-die damage-die))
 
 (defun healing-herb (&key (quantity 3) (stack-limit 10))
   "Create a healing-herb item."
   (make-instance 'healing-herb
-    :name "Healing Herbs"
-    :stack-limit stack-limit
-    :quantity (min quantity stack-limit)))
+                 :name "Healing Herbs"
+                 :stack-limit stack-limit
+                 :quantity (min quantity stack-limit)))
 
 ;;; Consume-item — decrement stackable quantity, remove from inventory at 0
 
@@ -95,9 +95,9 @@ with quantity clamped to stack-limit. Otherwise creates a plain item."
 removes from inventory when exhausted. Returns the new inventory list."
   (if (typep item 'stackable)
       (progn (decf (item-quantity item))
-	     (if (<= (item-quantity item) 0)
-		 (remove item inventory)
-		 inventory))
+             (if (<= (item-quantity item) 0)
+                 (remove item inventory)
+                 inventory))
       (remove item inventory)))
 
 ;;; print-object — works for both item and stackable-item via item-display-name

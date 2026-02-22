@@ -5,7 +5,7 @@
   (car *vignette-stack*))
 (defun set-vignette (vignette)
   (setf (car *vignette-stack*)
-	vignette))
+        vignette))
 (defun push-vignette (vignette)
   (push vignette *vignette-stack*))
 (defun pop-vignette ()
@@ -30,15 +30,15 @@
 (defmethod menu ((ctx print-context) (choices list))
   (tagbody
      (loop for choice in choices
-	   for n from 1
-	   do (format t "~a. ~a~%" n (choice-label choice)))
+           for n from 1
+           do (format t "~a. ~a~%" n (choice-label choice)))
    prompt
      (format t "Enter choice: ")
      (let* ((line (read-line))
-	    (n (parse-integer line :junk-allowed t)))
+            (n (parse-integer line :junk-allowed t)))
        (when (or (< n 1)(> n (length choices)))
-	 (format t "Invalid input: ~a~%" line)
-	 (go prompt))
+         (format t "Invalid input: ~a~%" line)
+         (go prompt))
        (execute-action (choice-action (nth (1- n) choices))))))
 
 
@@ -47,13 +47,13 @@
 
 (defun game-repl (starting-vignette)
   (let ((ctx (make-instance 'print-context))
-	(*vignette-stack* (list starting-vignette)))
+        (*vignette-stack* (list starting-vignette)))
     (loop while *vignette-stack*
-	  for vignette = (current-vignette)
-	  for choices = (perform ctx vignette)
-	  do (menu ctx (if (listp choices)
-			  (append-overflow-choice choices)
-			  choices)))))
+          for vignette = (current-vignette)
+          for choices = (perform ctx vignette)
+          do (menu ctx (if (listp choices)
+                           (append-overflow-choice choices)
+                           choices)))))
 
 (defmethod out ((ctx print-context) str)
   (princ str))
@@ -68,21 +68,21 @@
 
 (defun goto-choice (label vignette)
   (make-instance 'choice
-		 :label label
-		 :action (lambda ()
-			   (set-vignette vignette))))
+                 :label label
+                 :action (lambda ()
+                           (set-vignette vignette))))
 
 (defun gosub-choice (label vignette)
   (make-instance 'choice
-		 :label label
-		 :action (lambda ()
-			   (push-vignette vignette))))
+                 :label label
+                 :action (lambda ()
+                           (push-vignette vignette))))
 
 (defun return-choice (label)
   (make-instance 'choice
-		 :label label
-		 :action (lambda ()
-			   (pop-vignette))))
+                 :label label
+                 :action (lambda ()
+                           (pop-vignette))))
 
 (defclass prompt ()
   ((question :initarg :question :accessor prompt-question)
@@ -98,9 +98,9 @@
      (format t "~a > " (prompt-question prompt))
      (let ((line (trim-whitespace (read-line))))
        (cond ((funcall (prompt-validate-fn prompt) line)
-	      (funcall (prompt-action prompt) line))
-	     (t
-	      (format t "Invalid input: ~a~%" line)
-	      (go retry))))))
+              (funcall (prompt-action prompt) line))
+             (t
+              (format t "Invalid input: ~a~%" line)
+              (go retry))))))
 
 

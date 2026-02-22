@@ -3,10 +3,10 @@
 (defvar *overflow-choices* nil)
 
 (make-room 'overflow-menu "..."
-  (lambda (ctx)
-    (declare (ignore ctx))
-    (append *overflow-choices*
-            (list (return-choice "Back")))))
+           (lambda (ctx)
+             (declare (ignore ctx))
+             (append *overflow-choices*
+                     (list (return-choice "Back")))))
 
 (defun in-overflow-p ()
   "Return t if overflow-menu is anywhere on the vignette stack."

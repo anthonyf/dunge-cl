@@ -2,27 +2,27 @@
 
 (defclass exit ()
   ((description :initarg :description
-		:accessor exit-description)
+                :accessor exit-description)
    (choice-text :initarg :choice-text
-		:accessor exit-choice-text)
+                :accessor exit-choice-text)
    (room-id :initarg :room-id
-	    :accessor exit-room-id)))
+            :accessor exit-room-id)))
 
 (defun exit (choice-text room-id &key description)
   (make-instance 'exit
-		 :description description
-		 :choice-text choice-text
-		 :room-id room-id))
+                 :description description
+                 :choice-text choice-text
+                 :room-id room-id))
 
 (defmethod perform (ctx (exit exit))
   (when (exit-description exit)
     (out ctx
-	 (format nil "~a~%" (exit-description exit))))
+         (format nil "~a~%" (exit-description exit))))
   (let ((id (exit-room-id exit)))
     (list (make-instance 'choice
-			 :label (exit-choice-text exit)
-			 :action (lambda ()
-				   (set-vignette (room id)))))))
+                         :label (exit-choice-text exit)
+                         :action (lambda ()
+                                   (set-vignette (room id)))))))
 
 (defclass p ()
   ((content :initarg :content :accessor p-content)))
@@ -43,11 +43,11 @@
   ((id :initarg :id
        :reader room-id)
    (title :initarg :title
-	  :accessor room-title)
+          :accessor room-title)
    (elements :initarg :elements
-	     :accessor room-elements)
+             :accessor room-elements)
    (locals :accessor room-locals
-	   :initform (make-hash-table :test 'equal))))
+           :initform (make-hash-table :test 'equal))))
 
 (defun room-local (key)
   (let ((room (current-vignette)))
@@ -58,8 +58,8 @@
   (let ((room (current-vignette)))
     (when (typep room 'room)
       (if (null value)
-	  (remhash key (room-locals room))
-	  (setf (gethash key (room-locals room)) value))))
+          (remhash key (room-locals room))
+          (setf (gethash key (room-locals room)) value))))
   value)
 
 (defun local-ref (key)
@@ -72,17 +72,17 @@
   (let ((flag (format nil "run-once-~a" (incf *run-once-counter*)))
         (ctx (gensym "CTX")))
     `(gate (local-ref ,flag)
-       :else (lambda (,ctx)
-               (declare (ignore ,ctx))
-               ,@body
-               (setf (room-local ,flag) t)
-               nil))))
+           :else (lambda (,ctx)
+                   (declare (ignore ,ctx))
+                   ,@body
+                   (setf (room-local ,flag) t)
+                   nil))))
 
 (defun perform-elements (ctx elements)
   (loop for element in elements
-    for result = (perform ctx element)
-    if (listp result) append result
-    else return result))
+        for result = (perform ctx element)
+        if (listp result) append result
+        else return result))
 
 (defmethod perform (ctx (room room))
   (out ctx
@@ -96,14 +96,14 @@
 
 (defun gate (condition &key then else)
   (make-instance 'gate
-		 :condition condition
-		 :then then
-		 :else else))
+                 :condition condition
+                 :then then
+                 :else else))
 
 (defmethod perform (ctx (gate gate))
   (let ((branch (if (funcall (gate-condition gate))
-		    (gate-then gate)
-		    (gate-else gate))))
+                    (gate-then gate)
+                    (gate-else gate))))
     (when branch (perform ctx branch))))
 
 (defclass group ()
@@ -118,21 +118,21 @@
 (defun resolve-validator (validator)
   (etypecase validator
     (keyword (ecase validator
-	       (:non-empty-string #'validate-non-empty-string)))
+               (:non-empty-string #'validate-non-empty-string)))
     (function validator)))
 
 (defun prompt (question &key validate store action goto)
   (let ((act action))
     (make-instance 'prompt
-		   :question question
-		   :validate-fn (resolve-validator validate)
-		   :action (lambda (input)
-			     (when store
-			       (apply #'(setf lookup) input store))
-			     (when act
-			       (funcall act input))
-			     (when goto
-			       (set-vignette (room goto)))))))
+                   :question question
+                   :validate-fn (resolve-validator validate)
+                   :action (lambda (input)
+                             (when store
+                               (apply #'(setf lookup) input store))
+                             (when act
+                               (funcall act input))
+                             (when goto
+                               (set-vignette (room goto)))))))
 
 (defun room (id)
   (lookup "rooms" id))
@@ -149,8 +149,8 @@
 Last argument is the value; the rest are lookup keys.
 Example: (set-lookup \"game\" \"save-enabled\" t)"
   (make-instance 'set-lookup
-    :keys (butlast keys-and-value)
-    :value (car (last keys-and-value))))
+                 :keys (butlast keys-and-value)
+                 :value (car (last keys-and-value))))
 
 (defmethod perform (ctx (sl set-lookup))
   (declare (ignore ctx))
@@ -159,7 +159,7 @@ Example: (set-lookup \"game\" \"save-enabled\" t)"
 
 (defun make-room (id title &rest elements)
   (setf (room id)
-	(make-instance 'room
-		       :id id
-		       :title title
-		       :elements elements)))
+        (make-instance 'room
+                       :id id
+                       :title title
+                       :elements elements)))
