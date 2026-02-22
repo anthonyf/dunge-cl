@@ -9,6 +9,7 @@ make run       # Terminal REPL
 make build     # Web build (produces dist/)
 make test      # Run tests
 make test-web  # Web test build + Playwright
+make test-all  # Run both test and test-web
 make clean     # Remove ASDF cache, .fasl files, dist/, test-results/
 
 # Serve web build from remote VPS (run from local machine)
