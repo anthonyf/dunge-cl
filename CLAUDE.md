@@ -81,7 +81,7 @@ ssh -L 8080:localhost:8080 user@your-vps "python3 -m http.server 8080 --director
 - Always run both SBCL tests and web build after changes — tests may pass but JSCL runtime can still crash
 - When asked to clean up or remove code, ONLY touch what was explicitly requested — do not proactively delete functions, variables, or other code
 - Before committing, verify `git diff --cached` includes only intended changes — do not bundle unrelated staged files (e.g. lockfiles) into feature commits
-- When asked to plan or design a feature, produce a written plan and wait for approval before implementing
+- Always enter plan mode before writing code — produce a written plan and wait for approval before implementing
 - When changing package definitions or exports, check for symbol conflicts and run tests immediately
 
 ## Conventions
