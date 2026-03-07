@@ -1,8 +1,8 @@
-;;;; web-export.lisp — Build dunge for the browser via JSCL
+;;;; web-export.lisp — Build dunge for the browser via JSCL + ECE
 ;;;;
 ;;;; Usage:  sbcl --load web-export.lisp
 ;;;;
-;;;; Produces dist/jscl.js, dist/dunge.js, dist/index.html
+;;;; Produces dist/index.html (standalone, all JS inlined)
 
 (require :uiop)
 
@@ -17,255 +17,262 @@
 (defvar *jscl-dir*
   (merge-pathnames "vendor/jscl/" *project-root*))
 
-(defvar *src-dir*
-  (merge-pathnames "src/" *project-root*))
+;;; ——— Utilities ———
 
-;;; ——— Temp file content strings ———
+(defun write-temp-file (name content)
+  "Write CONTENT to a temp file NAME under *project-root*, return pathname."
+  (let ((path (merge-pathnames name *project-root*)))
+    (with-open-file (out path :direction :output
+                         :if-exists :supersede)
+      (write-string content out))
+    path))
+
+(defun cleanup-temp-files (paths)
+  "Delete temp files."
+  (dolist (p paths)
+    (when (probe-file p)
+      (delete-file p))))
+
+;;; ——— Step 1: Load ECE for readtable access ———
+
+(format t "~&=== Dunge Web Export (ECE) ===~%")
+(format t "~&Loading ECE system...~%")
+
+;; Load via qlot so we get the correct ECE version
+(load (merge-pathnames ".qlot/setup.lisp" *project-root*))
+(asdf:load-system :ece)
+
+(format t "~&ECE loaded.~%")
+
+;;; ——— Step 2: Pre-parse .scm files using ECE's readtable ———
+
+(defun scm-files ()
+  "Return alist of (virtual-name . path) for all .scm files to bundle."
+  (list
+   (cons "prelude.scm"
+         (asdf:system-relative-pathname :ece "src/prelude.scm"))
+   (cons "browser-boot.scm"
+         (merge-pathnames "browser-boot.scm" *project-root*))
+   (cons "game/engine.scm"
+         (merge-pathnames "game/engine.scm" *project-root*))
+   (cons "game/dice.scm"
+         (merge-pathnames "game/dice.scm" *project-root*))
+   (cons "game/items.scm"
+         (merge-pathnames "game/items.scm" *project-root*))
+   (cons "game/combat.scm"
+         (merge-pathnames "game/combat.scm" *project-root*))
+   (cons "game/bestiary.scm"
+         (merge-pathnames "game/bestiary.scm" *project-root*))
+   (cons "game/content.scm"
+         (merge-pathnames "game/content.scm" *project-root*))))
+
+(defun read-scm-forms (path)
+  "Read all S-expressions from a .scm file using ECE's custom readtable."
+  (with-open-file (stream path)
+    (let ((*readtable* ece::*ece-readtable*)
+          (*read-eval* nil)
+          (*package* (find-package :ece))
+          (eof (gensym)))
+      (loop for form = (read stream nil eof)
+            until (eq form eof)
+            collect form))))
+
+(defun generate-bundled-sources ()
+  "Pre-parse all .scm files and generate CL code defining *bundled-sources*."
+  (with-output-to-string (out)
+    (format out ";;; Bundled pre-parsed .scm sources (generated at build time)~%")
+    (format out "(in-package :ece)~%~%")
+    (format out "(defvar *bundled-sources* (make-hash-table :test 'equal))~%~%")
+    (dolist (entry (scm-files))
+      (let* ((name (car entry))
+             (path (cdr entry))
+             (forms (read-scm-forms path)))
+        (format t "~&  Pre-parsed ~A (~D forms)~%" name (length forms))
+        (let ((*package* (find-package :ece))
+              (*print-case* :downcase)
+              (*print-circle* t))
+          (format out ";; ~A~%" name)
+          (format out "(setf (gethash ~S *bundled-sources*)~%      '~S)~%~%"
+                  name forms))))))
+
+;;; ——— Step 3: Generate browser-compatible ECE source ———
+;;;
+;;; ECE uses handler-case, eval-when, with-open-file, and finish-output
+;;; which JSCL doesn't support. We read ece.lisp as text and skip those
+;;; forms, then provide replacement functions in a patches file.
+
+(defun read-ece-source-lines ()
+  "Read ece.lisp as a list of lines."
+  (let ((path (asdf:system-relative-pathname :ece "src/ece.lisp")))
+    (uiop:read-file-lines path)))
+
+(defun defun-name-match-p (line name)
+  "Check if LINE starts a (defun NAME ..."
+  (let ((pattern (format nil "(defun ~A " name)))
+    (search pattern line :test #'char-equal)))
+
+(defun generate-browser-ece ()
+  "Generate JSCL-compatible ECE source by removing incompatible forms."
+  (let ((lines (read-ece-source-lines))
+        (output (make-array 0 :element-type 'character :adjustable t :fill-pointer 0))
+        (skip-depth 0)
+        (skipping nil)
+        ;; Functions to remove (redefined in patches)
+        (skip-defuns '("ece-read" "ece-display" "ece-newline" "ece-try-eval"
+                        "ece-string->number" "ece-load" "ece-save-continuation!"
+                        "ece-load-continuation" "ece-clear-screen" "ece-sleep")))
+    (labels ((write-line-out (line)
+               (loop for c across line do (vector-push-extend c output))
+               (vector-push-extend #\Newline output))
+             (starts-eval-when-p (line)
+               (search "(eval-when" line :test #'char-equal))
+             (starts-ece-load-call-p (line)
+               (search "(ece-load " line :test #'char-equal))
+             (starts-repl-defun-p (line)
+               (defun-name-match-p line "repl"))
+             (should-skip-defun-p (line)
+               (some (lambda (name) (defun-name-match-p line name))
+                     skip-defuns))
+             (count-parens (line)
+               "Count net open parens in line (ignoring strings and comments)."
+               (let ((net 0) (in-string nil) (prev-char nil))
+                 (loop for c across line
+                       do (cond
+                            (in-string
+                             (when (and (char= c #\") (not (char= prev-char #\\)))
+                               (setf in-string nil)))
+                            ((char= c #\;) (return net))
+                            ((char= c #\") (setf in-string t))
+                            ((char= c #\() (incf net))
+                            ((char= c #\)) (decf net)))
+                          (setf prev-char c))
+                 net)))
+      (dolist (line lines)
+        (cond
+          ;; Currently skipping a multi-line form
+          (skipping
+           (incf skip-depth (count-parens line))
+           (when (<= skip-depth 0)
+             (setf skipping nil)
+             (setf skip-depth 0)))
+          ;; Start skipping: eval-when block
+          ((starts-eval-when-p line)
+           (setf skipping t)
+           (setf skip-depth (count-parens line))
+           (when (<= skip-depth 0) (setf skipping nil)))
+          ;; Start skipping: specific defuns
+          ((should-skip-defun-p line)
+           (setf skipping t)
+           (setf skip-depth (count-parens line))
+           (when (<= skip-depth 0) (setf skipping nil)))
+          ;; Start skipping: ece-load call at end of file
+          ((starts-ece-load-call-p line)
+           (setf skipping t)
+           (setf skip-depth (count-parens line))
+           (when (<= skip-depth 0) (setf skipping nil)))
+          ;; Start skipping: repl function
+          ((starts-repl-defun-p line)
+           (setf skipping t)
+           (setf skip-depth (count-parens line))
+           (when (<= skip-depth 0) (setf skipping nil)))
+          ;; Normal line — keep it
+          (t (write-line-out line)))))
+    output))
+
+;;; ——— Step 4: JSCL compatibility patches ———
 
 (defvar *patches-source*
-  ";;; JSCL compatibility patches — loaded after source files
+  "(in-package :ece)
 
-(in-package #:dunge)
+;;; Output buffer for browser mode
+(defvar *output-buffer* \"\")
 
-;;; Override perform for p class:
-;;; JSCL does not support ~{~A~} format directive.
-(defmethod perform (ctx (p p))
-  (let ((text (with-output-to-string (s)
-                (dolist (item (p-content p))
-                  (princ (resolve item) s))
-                (terpri s))))
-    (out ctx text))
+;;; Patched I/O primitives — write to buffer instead of stdout
+(defun ece-display (obj)
+  (setf *output-buffer*
+        (concatenate 'string *output-buffer* (princ-to-string obj)))
+  obj)
+
+(defun ece-newline ()
+  (setf *output-buffer*
+        (concatenate 'string *output-buffer* (string #\\Newline)))
   nil)
 
-;;; Override (setf lookup) — JSCL may not support (defun (setf X) ...) with &rest.
-;;; We define set-lookup as a regular function and wire up setf.
+;;; Not needed in browser (we pre-parse everything)
+(defun ece-read ()
+  *eof-sentinel*)
 
-(defun set-lookup (value &rest keys)
-  (when (null *data-store*)
-    (setf *data-store* (make-hash-table :test 'equal)))
-  (let ((current *data-store*))
-    (loop for key in (butlast keys)
-          do (let ((next (gethash key current)))
-               (unless (hash-table-p next)
-                 (setf next (make-hash-table :test 'equal))
-                 (setf (gethash key current) next))
-               (setf current next)))
-    (let ((final-key (car (last keys))))
-      (if (null value)
-          (remhash final-key current)
-          (setf (gethash final-key current) value))))
-  value)
+;;; Simple eval wrapper (no condition system in JSCL)
+(defun ece-try-eval (expr)
+  (evaluate expr))
 
-(defun (setf lookup) (value &rest keys)
-  (apply #'set-lookup value keys))
+;;; Safe number parsing without handler-case
+(defun ece-string->number (s)
+  (let ((result (parse-integer s :junk-allowed t)))
+    result))
 
-;;; CLOS accessor setf workaround.
-;;; JSCL's defclass registers writer methods on a mangled symbol via FSET,
-;;; but cross-compiled (setf (accessor obj) val) reads symbol.setfvalue.
-;;; Bridge the gap with explicit (defun (setf ...) ...) using slot-value.
+;;; Bundled ece-load — look up pre-parsed forms from hash table
+(defun ece-load (filename)
+  (let ((forms (gethash filename *bundled-sources*)))
+    (when (null forms)
+      (error (format nil \"No bundled source for: ~A\" filename)))
+    (let ((result nil))
+      (dolist (expr forms result)
+        (setf result (evaluate expr))))))
 
-(defmacro def-setf-patch (accessor slot)
-  `(defun (setf ,accessor) (value obj)
-     (setf (slot-value obj ',slot) value)))
+;;; No-ops for browser
+(defun ece-save-continuation! (filename value)
+  nil)
 
-(def-setf-patch combatant-hp hp)
-(def-setf-patch combatant-hp-max hp-max)
-(def-setf-patch combatant-armor armor)
-(def-setf-patch combatant-str str)
-(def-setf-patch combatant-dex dex)
-(def-setf-patch combatant-wil wil)
-(def-setf-patch char-name name)
-(def-setf-patch char-background background)
-(def-setf-patch char-gold gold)
-(def-setf-patch char-fate fate)
-(def-setf-patch char-inventory inventory)
-(def-setf-patch item-damage-die damage-die)
-(def-setf-patch item-quantity quantity)
-(def-setf-patch encounter-first-round-p first-round-p)
-(def-setf-patch encounter-log log)
-(def-setf-patch encounter-state state)
+(defun ece-load-continuation (filename)
+  nil)
+
+(defun ece-clear-screen ()
+  nil)
+
+(defun ece-sleep (seconds)
+  nil)
+
+;;; finish-output shim (used by some code paths)
+(unless (fboundp 'finish-output)
+  (defun finish-output (&optional stream)
+    nil))
 ")
 
+;;; ——— Step 5: Browser boot code ———
 
-(defvar *persistence-source*
-  ";;; Persistence — save/restore game state via localStorage
+(defvar *browser-boot-source*
+  "(in-package :ece)
 
-(in-package #:dunge)
+;;; Load prelude (from bundled sources)
+(ece-load \"prelude.scm\")
 
-;;; localStorage helpers
+;;; Load game files (from bundled sources)
+(ece-load \"game/engine.scm\")
+(ece-load \"game/dice.scm\")
+(ece-load \"game/items.scm\")
+(ece-load \"game/combat.scm\")
+(ece-load \"game/bestiary.scm\")
+(ece-load \"game/content.scm\")
 
-(defun ls-get (key)
-  (let ((val ((jscl::oget #j:window \"localStorage\" \"getItem\") (jscl::jsstring key))))
-    (if (eq val #j:null)
-        nil
-        (jscl::clstring val))))
+;;; Load browser I/O code (defines browser-step, browser-read-line)
+(ece-load \"browser-boot.scm\")
 
-(defun ls-set (key value)
-  ((jscl::oget #j:window \"localStorage\" \"setItem\")
-   (jscl::jsstring key)
-   (jscl::jsstring value)))
+;;; Install browser-mode read-line and init player
+(evaluate '(begin
+  (define (read-line) (browser-read-line))
+  (init-player!)))
 
-(defun ls-remove (key)
-  ((jscl::oget #j:window \"localStorage\" \"removeItem\")
-   (jscl::jsstring key)))
-
-;;; Save / load / clear
-
-(defun save-game ()
-  (when (and *player*
-             (lookup \"game\" \"save-enabled\")
-             (typep (current-vignette) 'room))
-    (let* ((state (serialize *player*))
-           (room-name (symbol-name (room-id (current-vignette)))))
-      (ls-set \"dunge-save\" (write-to-string (list* :room room-name state))))))
-
-(defun load-saved-game ()
-  (let ((raw (ls-get \"dunge-save\")))
-    (when raw
-      (let* ((plist (read-from-string raw))
-             (room-name (getf plist :room)))
-        (deserialize :player plist)
-        (intern room-name \"DUNGE\")))))
-
-(defun clear-save ()
-  (ls-remove \"dunge-save\"))
-
-;;; New game function — exposed to JS
-
-(setf (jscl::oget #j:window \"dungeNewGame\")
-      (lambda ()
-        (clear-save)
-        ((jscl::oget #j:window \"location\" \"reload\"))))
+;;; Expose browserStep to JS
+(setf (jscl::oget #j:window \"browserStep\")
+      (lambda (input)
+        (let ((cl-input (if input (jscl::clstring input) nil)))
+          (setf *output-buffer* \"\")
+          (evaluate (list 'browser-step cl-input))
+          (jscl::jsstring *output-buffer*))))
 ")
 
-(defvar *browser-context-source*
-  ";;; Browser context — event-driven UI for the browser
-
-(in-package #:dunge)
-
-;;; FFI helpers — must use jscl:: qualified oget/oset since we are
-;;; in the dunge/engine package, not the jscl package.
-
-(defun dom-element (tag)
-  ((jscl::oget #j:document \"createElement\") (jscl::jsstring tag)))
-
-(defun dom-by-id (id)
-  ((jscl::oget #j:document \"getElementById\") (jscl::jsstring id)))
-
-(defun dom-append (parent child)
-  ((jscl::oget parent \"appendChild\") child))
-
-(defun dom-set-text (el text)
-  (setf (jscl::oget el \"textContent\") (jscl::jsstring text)))
-
-(defun dom-set-html (el html)
-  (setf (jscl::oget el \"innerHTML\") (jscl::jsstring html)))
-
-(defun dom-set-attr (el attr val)
-  ((jscl::oget el \"setAttribute\") (jscl::jsstring attr) (jscl::jsstring val)))
-
-(defun dom-add-class (el cls)
-  ((jscl::oget el \"classList\" \"add\") (jscl::jsstring cls)))
-
-(defun dom-on (el event fn)
-  ((jscl::oget el \"addEventListener\") (jscl::jsstring event) fn))
-
-;;; Browser context class
-(defclass browser-context ()
-  ((output-el :initarg :output-el :accessor ctx-output-el)
-   (controls-el :initarg :controls-el :accessor ctx-controls-el)))
-
-(defmethod out ((ctx browser-context) str)
-  (let ((pre (dom-element \"pre\")))
-    (dom-set-text pre str)
-    (dom-append (ctx-output-el ctx) pre)))
-
-(defmethod menu ((ctx browser-context) (choices list))
-  (let ((controls (ctx-controls-el ctx)))
-    (dolist (c choices)
-      (let ((btn (dom-element \"button\"))
-            (choice c))
-        (dom-set-text btn (choice-label choice))
-        (dom-add-class btn \"choice-btn\")
-        (dom-on btn \"click\"
-                (lambda (ev)
-                  (execute-action (choice-action choice))
-                  (render-scene ctx)))
-        (dom-append controls btn)))))
-
-(defmethod menu ((ctx browser-context) (prompt prompt))
-  (let* ((controls (ctx-controls-el ctx))
-         (wrapper (dom-element \"div\"))
-         (label (dom-element \"label\"))
-         (input (dom-element \"input\"))
-         (btn (dom-element \"button\"))
-         (error-el (dom-element \"div\")))
-    (dom-add-class wrapper \"prompt-wrapper\")
-    (dom-set-text label (prompt-question prompt))
-    (dom-add-class label \"prompt-label\")
-    (dom-set-attr input \"type\" \"text\")
-    (dom-add-class input \"prompt-input\")
-    (dom-set-text btn \"Submit\")
-    (dom-add-class btn \"choice-btn\")
-    (dom-add-class error-el \"error-msg\")
-    (let ((submit-fn
-            (lambda (&rest args)
-              (let ((val (jscl::clstring (jscl::oget input \"value\"))))
-                (if (funcall (prompt-validate-fn prompt) val)
-                    (progn
-                      (funcall (prompt-action prompt) val)
-                      (render-scene ctx))
-                    (dom-set-text error-el \"Invalid input, please try again.\"))))))
-      (dom-on btn \"click\" submit-fn)
-      (dom-on input \"keydown\"
-              (lambda (ev)
-                (when (string= (jscl::clstring (jscl::oget ev \"key\")) \"Enter\")
-                  (funcall submit-fn)))))
-    (dom-append wrapper label)
-    (dom-append wrapper input)
-    (dom-append wrapper btn)
-    (dom-append wrapper error-el)
-    (dom-append controls wrapper)
-    ;; Focus the input
-    ((jscl::oget input \"focus\"))))
-
-(defun render-scene (ctx)
-  \"Clear output and controls, then perform the current vignette.\"
-  (dom-set-html (ctx-output-el ctx) \"\")
-  (dom-set-html (ctx-controls-el ctx) \"\")
-  (let ((vignette (current-vignette)))
-    (when vignette
-      (let ((choices (perform ctx vignette)))
-        (when choices
-          (menu ctx (if (listp choices)
-                        (append-overflow-choice choices)
-                        choices))))))
-  (save-game))
-
-(defun start-game (starting-vignette)
-  (setq *vignette-stack* (list starting-vignette))
-  (let* ((out-el (dom-by-id \"game-output\"))
-         (ctl-el (dom-by-id \"game-controls\"))
-         (ctx (make-instance 'browser-context
-                             :output-el out-el
-                             :controls-el ctl-el)))
-    (render-scene ctx)))
-")
-
-
-(defvar *boot-source*
-  ";;; Boot — start the game
-
-(in-package #:dunge)
-
-(let ((saved-room (load-saved-game)))
-  (if saved-room
-      (progn
-        (set-lookup t \"game\" \"save-enabled\")
-        (start-game (room saved-room)))
-      (start-game (room 'start))))
-")
-
+;;; ——— Step 6: HTML template ———
 
 (defvar *html-template*
   "<!DOCTYPE html>
@@ -288,25 +295,6 @@ body {
 #game {
   max-width: 640px;
   width: 100%;
-}
-#game-header {
-  display: flex;
-  justify-content: flex-end;
-  margin-bottom: 1rem;
-}
-#new-game-btn {
-  background: transparent;
-  color: #666;
-  border: 1px solid #333;
-  padding: 0.3rem 0.8rem;
-  font-family: inherit;
-  font-size: 0.8rem;
-  cursor: pointer;
-  transition: color 0.15s, border-color 0.15s;
-}
-#new-game-btn:hover {
-  color: #e94560;
-  border-color: #e94560;
 }
 #game-output pre {
   white-space: pre-wrap;
@@ -356,168 +344,173 @@ body {
 .prompt-input:focus {
   border-color: #e94560;
 }
-.error-msg {
-  color: #e94560;
-  font-size: 0.9rem;
-  min-height: 1.2em;
-}
 </style>
 </head>
 <body>
 <div id=\"game\">
-  <div id=\"game-header\">
-    <button onclick=\"dungeNewGame()\" id=\"new-game-btn\">New Game</button>
-  </div>
   <div id=\"game-output\"></div>
   <div id=\"game-controls\"></div>
 </div>
-<script src=\"jscl.js\"></script>
-<script src=\"dunge.js\"></script>
+~A
 </body>
 </html>
 ")
 
-;;; ——— Test build support ———
+;;; ——— Step 7: JS rendering logic ———
 
-(defvar *test-dir*
-  (merge-pathnames "tests/web/" *project-root*))
+(defvar *js-renderer*
+  "
+// Parse output buffer and render to DOM
+function renderStep(output) {
+  var outputEl = document.getElementById('game-output');
+  var controlsEl = document.getElementById('game-controls');
+  outputEl.innerHTML = '';
+  controlsEl.innerHTML = '';
 
-(defvar *test-boot-source*
-  ";;; Test boot — run web tests
-(in-package #:dunge/web-tests)
-(dunge/web-tests::run-web-tests)
+  if (!output || output === 'WAITING') return;
+
+  var lines = output.split('\\n');
+  var textLines = [];
+  var choices = [];
+  var promptText = null;
+
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i];
+    // Detect choice lines: '  N. Label'
+    var choiceMatch = line.match(/^\\s+(\\d+)\\.\\s+(.+)$/);
+    // Detect prompt: '> ' at end (read-choice) or 'question > ' (handle-prompt)
+    var promptMatch = line.match(/^(.+?)\\s*>\\s*$/);
+
+    if (choiceMatch) {
+      choices.push({ number: choiceMatch[1], label: choiceMatch[2] });
+    } else if (promptMatch && i === lines.length - 1) {
+      // Last line is a prompt
+      promptText = promptMatch[1];
+    } else if (line === '> ' || line === '>') {
+      // Skip bare prompt markers
+    } else {
+      textLines.push(line);
+    }
+  }
+
+  // Render text
+  if (textLines.length > 0) {
+    var pre = document.createElement('pre');
+    // Remove trailing empty lines
+    while (textLines.length > 0 && textLines[textLines.length - 1].trim() === '') {
+      textLines.pop();
+    }
+    pre.textContent = textLines.join('\\n');
+    outputEl.appendChild(pre);
+  }
+
+  // Render choices as buttons
+  if (choices.length > 0) {
+    choices.forEach(function(c) {
+      var btn = document.createElement('button');
+      btn.className = 'choice-btn';
+      btn.textContent = c.label;
+      btn.onclick = function() { step(c.number); };
+      controlsEl.appendChild(btn);
+    });
+  }
+  // Render text prompt
+  else if (promptText) {
+    var wrapper = document.createElement('div');
+    wrapper.className = 'prompt-wrapper';
+    var label = document.createElement('label');
+    label.className = 'prompt-label';
+    label.textContent = promptText;
+    var input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'prompt-input';
+    var btn = document.createElement('button');
+    btn.className = 'choice-btn';
+    btn.textContent = 'Submit';
+    var submitFn = function() {
+      if (input.value.trim()) { step(input.value); }
+    };
+    btn.onclick = submitFn;
+    input.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') submitFn();
+    });
+    wrapper.appendChild(label);
+    wrapper.appendChild(input);
+    wrapper.appendChild(btn);
+    controlsEl.appendChild(wrapper);
+    input.focus();
+  }
+
+  // Scroll to top
+  window.scrollTo(0, 0);
+}
+
+function step(input) {
+  var output = window.browserStep(input === undefined ? null : input);
+  renderStep(output);
+}
+
+// Start the game
+window.addEventListener('load', function() {
+  // Small delay to ensure JSCL is fully initialized
+  setTimeout(function() { step(null); }, 100);
+});
 ")
 
-(defvar *test-html-template*
-  "<!DOCTYPE html>
-<html lang=\"en\">
-<head>
-<meta charset=\"utf-8\">
-<title>Dunge Web Tests</title>
-</head>
-<body>
-<div id=\"test-results\"></div>
-<script src=\"jscl.js\"></script>
-<script src=\"tests.js\"></script>
-</body>
-</html>
-")
-
-;;; ——— Build steps ———
-
-(defun write-temp-file (name content)
-  "Write CONTENT to a temp file NAME under *project-root*, return pathname."
-  (let ((path (merge-pathnames name *project-root*)))
-    (with-open-file (out path :direction :output
-                         :if-exists :supersede)
-      (write-string content out))
-    path))
-
-(defun src-file (name)
-  (merge-pathnames name *src-dir*))
-
-(defun test-file (name)
-  (merge-pathnames name *test-dir*))
-
-(defun source-files ()
-  "List of game source files compiled in both normal and test builds."
-  (list (src-file "packages.lisp")
-        (src-file "utils.lisp")
-        (src-file "data-store.lisp")
-        (src-file "dice.lisp")
-        (src-file "serialize.lisp")
-        (src-file "text-layout.lisp")
-        (src-file "engine.lisp")
-        (src-file "room.lisp")
-        (src-file "item.lisp")
-        (src-file "character.lisp")
-        (src-file "character-creation.lisp")
-        (src-file "combat.lisp")
-        (src-file "bestiary.lisp")
-        (src-file "container.lisp")
-        (src-file "overflow.lisp")
-        (src-file "character-sheet.lisp")
-        (src-file "inventory.lisp")
-        (src-file "main.lisp")))
+;;; ——— Build ———
 
 (defun main ()
-  (let ((test-mode (member :web-test *features*)))
-    (format t "~&=== Dunge Web Export~A ===~%"
-            (if test-mode " (Tests)" ""))
+  ;; 1. Bootstrap JSCL
+  (format t "~&Loading JSCL...~%")
+  (let ((*default-pathname-defaults* *jscl-dir*))
+    (load (merge-pathnames "jscl.lisp" *jscl-dir*)))
+  (format t "~&Bootstrapping JSCL...~%")
+  (uiop:symbol-call :jscl :bootstrap)
+  (format t "~&JSCL ready.~%")
 
-    ;; 1. Bootstrap JSCL
-    ;; NOTE: We use uiop:symbol-call because the JSCL package does not exist
-    ;; at read time — it is created when jscl.lisp is loaded.
-    (format t "~&Loading JSCL...~%")
-    (let ((*default-pathname-defaults* *jscl-dir*))
-      (load (merge-pathnames "jscl.lisp" *jscl-dir*)))
-    (format t "~&Bootstrapping JSCL...~%")
-    (uiop:symbol-call :jscl :bootstrap)
-    (format t "~&JSCL bootstrap complete.~%")
+  ;; 2. Generate temp files
+  (format t "~&Pre-parsing .scm files...~%")
+  (let* ((bundled-path (write-temp-file "bundled-sources.lisp"
+                                         (generate-bundled-sources)))
+         (browser-ece (generate-browser-ece))
+         (browser-ece-path (write-temp-file "browser-ece.lisp" browser-ece))
+         (patches-path (write-temp-file "patches.lisp" *patches-source*))
+         (boot-path (write-temp-file "browser-boot-cl.lisp" *browser-boot-source*))
+         (temp-files (list bundled-path browser-ece-path patches-path boot-path)))
 
-    ;; 2. Write common temp files
-    (let ((patches-path (write-temp-file "patches.lisp" *patches-source*)))
-      (ensure-directories-exist *dist-dir*)
+    (ensure-directories-exist *dist-dir*)
 
-      (if test-mode
-          ;; ——— Test build ———
-          (let ((test-boot-path (write-temp-file "test-boot.lisp" *test-boot-source*)))
-            (format t "~&Compiling tests...~%")
-            (uiop:symbol-call :jscl :compile-application
-                              (append (source-files)
-                                      (list patches-path
-                                            (test-file "test-framework.lisp")
-                                            (test-file "test-clos.lisp")
-                                            (test-file "test-data-store.lisp")
-                                            test-boot-path))
-                              (merge-pathnames "tests.js" *dist-dir*))
-            (format t "~&Compilation complete.~%")
+    ;; 3. Compile with JSCL
+    (format t "~&Compiling with JSCL...~%")
+    (uiop:symbol-call :jscl :compile-application
+                      (list browser-ece-path
+                            patches-path
+                            bundled-path
+                            boot-path)
+                      (merge-pathnames "dunge.js" *dist-dir*))
+    (format t "~&Compilation complete.~%")
 
-            (format t "~&Copying JSCL runtime...~%")
-            (uiop:copy-file
-             (merge-pathnames "dist/jscl.js" *jscl-dir*)
-             (merge-pathnames "jscl.js" *dist-dir*))
+    ;; 4. Build standalone index.html
+    (format t "~&Building standalone index.html...~%")
+    (let ((jscl-js (uiop:read-file-string
+                    (merge-pathnames "dist/jscl.js" *jscl-dir*)))
+          (dunge-js (uiop:read-file-string
+                     (merge-pathnames "dunge.js" *dist-dir*))))
+      (with-open-file (out (merge-pathnames "index.html" *dist-dir*)
+                           :direction :output :if-exists :supersede)
+        (format out *html-template*
+                (format nil "<script>~%~A~%</script>~%<script>~%~A~%</script>~%<script>~%~A~%</script>"
+                        jscl-js dunge-js *js-renderer*))))
 
-            (format t "~&Writing test.html...~%")
-            (with-open-file (out (merge-pathnames "test.html" *dist-dir*)
-                                 :direction :output :if-exists :supersede)
-              (write-string *test-html-template* out))
+    ;; 5. Cleanup
+    (cleanup-temp-files temp-files)
+    ;; Remove intermediate dunge.js (it's inlined in index.html)
+    (let ((dunge-js-path (merge-pathnames "dunge.js" *dist-dir*)))
+      (when (probe-file dunge-js-path)
+        (delete-file dunge-js-path))))
 
-            (dolist (p (list patches-path test-boot-path))
-              (when (probe-file p)
-                (delete-file p))))
-
-          ;; ——— Normal build ———
-          (let ((persistence-path (write-temp-file "persistence.lisp" *persistence-source*))
-                (browser-path (write-temp-file "browser-context.lisp" *browser-context-source*))
-                (boot-path    (write-temp-file "boot.lisp" *boot-source*)))
-            (format t "~&Compiling game...~%")
-            (uiop:symbol-call :jscl :compile-application
-                              (append (source-files)
-                                      (list patches-path
-                                            persistence-path
-                                            browser-path
-                                            boot-path))
-                              (merge-pathnames "dunge.js" *dist-dir*))
-            (format t "~&Compilation complete.~%")
-
-            (format t "~&Copying JSCL runtime...~%")
-            (uiop:copy-file
-             (merge-pathnames "dist/jscl.js" *jscl-dir*)
-             (merge-pathnames "jscl.js" *dist-dir*))
-
-            (format t "~&Writing index.html...~%")
-            (with-open-file (out (merge-pathnames "index.html" *dist-dir*)
-                                 :direction :output :if-exists :supersede)
-              (write-string *html-template* out))
-
-            (dolist (p (list patches-path persistence-path browser-path boot-path))
-              (when (probe-file p)
-                (delete-file p))))))
-
-    (format t "~&=== Build complete! ===~%")
-    (format t "~&Output: ~a~%" (namestring *dist-dir*))))
+  (format t "~&=== Build complete! ===~%")
+  (format t "~&Output: ~A~%" (namestring (merge-pathnames "index.html" *dist-dir*))))
 
 (main)
-
 (uiop:quit)
