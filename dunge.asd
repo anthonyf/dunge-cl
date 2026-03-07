@@ -7,7 +7,8 @@
     :author ""
     :license "GPL-3.0"
     :description ""
-    :depends-on ("alexandria")
+    :depends-on ("alexandria"
+                 "ece")
     :serial t
     :components ((:module "src"
                           :components
@@ -28,7 +29,8 @@
                            (:file "overflow")
                            (:file "character-sheet")
                            (:file "inventory")
-                           (:file "main"))))
+                           (:file "main")
+                           (:file "ece-bootstrap"))))
     :in-order-to ((test-op (test-op "dunge/tests"))))
 
 (defsystem "dunge/tests"
