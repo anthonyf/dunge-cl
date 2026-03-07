@@ -2,28 +2,48 @@
 
 ;;;
 ;;; Background data
-;;; Each entry: (name description equipment-list armor gold)
+;;; Each entry: (name description equipment-thunk armor gold)
 ;;;
+
+(define (base-equipment)
+  "Common starting items for all backgrounds."
+  (list (make-stackable-item "Rations" 3 10)
+        (make-stackable-item "Torch" 2 5)
+        (make-item "Waterskin")))
 
 (define *backgrounds*
   (list
     (list "Soldier"  "trained in combat, disciplined"
-          (list "Sword (d8)" "Gambeson (Armor 1)" "Helm (+1 Armor)")
+          (lambda () (list (make-weapon "Sword" 8)
+                           (make-item "Gambeson (Armor 1)")
+                           (make-item "Helm (+1 Armor)")))
           2 8)
     (list "Scholar"  "educated, curious, physically weak"
-          (list "Spellbook" "Dagger (d6)" "Ink & Quill")
+          (lambda () (list (make-item "Spellbook")
+                           (make-weapon "Dagger" 6)
+                           (make-item "Ink & Quill")))
           0 8)
     (list "Criminal" "streetwise, light-fingered, untrustworthy"
-          (list "Lockpicks" "Dagger (d6)" "Dark Cloak" "Grappling Hook")
+          (lambda () (list (make-item "Lockpicks")
+                           (make-weapon "Dagger" 6)
+                           (make-item "Dark Cloak")
+                           (make-item "Grappling Hook")))
           0 8)
     (list "Pilgrim"  "faithful, traveled, poor"
-          (list "Staff (d6)" "Holy Symbol" "Healing Herbs x3")
+          (lambda () (list (make-weapon "Staff" 6)
+                           (make-item "Holy Symbol")
+                           (make-healing-herb 3 10)))
           0 8)
     (list "Hunter"   "survivalist, patient, rural"
-          (list "Bow (d6)" "Arrows" "Knife (d6)" "Snare Kit" "Furs")
+          (lambda () (list (make-weapon "Bow" 6)
+                           (make-item "Arrows")
+                           (make-weapon "Knife" 6)
+                           (make-item "Snare Kit")
+                           (make-item "Furs")))
           0 8)
     (list "Merchant" "wealthy, connected, soft"
-          (list "Dagger (d6)" "Fine Clothes")
+          (lambda () (list (make-weapon "Dagger" 6)
+                           (make-item "Fine Clothes")))
           0 38)))
 
 (define (bg-name bg) (car bg))
@@ -128,8 +148,8 @@
   (dynamic (lambda ()
     (when (null? (character-inventory *player*))
       (let* ((bg (find-background (character-background *player*)))
-             (items (append (bg-equipment bg)
-                            (list "Rations x3" "Torch x2" "Waterskin"))))
+             (items (append ((bg-equipment bg))
+                            (base-equipment))))
         (set-character-inventory! *player* items)
         (set-character-armor! *player* (bg-armor bg))
         (set-character-gold! *player* (bg-gold bg))))
@@ -137,9 +157,9 @@
   (text "As a " (player-ref 'background) " you receive:")
   (text "")
   (dynamic (lambda ()
-    (for-each (lambda (item)
+    (for-each (lambda (i)
                 (display "  - ")
-                (display item)
+                (display (item-display-name i))
                 (newline))
               (character-inventory *player*))
     nil))
@@ -187,8 +207,8 @@
     (newline)
     (display "  Inventory:")
     (newline)
-    (for-each (lambda (item)
-                (display (fmt "    - " item))
+    (for-each (lambda (i)
+                (display (fmt "    - " (item-display-name i)))
                 (newline))
               (character-inventory *player*))
     nil))
@@ -208,8 +228,41 @@
   (exit "Go to the blacksmith" blacksmith))
 
 (define-room adventure-board "Adventure Board"
-  (text "Todo random adventures will be generated and posted here.")
+  (text "The board is covered in bounties and requests from the townsfolk.")
+  (exit "Hunt a Goblin (combat test)" test-combat)
   (exit "Back" town-square))
+
+;;;
+;;; Test Combat Encounter
+;;;
+
+(define-room test-combat "The Forest Path"
+  (combat-encounter
+    'enemy (list "Goblin")
+    'intro (text "A goblin leaps from the shadows, snarling!")
+    'victory (exit "Continue" test-combat-victory)
+    'death (exit "Continue" test-combat-death)
+    'incapacitated (exit "Continue" test-combat-incapacitated)
+    'fled (exit "Continue" test-combat-fled)))
+
+(define-room test-combat-victory "Victory!"
+  (text "The goblin lies defeated at your feet.")
+  (text "You search the body and find a few coins.")
+  (exit "Return to town" town-square))
+
+(define-room test-combat-death "You Died"
+  (text "Your vision fades as you collapse...")
+  (text "But fate intervenes — you awaken back in town, bruised but alive.")
+  (exit "Return to town" town-square))
+
+(define-room test-combat-incapacitated "Incapacitated"
+  (text "You fall unconscious from your wounds.")
+  (text "A passing traveler finds you and drags you back to town.")
+  (exit "Return to town" town-square))
+
+(define-room test-combat-fled "Escaped!"
+  (text "You flee back to the safety of town, heart pounding.")
+  (exit "Return to town" town-square))
 
 (define-room blacksmith "Blacksmith"
   (text "This is the blacksmith.")

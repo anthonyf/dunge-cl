@@ -75,6 +75,10 @@
    The thunk receives no arguments and should return a list of choices, a prompt, or nil."
   `(list 'dynamic ,thunk))
 
+(define-macro (combat-encounter . args)
+  "Create a combat-encounter element for room definitions."
+  `(list 'combat-encounter (hash-table ,@args)))
+
 ;;;
 ;;; define-room macro
 ;;;
@@ -155,6 +159,55 @@
       ((eq? type 'dynamic)
        (let ((thunk (cadr element)))
          (thunk)))
+      ((eq? type 'combat-encounter)
+       (let ((ce (cadr element)))
+         ;; Setup on first visit
+         (when (not *current-encounter*)
+           (let ((enemy-data (hash-ref ce 'enemy)))
+             (setup-encounter (make-enemy-from-bestiary (car enemy-data))))
+           (let ((intro (hash-ref ce 'intro)))
+             (when intro (render-element intro))))
+         ;; Active encounter
+         (let* ((enc *current-encounter*)
+                (state (encounter-state enc)))
+           ;; Drain combat log
+           (when (encounter-log enc)
+             (display (encounter-log enc))
+             (newline)
+             (set-encounter-log! enc nil))
+           ;; First-round DEX save
+           (when (and (eq? state 'active) (encounter-first-round enc))
+             (set-encounter-first-round! enc nil)
+             (if (dex-save *player*)
+                 (begin (display "You react quickly!") (newline))
+                 (let* ((enemy-result (resolve-enemy-attack))
+                        (lines (cons "Caught off guard! The enemy strikes first."
+                                     (format-enemy-attack-lines enemy-result))))
+                   (display (join-lines lines))
+                   (newline)
+                   (update-encounter-state enc nil enemy-result nil)
+                   (set state (encounter-state enc)))))
+           (if (eq? state 'active)
+               ;; Show stats + return combat choices
+               (let ((e (encounter-enemy enc)))
+                 (display (fmt "  " (enemy-name e) " HP: " (enemy-hp e)
+                               "/" (enemy-hp-max e) "  STR: " (enemy-str e)))
+                 (newline)
+                 (display (fmt "  Your HP: " (character-hp *player*)
+                               "/" (character-hp-max *player*)
+                               "  STR: " (character-str *player*)))
+                 (newline)
+                 (newline)
+                 (combat-choices))
+               ;; Terminal state: cleanup + show outcome elements
+               (let ((outcome (cond
+                                ((eq? state 'victory) (hash-ref ce 'victory))
+                                ((eq? state 'death) (hash-ref ce 'death))
+                                ((eq? state 'incapacitated) (hash-ref ce 'incapacitated))
+                                ((eq? state 'fled) (hash-ref ce 'fled))
+                                (else nil))))
+                 (cleanup-combat state)
+                 (when outcome (render-element outcome)))))))
       (else nil))))
 
 (define (render-elements elements)

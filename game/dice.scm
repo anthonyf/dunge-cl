@@ -10,3 +10,7 @@
     (if (= i n)
         (reverse results)
         (loop (+ i 1) (cons (roll-die sides) results)))))
+
+(define (roll-d20)
+  "Roll a single d20."
+  (roll-die 20))
