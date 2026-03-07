@@ -9,4 +9,4 @@
 ("ece" .
  (:class qlot/source/git:source-git
   :initargs (:remote-url "git@github.com:anthonyf/ece.git")
-  :version "git-2dbda2f14e396e66c6f61b2eb02a4d6b6fe232a2"))
+  :version "git-3e8a76f555e498eb2bd1d66f2ca3670dd9890596"))

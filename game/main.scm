@@ -5,4 +5,5 @@
 (load "game/dice.scm")
 (load "game/content.scm")
 
+(init-player!)
 (start-game 'start)

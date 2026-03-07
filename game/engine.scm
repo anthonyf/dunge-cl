@@ -1,37 +1,22 @@
 ;;; engine.scm — Dunge IF engine
-;;; Provides room system, choice menus, game state, and game loop.
+;;; Provides room system, choice menus, player record, and game loop.
 
 ;;;
-;;; Game State
+;;; Player Record
 ;;;
 
-(define *state* (hash-table))
+(define-record character
+  name background str dex wil hp hp-max armor gold fate inventory)
 
-(define (state-get . keys)
-  "Get a value from nested game state. Returns nil if any key is missing."
-  (let loop ((current *state*) (keys keys))
-    (if (null? keys)
-        current
-        (if (and (hash-table? current) (hash-has-key? current (car keys)))
-            (loop (hash-ref current (car keys)) (cdr keys))
-            nil))))
+(define *player* nil)
 
-(define (state-set! . args)
-  "Set a value in nested game state. Last arg is the value, rest are keys.
-   Creates intermediate hash tables as needed."
-  (let ((keys (reverse (cdr (reverse args))))
-        (value (car (reverse args))))
-    (let loop ((current *state*) (keys keys))
-      (if (= (length keys) 1)
-          (hash-set! current (car keys) value)
-          (begin
-            (when (not (hash-has-key? current (car keys)))
-              (hash-set! current (car keys) (hash-table)))
-            (loop (hash-ref current (car keys)) (cdr keys)))))))
+(define (player-ref field)
+  "Return a thunk that reads a player field by name."
+  (lambda () (hash-ref *player* field)))
 
-(define (state-ref . keys)
-  "Return a thunk that looks up the given keys in *state* when called."
-  (lambda () (apply state-get keys)))
+(define (init-player!)
+  "Initialize *player* with a blank character record."
+  (set *player* (make-character nil nil nil nil nil nil nil nil nil nil '())))
 
 (define (callable? x)
   "Check if x is a procedure (compound or primitive)."
