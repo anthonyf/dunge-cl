@@ -37,6 +37,9 @@ jobs:
         run: sbcl --non-interactive --load run-tests.lisp
 
       - name: Build web export
+        env:
+          COMMIT_SHA: ${{ github.sha }}
+          BUILD_TIME: ${{ github.event.head_commit.timestamp }}
         run: sbcl --non-interactive --load web-export.lisp
 
       - name: Deploy to GitHub Pages (prod)
@@ -44,4 +47,3 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./dist
-          keep_files: true

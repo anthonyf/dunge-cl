@@ -17,6 +17,22 @@
 (defvar *jscl-dir*
   (merge-pathnames "vendor/jscl/" *project-root*))
 
+;;; ——— Build version ———
+
+(defun get-build-version ()
+  "Return (sha . timestamp) for the build version display."
+  (let ((sha (or (uiop:getenv "COMMIT_SHA")
+                 (string-trim '(#\Newline #\Space)
+                              (uiop:run-program '("git" "rev-parse" "--short" "HEAD")
+                                                :output '(:string :stripped t)))))
+        (timestamp (or (uiop:getenv "BUILD_TIME")
+                       (multiple-value-bind (_sec min hour day month year)
+                           (decode-universal-time (get-universal-time) 0)
+                         (declare (ignore _sec))
+                         (format nil "~4,'0D-~2,'0D-~2,'0D ~2,'0D:~2,'0D UTC"
+                                 year month day hour min)))))
+    (cons sha timestamp)))
+
 ;;; ——— Utilities ———
 
 (defun write-temp-file (name content)
@@ -244,32 +260,38 @@
 (defvar *browser-boot-source*
   "(in-package :ece)
 
-;;; Load prelude (from bundled sources)
-(ece-load \"prelude.scm\")
+(let ((console-error (jscl::oget #j:console \"error\")))
+  (handler-case
+    (progn
+      ;;; Load prelude (from bundled sources)
+      (ece-load \"prelude.scm\")
 
-;;; Load game files (from bundled sources)
-(ece-load \"game/engine.scm\")
-(ece-load \"game/dice.scm\")
-(ece-load \"game/items.scm\")
-(ece-load \"game/combat.scm\")
-(ece-load \"game/bestiary.scm\")
-(ece-load \"game/content.scm\")
+      ;;; Load game files (from bundled sources)
+      (ece-load \"game/engine.scm\")
+      (ece-load \"game/dice.scm\")
+      (ece-load \"game/items.scm\")
+      (ece-load \"game/combat.scm\")
+      (ece-load \"game/bestiary.scm\")
+      (ece-load \"game/content.scm\")
 
-;;; Load browser I/O code (defines browser-step, browser-read-line)
-(ece-load \"browser-boot.scm\")
+      ;;; Load browser I/O code (defines browser-step, browser-read-line)
+      (ece-load \"browser-boot.scm\")
 
-;;; Install browser-mode read-line and init player
-(evaluate '(begin
-  (define (read-line) (browser-read-line))
-  (init-player!)))
+      ;;; Install browser-mode read-line and init player
+      (evaluate '(begin
+        (define (read-line) (browser-read-line))
+        (init-player!)))
 
-;;; Expose browserStep to JS
-(setf (jscl::oget #j:window \"browserStep\")
-      (lambda (input)
-        (let ((cl-input (if input (jscl::clstring input) nil)))
-          (setf *output-buffer* \"\")
-          (evaluate (list 'browser-step cl-input))
-          (jscl::jsstring *output-buffer*))))
+      ;;; Expose browserStep to JS
+      (setf (jscl::oget #j:window \"browserStep\")
+            (lambda (input)
+              (let ((cl-input (if input (jscl::clstring input) nil)))
+                (setf *output-buffer* \"\")
+                (evaluate (list 'browser-step cl-input))
+                (jscl::jsstring *output-buffer*)))))
+    (error (e)
+      (funcall console-error
+               (jscl::jsstring (format nil \"[dunge] Boot error: ~A\" e))))))
 ")
 
 ;;; ——— Step 6: HTML template ———
@@ -344,12 +366,19 @@ body {
 .prompt-input:focus {
   border-color: #e94560;
 }
+#build-version {
+  margin-top: 3rem;
+  font-size: 0.7rem;
+  color: #555;
+  text-align: center;
+}
 </style>
 </head>
 <body>
 <div id=\"game\">
   <div id=\"game-output\"></div>
   <div id=\"game-controls\"></div>
+  <div id=\"build-version\">~A</div>
 </div>
 ~A
 </body>
@@ -367,7 +396,7 @@ function renderStep(output) {
   outputEl.innerHTML = '';
   controlsEl.innerHTML = '';
 
-  if (!output || output === 'WAITING') return;
+  if (output === null || output === undefined || output === 'WAITING') return;
 
   var lines = output.split('\\n');
   var textLines = [];
@@ -447,6 +476,7 @@ function renderStep(output) {
 
 function step(input) {
   var output = window.browserStep(input === undefined ? null : input);
+  console.log('[dunge] browserStep returned:', typeof output, JSON.stringify(output));
   renderStep(output);
 }
 
@@ -492,13 +522,17 @@ window.addEventListener('load', function() {
 
     ;; 4. Build standalone index.html
     (format t "~&Building standalone index.html...~%")
-    (let ((jscl-js (uiop:read-file-string
-                    (merge-pathnames "dist/jscl.js" *jscl-dir*)))
-          (dunge-js (uiop:read-file-string
-                     (merge-pathnames "dunge.js" *dist-dir*))))
+    (let* ((jscl-js (uiop:read-file-string
+                     (merge-pathnames "dist/jscl.js" *jscl-dir*)))
+           (dunge-js (uiop:read-file-string
+                      (merge-pathnames "dunge.js" *dist-dir*)))
+           (version (get-build-version))
+           (version-str (format nil "v ~A &middot; ~A" (car version) (cdr version))))
+      (format t "~&Build version: v ~A · ~A~%" (car version) (cdr version))
       (with-open-file (out (merge-pathnames "index.html" *dist-dir*)
                            :direction :output :if-exists :supersede)
         (format out *html-template*
+                version-str
                 (format nil "<script>~%~A~%</script>~%<script>~%~A~%</script>~%<script>~%~A~%</script>"
                         jscl-js dunge-js *js-renderer*))))
 
