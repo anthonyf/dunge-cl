@@ -143,12 +143,12 @@
               (display (item-display-name i))
               (newline))
             (character-inventory *player*))
-  (text "")
+  (newline)
   (display (fmt "  Armor: " (character-armor *player*)))
   (newline)
   (display (fmt "  Gold:  " (character-gold *player*)))
   (newline)
-  (text "")
+  (newline)
   (choose ("Continue" (fate-points))))
 
 (define (fate-points)
@@ -188,7 +188,7 @@
               (display (fmt "    - " (item-display-name i)))
               (newline))
             (character-inventory *player*))
-  (text "")
+  (newline)
   (choose ("Begin your adventure!" (town-square))))
 
 ;;;
