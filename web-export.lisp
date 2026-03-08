@@ -483,7 +483,6 @@ function renderStep(output) {
 
 function step(input) {
   var output = window.browserStep(input === undefined ? null : input);
-  console.log('[dunge] browserStep returned:', typeof output, JSON.stringify(output));
   renderStep(output);
 }
 
