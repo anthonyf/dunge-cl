@@ -282,3 +282,53 @@
     (set-character-hp! *player* (character-hp-max *player*))
     (set-character-str! *player* 10))
   (clear-encounter))
+
+;;;
+;;; Run Combat — self-contained encounter loop
+;;;
+
+(define (run-combat enemy-name intro-fn)
+  "Run a complete combat encounter. Returns the outcome state symbol
+   (victory, death, incapacitated, or fled)."
+  (setup-encounter (make-enemy-from-bestiary enemy-name))
+  (when intro-fn (intro-fn))
+  ;; First-round DEX save
+  (let ((enc *current-encounter*))
+    (set-encounter-first-round! enc nil)
+    (if (dex-save *player*)
+        (begin (display "You react quickly!") (newline))
+        (let* ((enemy-result (resolve-enemy-attack))
+               (lines (cons "Caught off guard! The enemy strikes first."
+                            (format-enemy-attack-lines enemy-result))))
+          (display (join-lines lines))
+          (newline)
+          (update-encounter-state enc nil enemy-result nil))))
+  ;; Combat loop
+  (let loop ()
+    (let* ((enc *current-encounter*)
+           (state (encounter-state enc)))
+      ;; Drain combat log
+      (when (encounter-log enc)
+        (display (encounter-log enc))
+        (newline)
+        (set-encounter-log! enc nil))
+      (if (eq? state 'active)
+          ;; Show stats + combat menu
+          (let ((e (encounter-enemy enc)))
+            (display (fmt "  " (enemy-name e) " HP: " (enemy-hp e)
+                          "/" (enemy-hp-max e) "  STR: " (enemy-str e)))
+            (newline)
+            (display (fmt "  Your HP: " (character-hp *player*)
+                          "/" (character-hp-max *player*)
+                          "  STR: " (character-str *player*)))
+            (newline)
+            (newline)
+            (let ((choices (filter choice-visible? (combat-choices))))
+              (display-choices choices)
+              (let ((chosen (read-choice choices)))
+                ((hash-ref chosen 'action))))
+            (loop))
+          ;; Terminal state
+          (begin
+            (cleanup-combat state)
+            state)))))
