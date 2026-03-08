@@ -20,7 +20,7 @@ jobs:
 
       - name: Setup ECE dependency
         run: |
-          ECE_REF="b29b3ec41447a87b16f1373ea88cefebab34ad52"
+          ECE_REF="6e48d6cfd03f5a2f2220e064e425d0c2db18a51c"
           mkdir -p .qlot
           git clone https://github.com/anthonyf/ece.git .qlot/ece-src
           cd .qlot/ece-src && git checkout "$ECE_REF" && cd ../..
