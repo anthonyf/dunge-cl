@@ -60,26 +60,31 @@
       (else (loop (cdr bgs))))))
 
 ;;;
-;;; Character Creation Rooms
+;;; Character Creation
 ;;;
 
-(define-room start "Welcome to Dunge!"
-  (choose ("Continue" (goto 'character-info))))
+(define (start)
+  (text "Welcome to Dunge!")
+  (choose ("Continue" (character-info))))
 
-(define-room character-info "Character Creation"
+(define (character-info)
+  (text "Character Creation")
+  (text "")
   (if (character-name *player*)
       (begin
         (text "Welcome " (character-name *player*) "!")
-        (choose ("Continue" (goto 'choose-background))))
+        (choose ("Continue" (choose-background))))
       (begin
         (text "Let's gather some information about your character.")
         (ask "What is your name?"
              non-empty-string?
              (lambda (input)
                (set-character-name! *player* input)
-               (goto 'character-info))))))
+               (character-info))))))
 
-(define-room choose-background "Choose Your Background"
+(define (choose-background)
+  (text "Choose Your Background")
+  (text "")
   (text "Your background determines your starting equipment and skills.")
   (text "")
   (let ((choices (map (lambda (bg)
@@ -87,14 +92,16 @@
                           (string-append (bg-name bg) " - " (bg-description bg))
                           (lambda ()
                             (set-character-background! *player* (bg-name bg))
-                            (goto 'roll-stats))))
+                            (roll-stats))))
                       *backgrounds*)))
     (newline)
     (display-choices choices)
     (let ((chosen (read-choice choices)))
       ((hash-ref chosen 'action)))))
 
-(define-room roll-stats "Roll Ability Scores"
+(define (roll-stats)
+  (text "Roll Ability Scores")
+  (text "")
   (when (not (character-str *player*))
     (set-character-str! *player* (apply + (roll-dice 3 6)))
     (set-character-dex! *player* (apply + (roll-dice 3 6)))
@@ -112,26 +119,30 @@
       ((fmt "Swap STR (" str ") and DEX (" dex ")")
        (begin (set-character-str! *player* dex)
               (set-character-dex! *player* str)
-              (goto 'roll-hp)))
+              (roll-hp)))
       ((fmt "Swap STR (" str ") and WIL (" wil ")")
        (begin (set-character-str! *player* wil)
               (set-character-wil! *player* str)
-              (goto 'roll-hp)))
+              (roll-hp)))
       ((fmt "Swap DEX (" dex ") and WIL (" wil ")")
        (begin (set-character-dex! *player* wil)
               (set-character-wil! *player* dex)
-              (goto 'roll-hp)))
-      ("Keep as they are" (goto 'roll-hp)))))
+              (roll-hp)))
+      ("Keep as they are" (roll-hp)))))
 
-(define-room roll-hp "Roll Hit Points"
+(define (roll-hp)
+  (text "Roll Hit Points")
+  (text "")
   (when (not (character-hp *player*))
     (let ((hp (roll-die 6)))
       (set-character-hp! *player* hp)
       (set-character-hp-max! *player* hp)))
   (text "Your hit points: " (character-hp *player*))
-  (choose ("Continue" (goto 'equipment))))
+  (choose ("Continue" (equipment))))
 
-(define-room equipment "Equipment"
+(define (equipment)
+  (text "Equipment")
+  (text "")
   (when (null? (character-inventory *player*))
     (let* ((bg (find-background (character-background *player*)))
            (items (append ((bg-equipment bg)) (base-equipment))))
@@ -151,17 +162,21 @@
   (display (fmt "  Gold:  " (character-gold *player*)))
   (newline)
   (text "")
-  (choose ("Continue" (goto 'fate-points))))
+  (choose ("Continue" (fate-points))))
 
-(define-room fate-points "Fate Points"
+(define (fate-points)
+  (text "Fate Points")
+  (text "")
   (when (not (character-fate *player*))
     (set-character-fate! *player* 2))
   (text "You begin with 2 Fate Points.")
   (text "Fate Points can be spent to narrowly avoid death or reroll a critical save.")
   (text "Use them wisely — they are hard to come by.")
-  (choose ("Continue" (goto 'character-summary))))
+  (choose ("Continue" (character-summary))))
 
-(define-room character-summary "Character Summary"
+(define (character-summary)
+  (text "Character Summary")
+  (text "")
   (display (fmt "  Name:       " (character-name *player*)))
   (newline)
   (display (fmt "  Background: " (character-background *player*)))
@@ -189,59 +204,75 @@
               (newline))
             (character-inventory *player*))
   (text "")
-  (choose ("Begin your adventure!" (goto 'town-square))))
+  (choose ("Begin your adventure!" (town-square))))
 
 ;;;
-;;; Town Rooms
+;;; Town
 ;;;
 
-(define-room town-square "Town Square"
+(define (town-square)
+  (text "Town Square")
+  (text "")
   (text "This is the town square, the central hub of this very small, unnamed town.")
   (text "You see an adventure board here where the townsfolk have posted their bounties.")
   (text "Perfect for an adventurer like yourself.")
   (text "To the east you see smoke from the forge of the town blacksmith.")
   (choose
-    ("Look at the Adventure Board" (goto 'adventure-board))
-    ("Go to the blacksmith" (goto 'blacksmith))))
+    ("Look at the Adventure Board" (adventure-board))
+    ("Go to the blacksmith" (blacksmith))))
 
-(define-room adventure-board "Adventure Board"
+(define (adventure-board)
+  (text "Adventure Board")
+  (text "")
   (text "The board is covered in bounties and requests from the townsfolk.")
   (choose
-    ("Hunt a Goblin (combat test)" (goto 'test-combat))
-    ("Back" (goto 'town-square))))
+    ("Hunt a Goblin (combat test)" (test-combat))
+    ("Back" (town-square))))
 
 ;;;
 ;;; Test Combat Encounter
 ;;;
 
-(define-room test-combat "The Forest Path"
+(define (test-combat)
+  (text "The Forest Path")
+  (text "")
   (let ((outcome (run-combat "Goblin"
                    (lambda () (text "A goblin leaps from the shadows, snarling!")))))
     (case outcome
-      (victory (goto 'test-combat-victory))
-      (death (goto 'test-combat-death))
-      (incapacitated (goto 'test-combat-incapacitated))
-      (fled (goto 'test-combat-fled)))))
+      (victory (test-combat-victory))
+      (death (test-combat-death))
+      (incapacitated (test-combat-incapacitated))
+      (fled (test-combat-fled)))))
 
-(define-room test-combat-victory "Victory!"
+(define (test-combat-victory)
+  (text "Victory!")
+  (text "")
   (text "The goblin lies defeated at your feet.")
   (text "You search the body and find a few coins.")
-  (choose ("Return to town" (goto 'town-square))))
+  (choose ("Return to town" (town-square))))
 
-(define-room test-combat-death "You Died"
+(define (test-combat-death)
+  (text "You Died")
+  (text "")
   (text "Your vision fades as you collapse...")
   (text "But fate intervenes — you awaken back in town, bruised but alive.")
-  (choose ("Return to town" (goto 'town-square))))
+  (choose ("Return to town" (town-square))))
 
-(define-room test-combat-incapacitated "Incapacitated"
+(define (test-combat-incapacitated)
+  (text "Incapacitated")
+  (text "")
   (text "You fall unconscious from your wounds.")
   (text "A passing traveler finds you and drags you back to town.")
-  (choose ("Return to town" (goto 'town-square))))
+  (choose ("Return to town" (town-square))))
 
-(define-room test-combat-fled "Escaped!"
+(define (test-combat-fled)
+  (text "Escaped!")
+  (text "")
   (text "You flee back to the safety of town, heart pounding.")
-  (choose ("Return to town" (goto 'town-square))))
+  (choose ("Return to town" (town-square))))
 
-(define-room blacksmith "Blacksmith"
+(define (blacksmith)
+  (text "Blacksmith")
+  (text "")
   (text "This is the blacksmith.")
-  (choose ("Return to town square" (goto 'town-square))))
+  (choose ("Return to town square" (town-square))))

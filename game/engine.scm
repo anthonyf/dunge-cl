@@ -1,5 +1,5 @@
 ;;; engine.scm — Dunge IF engine
-;;; Rooms are functions. Entering a room executes its body.
+;;; Rooms are plain functions that call each other directly.
 
 ;;;
 ;;; Player Record
@@ -13,29 +13,6 @@
 (define (init-player!)
   "Initialize *player* with a blank character record."
   (set *player* (make-character nil nil nil nil nil nil nil nil nil nil '())))
-
-;;;
-;;; Room Registry
-;;;
-
-(define *rooms* (hash-table))
-(define *current-room* nil)
-
-(define (get-room name)
-  (hash-ref *rooms* name))
-
-(define (goto name)
-  "Set the next room to navigate to."
-  (set *current-room* name))
-
-;;;
-;;; define-room: registers a named function
-;;;
-
-(define-macro (define-room name title . body)
-  `(hash-set! *rooms* (quote ,name)
-              (hash-table 'title ,title
-                          'fn (lambda () ,@body))))
 
 ;;;
 ;;; Display Helpers
@@ -115,22 +92,3 @@
           (display "Invalid input. Try again.")
           (newline)
           (ask question validate-fn action-fn)))))
-
-;;;
-;;; Game Loop
-;;;
-
-(define (game-loop)
-  "Main game loop. Displays room title, executes room function, repeats."
-  (when *current-room*
-    (let ((room (get-room *current-room*)))
-      (display (hash-ref room 'title))
-      (newline)
-      (newline)
-      ((hash-ref room 'fn))
-      (game-loop))))
-
-(define (start-game room-name)
-  "Start the game at the given room."
-  (goto room-name)
-  (game-loop))

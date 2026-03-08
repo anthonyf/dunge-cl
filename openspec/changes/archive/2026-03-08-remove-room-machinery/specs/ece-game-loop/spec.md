@@ -1,4 +1,14 @@
-## ADDED Requirements
+## REMOVED Requirements
+
+### Requirement: Game loop renders rooms and processes input
+**Reason**: No trampoline loop needed. Room functions call each other directly via TCO.
+**Migration**: Room functions handle their own display and transfer control to the next room via direct function calls.
+
+### Requirement: Navigation via goto
+**Reason**: `goto` is replaced by direct function calls. `(goto 'library)` becomes `(library)`.
+**Migration**: Replace all `(goto 'room-name)` with `(room-name)` in choose actions.
+
+## MODIFIED Requirements
 
 ### Requirement: CL bootstrap starts the ECE game
 A CL function SHALL load and evaluate the ECE game scripts, starting the game by calling the first room function directly.

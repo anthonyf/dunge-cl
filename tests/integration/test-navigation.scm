@@ -17,7 +17,6 @@
   (with-fresh-state
     (random-seed! 42)
     (let ((out (skip-to-town!)))
-      (assert (equal? 'town-square *current-room*) "should be in town-square")
       (assert (string-contains? out "Town Square") "should show Town Square")
       (assert (string-contains? out "Adventure Board") "should show Adventure Board"))))
 
@@ -26,10 +25,8 @@
     (random-seed! 42)
     (skip-to-town!)
     (let ((out (test-step "1")))
-      (assert (equal? 'adventure-board *current-room*) "should be at adventure-board")
       (assert (string-contains? out "Adventure Board") "should show Adventure Board"))
     (let ((out (test-step "2")))
-      (assert (equal? 'town-square *current-room*) "should be back at town-square")
       (assert (string-contains? out "Town Square") "should show Town Square"))))
 
 (define-test "navigation: town to blacksmith and back"
@@ -37,7 +34,6 @@
     (random-seed! 42)
     (skip-to-town!)
     (let ((out (test-step "2")))
-      (assert (equal? 'blacksmith *current-room*) "should be at blacksmith")
       (assert (string-contains? out "Blacksmith") "should show Blacksmith"))
     (let ((out (test-step "1")))
-      (assert (equal? 'town-square *current-room*) "should be back at town-square"))))
+      (assert (string-contains? out "Town Square") "should show Town Square"))))

@@ -29,7 +29,6 @@
   "Reset all game state before running body."
   `(begin
      (init-player!)
-     (set *current-room* nil)
      (set *current-encounter* nil)
      (set *resume-continuation* nil)
      (set *top-continuation* nil)

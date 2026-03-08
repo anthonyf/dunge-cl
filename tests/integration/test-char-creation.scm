@@ -60,5 +60,4 @@
     (test-step "1")
     (test-step "1")
     (let ((out (test-step "1")))
-      (assert (equal? 'town-square *current-room*) "should be in town-square")
-      (assert (string-contains? out "town") "output should mention town"))))
+      (assert (string-contains? out "Town Square") "output should mention town"))))

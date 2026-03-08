@@ -10,7 +10,7 @@
     (set *top-continuation* exit)
     (if *resume-continuation*
         (*resume-continuation* input)
-        (start-game 'start)))))
+        (start)))))
 
 (define (browser-read-line)
   "Replaces read-line in browser mode. Suspends via call/cc."
