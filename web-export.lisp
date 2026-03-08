@@ -150,7 +150,7 @@ ECE's custom readtable is only needed for .scm files, not .lisp files."
         (skip-names '("ece-read" "ece-display" "ece-newline"
                        "ece-load" "ece-save-continuation!"
                        "ece-load-continuation" "ece-clear-screen" "ece-sleep"
-                       "ece-try-eval" "ece-string->number")))
+                       "ece-try-eval")))
     (with-output-to-string (out)
       (format out "(in-package :ece)~%~%")
       (let ((*package* (find-package :ece))
@@ -188,11 +188,6 @@ ECE's custom readtable is only needed for .scm files, not .lisp files."
 ;;; Safe eval wrapper (avoids finish-output and condition system issues in JSCL)
 (defun ece-try-eval (expr)
   (evaluate expr))
-
-;;; Safe number parsing (read-from-string is unreliable in JSCL)
-(defun ece-string->number (s)
-  (let ((result (parse-integer s :junk-allowed t)))
-    result))
 
 ;;; Bundled ece-load — look up pre-parsed forms from hash table
 (defun ece-load (filename)
