@@ -1,24 +1,18 @@
-.PHONY: test test-web test-all run build clean fmt check-fmt setup
+.PHONY: test run build clean fmt check-fmt setup
 
 test:
-	qlot exec sbcl --eval '(asdf:test-system :dunge)' --quit
+	sbcl --non-interactive --load run-tests.lisp
 
 run:
 	qlot exec sbcl --non-interactive \
 		--eval '(asdf:load-system :dunge)' \
-		--eval '(dunge:game-repl (dunge:room (quote dunge::start)))'
-
-test-all: test test-web
-
-test-web:
-	qlot exec sbcl --non-interactive --eval '(push :web-test *features*)' --load web-export.lisp
-	npx playwright test
+		--eval '(dunge/ece-bootstrap:start)'
 
 build:
-	qlot exec sbcl --non-interactive --load web-export.lisp
+	sbcl --non-interactive --load web-export.lisp
 
 ROOT_DIR := $(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
-LISP_FILES := $(wildcard src/*.lisp tests/*.lisp tests/web/*.lisp) web-export.lisp games/example.lisp dunge.asd
+LISP_FILES := $(wildcard src/*.lisp) web-export.lisp run-tests.lisp dunge.asd
 
 fmt:
 	@for f in $(LISP_FILES); do \
@@ -43,4 +37,3 @@ clean:
 	rm -rf ~/.cache/common-lisp/
 	find . -name '*.fasl' -delete
 	rm -rf dist/
-	rm -rf test-results/
