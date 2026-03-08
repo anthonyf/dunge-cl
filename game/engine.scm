@@ -18,9 +18,16 @@
 ;;; Display Helpers
 ;;;
 
-(define-macro (text . args)
+(define (text . args)
   "Display formatted text followed by a newline."
-  `(begin (display (fmt ,@args)) (newline)))
+  (display (apply fmt args))
+  (newline))
+
+(define (p . args)
+  "Display formatted text followed by a blank line (paragraph break)."
+  (display (apply fmt args))
+  (newline)
+  (newline))
 
 (define (non-empty-string? s)
   (and (string? s) (> (string-length s) 0)))
