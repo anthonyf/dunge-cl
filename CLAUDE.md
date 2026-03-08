@@ -105,8 +105,8 @@ Source files are formatted with Emacs `common-lisp-indent-function` via `make fm
 
 ## JSCL Web Export Gotchas
 
-- JSCL `oget` is in the `JSCL` package — code in the `dunge` package must use `jscl::oget`
-- JSCL strings are char arrays, not JS strings — use `jscl::jsstring` for DOM APIs, `jscl::clstring` to convert back
+- JSCL `oget` is in the `JSCL-XC` package — code in the `dunge` package must use `jscl-xc::oget`
+- JSCL strings are char arrays, not JS strings — use `jscl-xc::jsstring` for DOM APIs, `jscl-xc::clstring` to convert back
 - JSCL doesn't support `~{~A~}` format directive — use dolist+princ instead
 - `#j:` reader syntax works in cross-compilation context
 - `uiop:symbol-call` needed for JSCL functions since the package doesn't exist at read time

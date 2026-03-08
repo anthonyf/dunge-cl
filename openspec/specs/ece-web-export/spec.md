@@ -1,11 +1,13 @@
-## ADDED Requirements
-
 ### Requirement: Build produces standalone HTML file
-The build process SHALL produce a single `dist/index.html` file that contains all JavaScript (JSCL runtime + compiled game) inlined. Opening this file in a browser SHALL start the game with no server required.
+The build process SHALL produce a single `dist/index.html` file that contains all JavaScript (JSCL runtime + compiled game) inlined. Opening this file in a browser SHALL start the game with no server required. The build SHALL use JSCL package `:jscl-xc` and the new `bootstrap(output-directory, prefix)` API.
 
 #### Scenario: Build and open
 - **WHEN** `sbcl --load web-export.lisp` is run
 - **THEN** `dist/index.html` SHALL be produced and opening it in a browser SHALL display the game start screen
+
+#### Scenario: JSCL bootstrap with new API
+- **WHEN** the build bootstraps JSCL
+- **THEN** it SHALL call `(jscl-xc:bootstrap output-dir "jscl")` with the correct output directory
 
 ### Requirement: Game files pre-parsed at build time
 The build process SHALL read all .scm files (prelude + game/) using ECE's custom readtable at build time and serialize them as CL data for JSCL compilation. The browser SHALL NOT need ECE's reader or custom readtable.
@@ -50,9 +52,20 @@ The deploy workflow SHALL NOT preserve files from previous deployments. Each dep
 - **WHEN** a new deploy runs after old pre-ECE files exist on gh-pages
 - **THEN** the old files (e.g., `dev/`, `dunge.js`, `jscl.js`) SHALL be removed and only `index.html` SHALL remain
 
-### Requirement: browserStep returns debug info to console
-The JS `step()` function SHALL log the raw output from `browserStep` to the browser console for debugging purposes.
+### Requirement: ECE source filtered at form level
+The build process SHALL read ECE source as CL forms using SBCL's reader (with ECE's readtable) and filter by form type/name. The build SHALL NOT use text-based line scanning or parenthesis counting.
 
-#### Scenario: Console shows browserStep output
-- **WHEN** the game runs in the browser with developer tools open
-- **THEN** each call to `step()` SHALL log the raw `browserStep` return value to the console
+#### Scenario: Form-level filtering handles character literals
+- **WHEN** ECE source contains `#"` or other CL character literals inside forms
+- **THEN** the filter SHALL correctly identify form boundaries because it uses CL's reader, not text parsing
+
+#### Scenario: Only I/O functions are filtered
+- **WHEN** ECE source contains `handler-case` or `eval-when` forms
+- **THEN** they SHALL be kept in the compiled output because JSCL supports them
+
+### Requirement: handler-case and eval-when pass through to JSCL
+ECE functions that use `handler-case` (e.g., `ece-try-eval`, `ece-string->number`) SHALL be compiled by JSCL directly without being stripped and replaced by patches.
+
+#### Scenario: ece-try-eval uses handler-case in browser
+- **WHEN** ECE code calls `ece-try-eval` in the browser
+- **THEN** it SHALL use the original `handler-case`-based implementation compiled by JSCL

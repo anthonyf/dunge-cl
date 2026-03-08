@@ -113,96 +113,55 @@
 
 ;;; ——— Step 3: Generate browser-compatible ECE source ———
 ;;;
-;;; ECE uses handler-case, eval-when, with-open-file, and finish-output
-;;; which JSCL doesn't support. We read ece.lisp as text and skip those
-;;; forms, then provide replacement functions in a patches file.
+;;; We read ece.lisp as CL forms (using ECE's readtable) and filter out
+;;; I/O functions that need browser-specific replacements. JSCL supports
+;;; handler-case and eval-when, so those pass through unchanged.
 
-(defun read-ece-source-lines ()
-  "Read ece.lisp as a list of lines."
+(defun read-ece-forms ()
+  "Read all forms from ece.lisp using the standard CL readtable.
+ECE's custom readtable is only needed for .scm files, not .lisp files."
   (let ((path (asdf:system-relative-pathname :ece "src/ece.lisp")))
-    (uiop:read-file-lines path)))
+    (with-open-file (stream path)
+      (let ((*package* (find-package :ece))
+            (eof (gensym)))
+        (loop for form = (read stream nil eof)
+              until (eq form eof)
+              collect form)))))
 
-(defun defun-name-match-p (line name)
-  "Check if LINE starts a (defun NAME ..."
-  (let ((pattern (format nil "(defun ~A " name)))
-    (search pattern line :test #'char-equal)))
+(defun skip-form-p (form skip-names)
+  "Return T if FORM should be filtered out of browser build."
+  (and (listp form)
+       (let ((head (car form)))
+         (or
+          ;; (defun NAME ...) where NAME is in skip list
+          (and (eq head 'cl:defun)
+               (member (string (cadr form)) skip-names :test #'string-equal))
+          ;; Top-level (ece-load ...) call
+          (and (symbolp head)
+               (string-equal (symbol-name head) "ECE-LOAD"))
+          ;; (defun repl ...)
+          (and (eq head 'cl:defun)
+               (string-equal (symbol-name (cadr form)) "REPL"))))))
 
 (defun generate-browser-ece ()
-  "Generate JSCL-compatible ECE source by removing incompatible forms."
-  (let ((lines (read-ece-source-lines))
-        (output (make-array 0 :element-type 'character :adjustable t :fill-pointer 0))
-        (skip-depth 0)
-        (skipping nil)
-        ;; Functions to remove (redefined in patches)
-        (skip-defuns '("ece-read" "ece-display" "ece-newline" "ece-try-eval"
-                        "ece-string->number" "ece-load" "ece-save-continuation!"
-                        "ece-load-continuation" "ece-clear-screen" "ece-sleep")))
-    (labels ((write-line-out (line)
-               (loop for c across line do (vector-push-extend c output))
-               (vector-push-extend #\Newline output))
-             (starts-eval-when-p (line)
-               (search "(eval-when" line :test #'char-equal))
-             (starts-ece-load-call-p (line)
-               (search "(ece-load " line :test #'char-equal))
-             (starts-repl-defun-p (line)
-               (defun-name-match-p line "repl"))
-             (should-skip-defun-p (line)
-               (some (lambda (name) (defun-name-match-p line name))
-                     skip-defuns))
-             (count-parens (line)
-               "Count net open parens in line (ignoring strings, comments, and #\\ char literals)."
-               (let ((net 0) (in-string nil) (prev-char nil) (skip-next nil))
-                 (loop for c across line
-                       do (cond
-                            ;; Skip the character after #\ (char literal)
-                            (skip-next
-                             (setf skip-next nil))
-                            ;; Inside a string: only exit on unescaped "
-                            (in-string
-                             (when (and (char= c #\") (not (char= prev-char #\\)))
-                               (setf in-string nil)))
-                            ;; #\ character literal — skip next char
-                            ((and (char= c #\\) prev-char (char= prev-char #\#))
-                             (setf skip-next t))
-                            ((char= c #\;) (return net))
-                            ((char= c #\") (setf in-string t))
-                            ((char= c #\() (incf net))
-                            ((char= c #\)) (decf net)))
-                          (setf prev-char c))
-                 net)))
-      (dolist (line lines)
-        (cond
-          ;; Currently skipping a multi-line form
-          (skipping
-           (incf skip-depth (count-parens line))
-           (when (<= skip-depth 0)
-             (setf skipping nil)
-             (setf skip-depth 0)))
-          ;; Start skipping: eval-when block
-          ((starts-eval-when-p line)
-           (setf skipping t)
-           (setf skip-depth (count-parens line))
-           (when (<= skip-depth 0) (setf skipping nil)))
-          ;; Start skipping: specific defuns
-          ((should-skip-defun-p line)
-           (setf skipping t)
-           (setf skip-depth (count-parens line))
-           (when (<= skip-depth 0) (setf skipping nil)))
-          ;; Start skipping: ece-load call at end of file
-          ((starts-ece-load-call-p line)
-           (setf skipping t)
-           (setf skip-depth (count-parens line))
-           (when (<= skip-depth 0) (setf skipping nil)))
-          ;; Start skipping: repl function
-          ((starts-repl-defun-p line)
-           (setf skipping t)
-           (setf skip-depth (count-parens line))
-           (when (<= skip-depth 0) (setf skipping nil)))
-          ;; Normal line — keep it
-          (t (write-line-out line)))))
-    output))
+  "Generate JSCL-compatible ECE source by filtering I/O forms at the CL level."
+  (let ((forms (read-ece-forms))
+        ;; Only I/O functions that need browser replacements
+        (skip-names '("ece-read" "ece-display" "ece-newline"
+                       "ece-load" "ece-save-continuation!"
+                       "ece-load-continuation" "ece-clear-screen" "ece-sleep")))
+    (with-output-to-string (out)
+      (format out "(in-package :ece)~%~%")
+      (let ((*package* (find-package :ece))
+            (*print-case* :downcase)
+            (*print-circle* t))
+        (dolist (form forms)
+          (unless (skip-form-p form skip-names)
+            (prin1 form out)
+            (terpri out)
+            (terpri out)))))))
 
-;;; ——— Step 4: JSCL compatibility patches ———
+;;; ——— Step 4: Browser I/O patches ———
 
 (defvar *patches-source*
   "(in-package :ece)
@@ -224,15 +183,6 @@
 ;;; Not needed in browser (we pre-parse everything)
 (defun ece-read ()
   *eof-sentinel*)
-
-;;; Simple eval wrapper (no condition system in JSCL)
-(defun ece-try-eval (expr)
-  (evaluate expr))
-
-;;; Safe number parsing without handler-case
-(defun ece-string->number (s)
-  (let ((result (parse-integer s :junk-allowed t)))
-    result))
 
 ;;; Bundled ece-load — look up pre-parsed forms from hash table
 (defun ece-load (filename)
@@ -267,7 +217,7 @@
 (defvar *browser-boot-source*
   "(in-package :ece)
 
-(let ((console-error (jscl::oget #j:console \"error\")))
+(let ((console-error (jscl-xc::oget #j:console \"error\")))
   (handler-case
     (progn
       ;;; Load prelude (from bundled sources)
@@ -290,15 +240,15 @@
         (init-player!)))
 
       ;;; Expose browserStep to JS
-      (setf (jscl::oget #j:window \"browserStep\")
+      (setf (jscl-xc::oget #j:window \"browserStep\")
             (lambda (input)
-              (let ((cl-input (if input (jscl::clstring input) nil)))
+              (let ((cl-input (if input (jscl-xc::clstring input) nil)))
                 (setf *output-buffer* \"\")
                 (evaluate (list 'browser-step cl-input))
-                (jscl::jsstring *output-buffer*)))))
+                (jscl-xc::jsstring *output-buffer*)))))
     (error (e)
       (funcall console-error
-               (jscl::jsstring (format nil \"[dunge] Boot error: ~A\" e))))))
+               (jscl-xc::jsstring (format nil \"[dunge] Boot error: ~A\" e))))))
 ")
 
 ;;; ——— Step 6: HTML template ———
@@ -318,6 +268,7 @@ body {
   font-family: 'Courier New', Courier, monospace;
   display: flex;
   justify-content: center;
+  align-items: center;
   padding: 2rem 1rem;
   min-height: 100vh;
 }
@@ -353,6 +304,11 @@ body {
 .choice-btn:hover {
   background: #0f3460;
 }
+.choice-btn:focus {
+  outline: none;
+  border-color: #e94560;
+  box-shadow: 0 0 6px rgba(233, 69, 96, 0.4);
+}
 .prompt-wrapper {
   display: flex;
   flex-direction: column;
@@ -372,6 +328,13 @@ body {
 }
 .prompt-input:focus {
   border-color: #e94560;
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.fade-in {
+  animation: fadeIn 150ms ease-in;
 }
 #build-version {
   margin-top: 3rem;
@@ -477,9 +440,57 @@ function renderStep(output) {
     input.focus();
   }
 
+  // Auto-focus first choice button
+  var firstBtn = controlsEl.querySelector('.choice-btn');
+  if (firstBtn && !promptText) {
+    firstBtn.focus();
+  }
+
+  // Apply fade-in
+  outputEl.classList.remove('fade-in');
+  controlsEl.classList.remove('fade-in');
+  void outputEl.offsetWidth;
+  outputEl.classList.add('fade-in');
+  controlsEl.classList.add('fade-in');
+
   // Scroll to top
   window.scrollTo(0, 0);
 }
+
+// Keyboard navigation for choice buttons
+document.addEventListener('keydown', function(e) {
+  // Skip when text input is focused
+  if (document.activeElement && document.activeElement.tagName === 'INPUT') return;
+
+  var controlsEl = document.getElementById('game-controls');
+  var buttons = controlsEl.querySelectorAll('.choice-btn');
+  if (buttons.length === 0) return;
+
+  // Number keys 1-9: activate corresponding choice
+  var num = parseInt(e.key);
+  if (num >= 1 && num <= 9 && num <= buttons.length) {
+    e.preventDefault();
+    buttons[num - 1].click();
+    return;
+  }
+
+  // Arrow key navigation
+  if (['ArrowDown', 'ArrowRight', 'ArrowUp', 'ArrowLeft'].indexOf(e.key) === -1) return;
+  e.preventDefault();
+
+  var currentIndex = -1;
+  for (var i = 0; i < buttons.length; i++) {
+    if (buttons[i] === document.activeElement) { currentIndex = i; break; }
+  }
+
+  var nextIndex;
+  if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+    nextIndex = (currentIndex + 1) % buttons.length;
+  } else {
+    nextIndex = currentIndex <= 0 ? buttons.length - 1 : currentIndex - 1;
+  }
+  buttons[nextIndex].focus();
+});
 
 function step(input) {
   var output = window.browserStep(input === undefined ? null : input);
@@ -501,7 +512,8 @@ window.addEventListener('load', function() {
   (let ((*default-pathname-defaults* *jscl-dir*))
     (load (merge-pathnames "jscl.lisp" *jscl-dir*)))
   (format t "~&Bootstrapping JSCL...~%")
-  (uiop:symbol-call :jscl :bootstrap)
+  (let ((jscl-dist (namestring (merge-pathnames "dist/" *jscl-dir*))))
+    (uiop:symbol-call :jscl-xc :bootstrap jscl-dist "jscl"))
   (format t "~&JSCL ready.~%")
 
   ;; 2. Generate temp files
@@ -518,12 +530,12 @@ window.addEventListener('load', function() {
 
     ;; 3. Compile with JSCL
     (format t "~&Compiling with JSCL...~%")
-    (uiop:symbol-call :jscl :compile-application
-                      (list browser-ece-path
-                            patches-path
-                            bundled-path
-                            boot-path)
-                      (merge-pathnames "dunge.js" *dist-dir*))
+    (funcall (find-symbol "COMPILE-APPLICATION" :jscl-xc)
+             (list browser-ece-path
+                   patches-path
+                   bundled-path
+                   boot-path)
+             (merge-pathnames "dunge.js" *dist-dir*))
     (format t "~&Compilation complete.~%")
 
     ;; 4. Build standalone index.html
