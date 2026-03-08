@@ -2,8 +2,9 @@
 
 ;;;
 ;;; Background data
-;;; Each entry: (name description equipment-thunk armor gold)
 ;;;
+
+(define-record background name description equipment-thunk armor gold)
 
 (define (base-equipment)
   "Common starting items for all backgrounds."
@@ -13,50 +14,44 @@
 
 (define *backgrounds*
   (list
-    (list "Soldier"  "trained in combat, disciplined"
+    (make-background "Soldier" "trained in combat, disciplined"
           (lambda () (list (make-weapon "Sword" 8)
                            (make-item "Gambeson (Armor 1)")
                            (make-item "Helm (+1 Armor)")))
           2 8)
-    (list "Scholar"  "educated, curious, physically weak"
+    (make-background "Scholar" "educated, curious, physically weak"
           (lambda () (list (make-item "Spellbook")
                            (make-weapon "Dagger" 6)
                            (make-item "Ink & Quill")))
           0 8)
-    (list "Criminal" "streetwise, light-fingered, untrustworthy"
+    (make-background "Criminal" "streetwise, light-fingered, untrustworthy"
           (lambda () (list (make-item "Lockpicks")
                            (make-weapon "Dagger" 6)
                            (make-item "Dark Cloak")
                            (make-item "Grappling Hook")))
           0 8)
-    (list "Pilgrim"  "faithful, traveled, poor"
+    (make-background "Pilgrim" "faithful, traveled, poor"
           (lambda () (list (make-weapon "Staff" 6)
                            (make-item "Holy Symbol")
                            (make-healing-herb 3 10)))
           0 8)
-    (list "Hunter"   "survivalist, patient, rural"
+    (make-background "Hunter" "survivalist, patient, rural"
           (lambda () (list (make-weapon "Bow" 6)
                            (make-item "Arrows")
                            (make-weapon "Knife" 6)
                            (make-item "Snare Kit")
                            (make-item "Furs")))
           0 8)
-    (list "Merchant" "wealthy, connected, soft"
+    (make-background "Merchant" "wealthy, connected, soft"
           (lambda () (list (make-weapon "Dagger" 6)
                            (make-item "Fine Clothes")))
           0 38)))
-
-(define (bg-name bg) (car bg))
-(define (bg-description bg) (cadr bg))
-(define (bg-equipment bg) (caddr bg))
-(define (bg-armor bg) (car (cddr (cdr bg))))
-(define (bg-gold bg) (car (cddr (cddr bg))))
 
 (define (find-background name)
   (let loop ((bgs *backgrounds*))
     (cond
       ((null? bgs) nil)
-      ((equal? (bg-name (car bgs)) name) (car bgs))
+      ((equal? (background-name (car bgs)) name) (car bgs))
       (else (loop (cdr bgs))))))
 
 ;;;
@@ -86,9 +81,9 @@
   (p "Your background determines your starting equipment and skills.")
   (let ((choices (map (lambda (bg)
                         (make-choice
-                          (string-append (bg-name bg) " - " (bg-description bg))
+                          (string-append (background-name bg) " - " (background-description bg))
                           (lambda ()
-                            (set-character-background! *player* (bg-name bg))
+                            (set-character-background! *player* (background-name bg))
                             (roll-stats))))
                       *backgrounds*)))
     (newline)
@@ -138,10 +133,10 @@
   (p "Equipment")
   (when (null? (character-inventory *player*))
     (let* ((bg (find-background (character-background *player*)))
-           (items (append ((bg-equipment bg)) (base-equipment))))
+           (items (append ((background-equipment-thunk bg)) (base-equipment))))
       (set-character-inventory! *player* items)
-      (set-character-armor! *player* (bg-armor bg))
-      (set-character-gold! *player* (bg-gold bg))))
+      (set-character-armor! *player* (background-armor bg))
+      (set-character-gold! *player* (background-gold bg))))
   (p "As a " (character-background *player*) " you receive:")
   (for-each (lambda (i)
               (display "  - ")

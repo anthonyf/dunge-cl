@@ -18,10 +18,3 @@ Each background SHALL be a `background` record with fields: name, description, e
 #### Scenario: Background accessed by record accessor
 - **WHEN** a background record is retrieved
 - **THEN** its fields SHALL be accessible via `background-name`, `background-description`, `background-equipment-thunk`, `background-armor`, and `background-gold`
-
-### Requirement: Inventory display uses item-display-name
-The character summary and equipment rooms SHALL display items using `item-display-name` instead of raw strings.
-
-#### Scenario: Equipment room shows formatted items
-- **WHEN** the equipment room renders a Pilgrim's inventory
-- **THEN** it SHALL display "Staff (d6)", "Holy Symbol", "Healing Herbs x3", "Rations x3", "Torch x2", "Waterskin"
