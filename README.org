@@ -1,5 +1,8 @@
 * Dunge
 
+[[https://github.com/anthonyf/dunge-cl/actions/workflows/deploy.yml][https://github.com/anthonyf/dunge-cl/actions/workflows/deploy.yml/badge.svg]]
+[[https://www.gnu.org/licenses/gpl-3.0][https://img.shields.io/badge/License-GPLv3-blue.svg]]
+
 A text adventure engine built with [[https://github.com/anthonyf/ece][ECE]] (a Scheme on Common Lisp), playable in the terminal or browser.
 
 [[https://anthonyf.github.io/dunge-cl/][Play in your browser]]
