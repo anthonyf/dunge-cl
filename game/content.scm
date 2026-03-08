@@ -204,10 +204,10 @@
   (let ((outcome (run-combat "Goblin"
                    (lambda () (text "A goblin leaps from the shadows, snarling!")))))
     (case outcome
-      (victory (test-combat-victory))
-      (death (test-combat-death))
-      (incapacitated (test-combat-incapacitated))
-      (fled (test-combat-fled)))))
+      ((victory) (test-combat-victory))
+      ((death) (test-combat-death))
+      ((incapacitated) (test-combat-incapacitated))
+      ((fled) (test-combat-fled)))))
 
 (define (test-combat-victory)
   (p "Victory!")
