@@ -1,6 +1,6 @@
 * Dunge
 
-A text adventure engine built in Common Lisp, playable in the terminal or browser.
+A text adventure engine built with [[https://github.com/anthonyf/ece][ECE]] (a Scheme on Common Lisp), playable in the terminal or browser.
 
 [[https://anthonyf.github.io/dunge-cl/][Play in your browser]]
 
@@ -8,9 +8,9 @@ A text adventure engine built in Common Lisp, playable in the terminal or browse
 
 Dunge is a solo RPG text adventure using [[https://cairnrpg.com/cairn-srd/][Cairn]] mechanics — three stats (STR/DEX/WIL), automatic damage with armor reduction, and critical damage via HP→STR spillover. Players create a character, choose a background, and explore a choice-based world with combat encounters.
 
-The engine supports two UI contexts from the same codebase:
-- *Terminal REPL* — synchronous read-line loop via SBCL
-- *Browser* — event-driven DOM rendering via JSCL cross-compilation to JavaScript
+Game content is written in [[https://github.com/anthonyf/ece][ECE]], a Scheme dialect with first-class continuations, macros, and string interpolation. The ECE interpreter is implemented in Common Lisp, enabling two deployment targets from the same game code:
+- *Terminal* — SBCL runs ECE directly as a synchronous REPL
+- *Browser* — JSCL cross-compiles ECE to JavaScript for event-driven DOM rendering
 
 ** Quick Start
 
@@ -18,18 +18,19 @@ The engine supports two UI contexts from the same codebase:
 make run       # Terminal REPL
 make build     # Web build (produces dist/)
 make test      # Run tests
-make test-web  # Web test build + Playwright
-make test-all  # Run both test and test-web
-make clean     # Remove ASDF cache, .fasl files, dist/, test-results/
+make fmt       # Format Lisp source files
+make setup     # Install pre-commit hook
+make clean     # Remove ASDF cache, .fasl files, dist/
 #+end_src
 
 ** Dependencies
 
-- [[https://www.gnu.org/software/make/][GNU Make]] — build automation
+- [[https://github.com/anthonyf/ece][ECE]] — Scheme-like language with first-class continuations (managed via Qlot)
 - [[https://www.sbcl.org/][SBCL]] — Common Lisp compiler
-- [[https://github.com/fukamachi/qlot][Qlot]] — project-local CL dependency manager (installs Alexandria, Rove, etc.)
+- [[https://github.com/fukamachi/qlot][Qlot]] — project-local CL dependency manager
 - [[https://github.com/jscl-project/jscl][JSCL]] — CL-to-JavaScript compiler (vendored in =vendor/jscl/=)
-- [[https://nodejs.org/][Node.js]] + [[https://playwright.dev/][Playwright]] — browser tests only (=npm install=)
+- [[https://www.gnu.org/software/make/][GNU Make]] — build automation
+- [[https://nodejs.org/][Node.js]] + [[https://playwright.dev/][Playwright]] — browser tests (=npm install=)
 
 ** License
 

@@ -1,10 +1,10 @@
 #+TITLE: TODOs
 
-* Phase 1: Core Engine
-- [X] Character data structure and creation
-- [X] Basic scene/vignette system
+* Phase 1: Core Engine (ECE)
+- [X] Character record and creation flow
+- [X] Rooms as functions with direct calls (TCO)
 - [X] Choice display and selection
-- [X] Simple navigation between scenes
+- [X] Navigation between rooms
 - [X] Web game should survive page reload
 - [ ] Support custom games
 
