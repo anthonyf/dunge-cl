@@ -20,10 +20,8 @@ jobs:
 
       - name: Setup ECE dependency
         run: |
-          ECE_REF="6e48d6cfd03f5a2f2220e064e425d0c2db18a51c"
           mkdir -p .qlot
-          git clone https://github.com/anthonyf/ece.git .qlot/ece-src
-          cd .qlot/ece-src && git checkout "$ECE_REF" && cd ../..
+          git clone --depth 1 https://github.com/anthonyf/ece.git .qlot/ece-src
           cat > .qlot/setup.lisp <<'EOF'
           (require :asdf)
           (push (merge-pathnames "ece-src/"
