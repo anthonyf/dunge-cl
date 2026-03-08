@@ -162,12 +162,11 @@
 
 (define (format-heal-log heal-result enemy-result)
   "Build a log string for a heal + enemy attack round."
-  (let ((heal-line (fmt "You use Healing Herbs and restore "
-                        (hash-ref heal-result 'healed) " HP. ("
-                        (hash-ref heal-result 'new-hp) "/"
-                        (hash-ref heal-result 'new-hp) ")"))
+  (let ((healed (hash-ref heal-result 'healed))
+        (hp (hash-ref heal-result 'new-hp))
         (enemy-lines (format-enemy-attack-lines enemy-result)))
-    (join-lines (cons heal-line enemy-lines))))
+    (join-lines (cons "You use Healing Herbs and restore $healed HP. ($hp/$hp)"
+                      enemy-lines))))
 
 (define (format-flee-log flee-result)
   "Build a log string for a flee attempt."
@@ -315,14 +314,10 @@
       (if (eq? state 'active)
           ;; Show stats + combat menu
           (let ((e (encounter-enemy enc)))
-            (display (fmt "  " (enemy-name e) " HP: " (enemy-hp e)
-                          "/" (enemy-hp-max e) "  STR: " (enemy-str e)))
-            (newline)
-            (display (fmt "  Your HP: " (character-hp *player*)
-                          "/" (character-hp-max *player*)
-                          "  STR: " (character-str *player*)))
-            (newline)
-            (newline)
+            (display (lines
+              "  $(enemy-name e) HP: $(enemy-hp e)/$(enemy-hp-max e)  STR: $(enemy-str e)"
+              "  Your HP: $(character-hp *player*)/$(character-hp-max *player*)  STR: $(character-str *player*)"
+              ""))
             (let ((choices (filter choice-visible? (combat-choices))))
               (display-choices choices)
               (let ((chosen (read-choice choices)))

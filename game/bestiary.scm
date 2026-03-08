@@ -46,7 +46,7 @@
   "Look up an enemy by name in the bestiary and create an enemy record."
   (let loop ((entries *bestiary*))
     (cond
-      ((null? entries) (error (fmt "Unknown enemy: " name)))
+      ((null? entries) (error "Unknown enemy: $name"))
       ((equal? (bestiary-entry-name (car entries)) name)
        (let ((e (car entries)))
          (make-enemy name

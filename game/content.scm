@@ -66,7 +66,7 @@
   (p "Character Creation")
   (if (character-name *player*)
       (begin
-        (text "Welcome " (character-name *player*) "!")
+        (text "Welcome $(character-name *player*)!")
         (choose ("Continue" (choose-background))))
       (begin
         (text "Let's gather some information about your character.")
@@ -81,7 +81,7 @@
   (p "Your background determines your starting equipment and skills.")
   (let ((choices (map (lambda (bg)
                         (make-choice
-                          (string-append (background-name bg) " - " (background-description bg))
+                          "$(background-name bg) - $(background-description bg)"
                           (lambda ()
                             (set-character-background! *player* (background-name bg))
                             (roll-stats))))
@@ -98,23 +98,23 @@
     (set-character-dex! *player* (apply + (roll-dice 3 6)))
     (set-character-wil! *player* (apply + (roll-dice 3 6))))
   (text "You rolled:")
-  (text "  STR: " (character-str *player*))
-  (text "  DEX: " (character-dex *player*))
-  (p "  WIL: " (character-wil *player*))
+  (text "  STR: $(character-str *player*)")
+  (text "  DEX: $(character-dex *player*)")
+  (p "  WIL: $(character-wil *player*)")
   (text "You may swap two ability scores, or keep them as they are.")
   (let ((str (character-str *player*))
         (dex (character-dex *player*))
         (wil (character-wil *player*)))
     (choose
-      ((fmt "Swap STR (" str ") and DEX (" dex ")")
+      ("Swap STR ($str) and DEX ($dex)"
        (begin (set-character-str! *player* dex)
               (set-character-dex! *player* str)
               (roll-hp)))
-      ((fmt "Swap STR (" str ") and WIL (" wil ")")
+      ("Swap STR ($str) and WIL ($wil)"
        (begin (set-character-str! *player* wil)
               (set-character-wil! *player* str)
               (roll-hp)))
-      ((fmt "Swap DEX (" dex ") and WIL (" wil ")")
+      ("Swap DEX ($dex) and WIL ($wil)"
        (begin (set-character-dex! *player* wil)
               (set-character-wil! *player* dex)
               (roll-hp)))
@@ -126,7 +126,7 @@
     (let ((hp (roll-die 6)))
       (set-character-hp! *player* hp)
       (set-character-hp-max! *player* hp)))
-  (text "Your hit points: " (character-hp *player*))
+  (text "Your hit points: $(character-hp *player*)")
   (choose ("Continue" (equipment))))
 
 (define (equipment)
@@ -137,17 +137,12 @@
       (set-character-inventory! *player* items)
       (set-character-armor! *player* (background-armor bg))
       (set-character-gold! *player* (background-gold bg))))
-  (p "As a " (character-background *player*) " you receive:")
-  (for-each (lambda (i)
-              (display "  - ")
-              (display (item-display-name i))
-              (newline))
+  (p "As a $(character-background *player*) you receive:")
+  (for-each (lambda (i) (text "  - $(item-display-name i)"))
             (character-inventory *player*))
   (newline)
-  (display (fmt "  Armor: " (character-armor *player*)))
-  (newline)
-  (display (fmt "  Gold:  " (character-gold *player*)))
-  (newline)
+  (text "  Armor: $(character-armor *player*)")
+  (text "  Gold:  $(character-gold *player*)")
   (newline)
   (choose ("Continue" (fate-points))))
 
@@ -162,31 +157,19 @@
 
 (define (character-summary)
   (p "Character Summary")
-  (display (fmt "  Name:       " (character-name *player*)))
-  (newline)
-  (display (fmt "  Background: " (character-background *player*)))
-  (newline)
-  (newline)
-  (display (fmt "  STR: " (character-str *player*)
-                "   DEX: " (character-dex *player*)
-                "   WIL: " (character-wil *player*)))
-  (newline)
-  (newline)
-  (display (fmt "  HP:    " (character-hp *player*)
-                "/" (character-hp-max *player*)))
-  (newline)
-  (display (fmt "  Armor: " (character-armor *player*)))
-  (newline)
-  (display (fmt "  Gold:  " (character-gold *player*)))
-  (newline)
-  (display (fmt "  Fate:  " (character-fate *player*)))
-  (newline)
-  (newline)
-  (display "  Inventory:")
-  (newline)
-  (for-each (lambda (i)
-              (display (fmt "    - " (item-display-name i)))
-              (newline))
+  (display (lines
+    "  Name:       $(character-name *player*)"
+    "  Background: $(character-background *player*)"
+    ""
+    "  STR: $(character-str *player*)   DEX: $(character-dex *player*)   WIL: $(character-wil *player*)"
+    ""
+    "  HP:    $(character-hp *player*)/$(character-hp-max *player*)"
+    "  Armor: $(character-armor *player*)"
+    "  Gold:  $(character-gold *player*)"
+    "  Fate:  $(character-fate *player*)"
+    ""
+    "  Inventory:"))
+  (for-each (lambda (i) (text "    - $(item-display-name i)"))
             (character-inventory *player*))
   (newline)
   (choose ("Begin your adventure!" (town-square))))
