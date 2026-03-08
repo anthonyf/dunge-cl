@@ -5,11 +5,7 @@ on:
     branches: [main]
 
 permissions:
-  contents: write
-
-concurrency:
-  group: gh-pages-deploy
-  cancel-in-progress: false
+  contents: read
 
 jobs:
   build-and-test:
@@ -22,26 +18,21 @@ jobs:
       - name: Install SBCL
         run: sudo apt-get update && sudo apt-get install -y sbcl
 
+      - name: Setup ECE dependency
+        run: |
+          ECE_REF="11e8e04fc6b107860a9769b3baefcc5c5489e2be"
+          mkdir -p .qlot
+          git clone https://github.com/anthonyf/ece.git .qlot/ece-src
+          cd .qlot/ece-src && git checkout "$ECE_REF" && cd ../..
+          cat > .qlot/setup.lisp <<'EOF'
+          (require :asdf)
+          (push (merge-pathnames "ece-src/"
+                  (make-pathname :name nil :type nil :defaults *load-truename*))
+                asdf:*central-registry*)
+          EOF
+
+      - name: Run ECE tests
+        run: sbcl --non-interactive --load run-tests.lisp
+
       - name: Build web export
         run: sbcl --non-interactive --load web-export.lisp
-
-      - name: Build web tests
-        run: sbcl --non-interactive --eval '(push :web-test *features*)' --load web-export.lisp
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
-      - name: Install Playwright
-        run: npm ci && npx playwright install chromium --with-deps
-
-      - name: Run web tests
-        run: npx playwright test
-
-      - name: Deploy to GitHub Pages (dev)
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./dist
-          destination_dir: dev
