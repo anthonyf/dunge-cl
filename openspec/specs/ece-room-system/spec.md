@@ -35,3 +35,14 @@ The `ask` function SHALL display a question, read text input from the player, va
 #### Scenario: Prompt with invalid input retries
 - **WHEN** `ask` with a non-empty-string validator receives an empty string
 - **THEN** the engine SHALL display an error and re-prompt until valid input is given
+
+### Requirement: Paragraph function displays text with trailing blank line
+The `p` function SHALL display its arguments concatenated together followed by two newlines (a paragraph break).
+
+#### Scenario: Paragraph with content
+- **WHEN** `(p "Welcome to the town.")` is evaluated
+- **THEN** the output SHALL display "Welcome to the town." followed by a blank line
+
+#### Scenario: Paragraph with multiple arguments
+- **WHEN** `(p "Hello " name "!")` is evaluated where name is "Aragorn"
+- **THEN** the output SHALL display "Hello Aragorn!" followed by a blank line
