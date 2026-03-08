@@ -1,3 +1,5 @@
+## MODIFIED Requirements
+
 ### Requirement: Build produces standalone HTML file
 The build process SHALL produce a single `dist/index.html` file that contains all JavaScript (JSCL runtime + compiled game) inlined. Opening this file in a browser SHALL start the game with no server required. The build SHALL use JSCL package `:jscl-xc` and the new `bootstrap(output-directory, prefix)` API.
 
@@ -52,11 +54,13 @@ The deploy workflow SHALL NOT preserve files from previous deployments. Each dep
 - **WHEN** a new deploy runs after old pre-ECE files exist on gh-pages
 - **THEN** the old files (e.g., `dev/`, `dunge.js`, `jscl.js`) SHALL be removed and only `index.html` SHALL remain
 
+## ADDED Requirements
+
 ### Requirement: ECE source filtered at form level
 The build process SHALL read ECE source as CL forms using SBCL's reader (with ECE's readtable) and filter by form type/name. The build SHALL NOT use text-based line scanning or parenthesis counting.
 
 #### Scenario: Form-level filtering handles character literals
-- **WHEN** ECE source contains `#"` or other CL character literals inside forms
+- **WHEN** ECE source contains `#\"` or other CL character literals inside forms
 - **THEN** the filter SHALL correctly identify form boundaries because it uses CL's reader, not text parsing
 
 #### Scenario: Only I/O functions are filtered
@@ -70,20 +74,8 @@ ECE functions that use `handler-case` (e.g., `ece-try-eval`, `ece-string->number
 - **WHEN** ECE code calls `ece-try-eval` in the browser
 - **THEN** it SHALL use the original `handler-case`-based implementation compiled by JSCL
 
-### Requirement: Game content vertically centered in viewport
-The game container SHALL be vertically centered in the browser viewport when content is shorter than the viewport height. When content exceeds the viewport height, the page SHALL scroll naturally from the top.
+## REMOVED Requirements
 
-#### Scenario: Short content centered
-- **WHEN** a game step renders text and choices that fit within the viewport
-- **THEN** the game container SHALL be vertically centered in the viewport
-
-#### Scenario: Long content scrolls from top
-- **WHEN** a game step renders content taller than the viewport
-- **THEN** the page SHALL scroll naturally and content SHALL start from the top
-
-### Requirement: Content fade-in on step change
-When new game content renders after a step, the output and controls SHALL fade in with a subtle CSS animation (approximately 150ms). The transition SHALL provide visual feedback that content has changed without feeling sluggish.
-
-#### Scenario: New step fades in
-- **WHEN** a game step renders new content replacing the previous content
-- **THEN** the new text and controls SHALL fade in over approximately 150ms
+### Requirement: browserStep returns debug info to console
+**Reason**: Debug logging was a temporary diagnostic tool added during initial deployment troubleshooting. It has been removed from the code.
+**Migration**: Use browser developer tools to add breakpoints if debugging is needed.
