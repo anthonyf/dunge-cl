@@ -150,13 +150,20 @@
                (some (lambda (name) (defun-name-match-p line name))
                      skip-defuns))
              (count-parens (line)
-               "Count net open parens in line (ignoring strings and comments)."
-               (let ((net 0) (in-string nil) (prev-char nil))
+               "Count net open parens in line (ignoring strings, comments, and #\\ char literals)."
+               (let ((net 0) (in-string nil) (prev-char nil) (skip-next nil))
                  (loop for c across line
                        do (cond
+                            ;; Skip the character after #\ (char literal)
+                            (skip-next
+                             (setf skip-next nil))
+                            ;; Inside a string: only exit on unescaped "
                             (in-string
                              (when (and (char= c #\") (not (char= prev-char #\\)))
                                (setf in-string nil)))
+                            ;; #\ character literal — skip next char
+                            ((and (char= c #\\) prev-char (char= prev-char #\#))
+                             (setf skip-next t))
                             ((char= c #\;) (return net))
                             ((char= c #\") (setf in-string t))
                             ((char= c #\() (incf net))
