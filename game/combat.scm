@@ -286,10 +286,10 @@
 ;;; Run Combat — self-contained encounter loop
 ;;;
 
-(define (run-combat enemy-name intro-fn)
+(define (run-combat name intro-fn)
   "Run a complete combat encounter. Returns the outcome state symbol
    (victory, death, incapacitated, or fled)."
-  (setup-encounter (make-enemy-from-bestiary enemy-name))
+  (setup-encounter (make-enemy-from-bestiary name))
   (when intro-fn (intro-fn))
   ;; First-round DEX save
   (let ((enc *current-encounter*))
