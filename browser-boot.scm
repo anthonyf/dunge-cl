@@ -38,15 +38,10 @@
 ;; works in both CLI (direct call with scheme values) and browser (via
 ;; this FFI wrapper) modes.
 ;;
-;; We avoid `js-set!` due to a WASM cast bug in ECE 0.1.0 and instead
-;; call a pre-defined `_setWindowProp` helper on `window` via `js-call`.
-;; The HTML template installs `_setWindowProp` before loading the bundle.
-;;
 ;; The whole block is wrapped in `guard` so this file is also loadable
-;; from the `ece` CLI, where js-eval/js-call/js-callback are unbound.
+;; from the `ece` CLI, where js-eval/js-set!/js-callback are unbound.
 (guard (e (#t #f))
-  (js-call (js-eval "window") "_setWindowProp"
-    (js-string "browserStep")
+  (js-set! (js-eval "window") "browserStep"
     (js-callback
       (lambda (js-input)
         (let ((input (if (js-null? js-input)

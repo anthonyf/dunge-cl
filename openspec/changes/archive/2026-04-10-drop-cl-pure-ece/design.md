@@ -105,7 +105,7 @@ This section records where the merged implementation diverged from the design ab
 
 A mutable global buffer with direct `display`/`newline` overrides sidesteps the dynamic-wind path entirely — the continuation captures nothing output-related, so resumption does the right thing. The flag is reset in a `guard` so a failing test doesn't leave `*in-test-step?*` set to `#t` and swallow the final summary.
 
-### 2. Browser FFI uses `js-call` on a helper, not `js-set!`
+### 2. Browser FFI wrapper unwraps `js-ref` arguments
 
 **Design said:**
 ```scheme
@@ -117,8 +117,7 @@ A mutable global buffer with direct `display`/`newline` overrides sidesteps the 
 **What shipped:**
 ```scheme
 (guard (e (#t #f))
-  (js-call (js-eval "window") "_setWindowProp"
-    (js-string "browserStep")
+  (js-set! (js-eval "window") "browserStep"
     (js-callback
       (lambda (js-input)
         (let ((input (if (js-null? js-input)
@@ -127,9 +126,9 @@ A mutable global buffer with direct `display`/`newline` overrides sidesteps the 
           (browser-step input))))))
 ```
 
-**Why it changed:**
-1. **`js-set!` has a WASM cast bug in ECE 0.1.0.** Calling `(js-set! obj prop val)` at bundle-load time crashes the WASM runtime with an `illegal cast` error, regardless of what `val` is. `js-get` and `js-call` work fine. Workaround: `web/index.html` installs `window._setWindowProp = (name, val) => { window[name] = val; }` before loading the ECE bundle, and `browser-boot.scm` calls it via `js-call`.
-2. **FFI callbacks receive `js-ref` handles, not scheme strings.** `js-callback` passes each JS argument through `%js-alloc` + `make-js-ref`, so the scheme procedure sees a `js-ref` value, not the unwrapped string. The browser-boot wrapper converts via `js-ref->string` (with a `js-null?` check for the initial `null` call).
+**Why it changed:** FFI callbacks receive `js-ref` handles, not scheme strings. `js-callback` passes each JS argument through `%js-alloc` + `make-js-ref`, so the scheme procedure sees a `js-ref` value, not the unwrapped string. The browser-boot wrapper converts via `js-ref->string` (with a `js-null?` check for the initial `null` call).
+
+**Historical note:** During implementation I initially believed `js-set!` had a WASM cast bug in ECE 0.1.0 — minimal test files built via `cat > foo.scm << 'EOF' ... (js-set! ...) ... EOF` consistently crashed the runtime with "illegal cast". This turned out to be a zsh heredoc quirk, not an ECE bug: history expansion runs before heredoc quoting, so `'EOF'` doesn't prevent zsh from inserting a literal `\` before `!`, producing `js-set\!` on disk. At bundle load, the unknown symbol looked up a null compiled-proc and the cast in `apply-primitive-procedure` failed (not in the `%js-set!` primitive at all). I cargo-culted a `js-call` → `_setWindowProp` workaround into `browser-boot.scm` and this design doc before the ECE maintainer traced the real cause. The workaround was reverted after the investigation — `js-set!` works correctly in ECE 0.1.0.
 
 ### 3. `browser-boot.scm` also calls `(init-player!)` and overrides `read-line`
 
