@@ -1,0 +1,3 @@
+[submodule "vendor/ece"]
+	path = vendor/ece
+	url = https://github.com/anthonyf/ece.git

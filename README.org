@@ -3,7 +3,7 @@
 [[https://github.com/anthonyf/dunge-cl/actions/workflows/deploy.yml][https://github.com/anthonyf/dunge-cl/actions/workflows/deploy.yml/badge.svg]]
 [[https://www.gnu.org/licenses/gpl-3.0][https://img.shields.io/badge/License-GPLv3-blue.svg]]
 
-A text adventure engine built with [[https://github.com/anthonyf/ece][ECE]] (a Scheme on Common Lisp), playable in the terminal or browser.
+A text adventure engine built with [[https://github.com/anthonyf/ece][ECE]], playable in the terminal or browser.
 
 [[https://anthonyf.github.io/dunge-cl/][Play in your browser]]
 
@@ -11,29 +11,56 @@ A text adventure engine built with [[https://github.com/anthonyf/ece][ECE]] (a S
 
 Dunge is a solo RPG text adventure using [[https://cairnrpg.com/cairn-srd/][Cairn]] mechanics — three stats (STR/DEX/WIL), automatic damage with armor reduction, and critical damage via HP→STR spillover. Players create a character, choose a background, and explore a choice-based world with combat encounters.
 
-Game content is written in [[https://github.com/anthonyf/ece][ECE]], a Scheme dialect with first-class continuations, macros, and string interpolation. The ECE interpreter is implemented in Common Lisp, enabling two deployment targets from the same game code:
-- *Terminal* — SBCL runs ECE directly as a synchronous REPL
-- *Browser* — JSCL cross-compiles ECE to JavaScript for event-driven DOM rendering
+Game content is written in [[https://github.com/anthonyf/ece][ECE]], a Scheme dialect with first-class continuations, macros, and string interpolation. ECE targets two deployment modes from the same game code:
+- *Terminal* — the ECE interpreter runs the game as a synchronous REPL
+- *Browser* — ~ece-build~ compiles the game to a WASM bundle for event-driven DOM rendering
 
 ** Quick Start
 
 #+begin_src bash
-make run       # Terminal REPL
+# Clone with submodules (ECE is vendored at vendor/ece/)
+git clone --recurse-submodules https://github.com/anthonyf/dunge-cl.git
+cd dunge-cl
+
+# First time: build the vendored ECE toolchain (slow, a few minutes)
+make ece
+
+# Everyday commands
+make run       # Terminal game
+make test      # Run all tests
 make build     # Web build (produces dist/)
-make test      # Run tests
-make fmt       # Format Lisp source files
-make setup     # Install pre-commit hook
-make clean     # Remove ASDF cache, .fasl files, dist/
+make clean     # Remove dist/
 #+end_src
+
+If you forgot ~--recurse-submodules~, run ~git submodule update --init~ to populate ~vendor/ece/~.
+
+~make run~, ~make test~, and ~make build~ all depend on the in-tree ECE binary and will trigger ~make ece~ automatically on first use.
 
 ** Dependencies
 
-- [[https://github.com/anthonyf/ece][ECE]] — Scheme-like language with first-class continuations (managed via Qlot)
-- [[https://www.sbcl.org/][SBCL]] — Common Lisp compiler
-- [[https://github.com/fukamachi/qlot][Qlot]] — project-local CL dependency manager
-- [[https://github.com/jscl-project/jscl][JSCL]] — CL-to-JavaScript compiler (vendored in =vendor/jscl/=)
+- [[https://github.com/anthonyf/ece][ECE]] — vendored as a git submodule at ~vendor/ece/~, pinned to a specific commit
+- [[https://www.sbcl.org/][SBCL]] — Common Lisp compiler (build-time only, used to build ECE)
+- [[https://github.com/fukamachi/qlot][Qlot]] — CL dependency manager (build-time only, used to build ECE)
+- [[https://github.com/WebAssembly/binaryen][binaryen]] — ~wasm-as~ for the web target (version 129+ for WASM GC support)
 - [[https://www.gnu.org/software/make/][GNU Make]] — build automation
-- [[https://nodejs.org/][Node.js]] + [[https://playwright.dev/][Playwright]] — browser tests (=npm install=)
+- [[https://nodejs.org/][Node.js]] + [[https://playwright.dev/][Playwright]] — browser tests (~npm install~)
+
+SBCL, Qlot, and binaryen are only needed when (re)building the vendored ECE submodule. Once ~vendor/ece/bin/ece~ exists, Dunge's everyday commands don't invoke them.
+
+** Bumping the ECE pin
+
+ECE is vendored as a submodule, so updating it is a reviewable commit:
+
+#+begin_src bash
+cd vendor/ece
+git fetch origin
+git checkout <new-sha>
+cd ../..
+make ece          # rebuild the submodule
+make test         # verify
+git add vendor/ece
+git commit -m "Bump ECE to <new-sha>"
+#+end_src
 
 ** License
 
@@ -44,4 +71,3 @@ This project is licensed under the [[https://www.gnu.org/licenses/gpl-3.0.html][
 - [[file:CLAUDE.md][CLAUDE.md]] — architecture, conventions, quick reference
 - [[file:DESIGN.md][DESIGN.md]] — full game design document (Cairn rules, oracle system, dungeon generation)
 - [[file:TODOs.org][TODOs.org]] — Remaining work
-  
