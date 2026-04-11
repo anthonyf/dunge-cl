@@ -21,6 +21,7 @@ $(ECE) $(ECE_BUILD):
 	  echo >&2 "ERROR: vendor/ece submodule is not initialized."; \
 	  echo >&2 "Run: git submodule update --init"; \
 	  exit 1; }
+	cd $(ECE_DIR) && qlot install
 	$(MAKE) -C $(ECE_DIR)
 
 ece-clean:
