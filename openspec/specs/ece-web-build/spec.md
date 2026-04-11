@@ -9,7 +9,7 @@ The web build SHALL use `ece-build --target web --standalone` to compile game .s
 
 #### Scenario: JSCL infrastructure removed
 - **WHEN** the migration is complete
-- **THEN** `web-export.lisp`, `vendor/jscl/`, and `.gitmodules` SHALL NOT exist
+- **THEN** `web-export.lisp` and `vendor/jscl/` SHALL NOT exist (`.gitmodules` is now used to vendor ECE at `vendor/ece/`)
 
 ### Requirement: Custom game template
 The build SHALL use a custom `web/index.html` template that includes the game-specific CSS (dark theme, choice buttons, prompt inputs, fade-in animations) and JS renderer (output parsing, choice/prompt rendering, keyboard navigation). The template SHALL load ece-build's generated JS files (`ece-runtime.js`, `ece-bootstrap.js`, `app.js`).

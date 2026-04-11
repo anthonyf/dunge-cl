@@ -54,11 +54,11 @@ The Dunge `Makefile` SHALL build ECE in-place inside `vendor/ece/` and invoke th
 
 ### Requirement: Test runner locates ece-unit.scm from the submodule
 
-`tests/run-all.scm` SHALL be able to load `ece-unit.scm` from `vendor/ece/share/ece/` when invoked via `make test`, without requiring `ece-unit.scm` to be installed at `~/.local/share/ece/` or any other global location. The Makefile MAY pass an environment variable (e.g. `ECE_UNIT_PATH`) to point the runner at the submodule path, or the runner MAY probe the submodule path directly.
+`tests/run-all.scm` SHALL be able to load `ece-unit.scm` from the vendored submodule when invoked via `make test`, without requiring `ece-unit.scm` to be installed at `~/.local/share/ece/` or any other global location. The Makefile SHALL pass `ECE_UNIT_PATH=vendor/ece/src/ece-unit.scm` (the in-tree source location; `share/ece/ece-unit.scm` is only produced by `make install`, which is not run on the submodule).
 
 #### Scenario: Tests run without global install
 - **WHEN** `~/.local/share/ece/ece-unit.scm` does not exist but the submodule is built
-- **THEN** `make test` SHALL successfully load `ece-unit.scm` from `vendor/ece/share/ece/` and run the test suite
+- **THEN** `make test` SHALL successfully load `ece-unit.scm` from `vendor/ece/src/ece-unit.scm` and run the test suite
 
 ### Requirement: CI uses the submodule with pointer-keyed caching
 

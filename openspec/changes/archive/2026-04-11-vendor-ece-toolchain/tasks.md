@@ -11,7 +11,7 @@
 - [x] 2.1 Ensure SBCL, qlot, and binaryen (wasm-as) are installed locally
 - [x] 2.2 `cd vendor/ece && qlot install && make` — verify `vendor/ece/bin/ece` and `vendor/ece/bin/ece-build` exist and run
 - [x] 2.3 Verify `vendor/ece/bin/ece --version` (or an equivalent smoke test) matches the pinned SHA
-- [x] 2.4 Verify `vendor/ece/share/ece/ece-unit.scm` exists (needed by the test runner) — NOTE: `ece-unit.scm` is only copied to `share/ece/` by `make install`. Without `make install`, it lives at `vendor/ece/src/ece-unit.scm`; Makefile points `ECE_UNIT_PATH` there instead.
+- [x] 2.4 Verify `vendor/ece/src/ece-unit.scm` exists (needed by the test runner) — original plan expected `share/ece/ece-unit.scm`, but `share/` is only populated by `make install`, which is not run on the submodule. The Makefile points `ECE_UNIT_PATH` at the in-tree source path instead.
 
 ## 3. Rewrite Makefile
 
@@ -33,7 +33,7 @@
 ## 5. Tests: path resolution for ece-unit.scm
 
 - [x] 5.1 Check how `tests/run-all.scm` locates `ece-unit.scm` (hardcoded path or `ECE_UNIT_PATH` env var — see archived change doc)
-- [x] 5.2 If hardcoded to `~/.local/share/ece/`, either: pass `ECE_UNIT_PATH=$(ECE_DIR)/share/ece/ece-unit.scm` from the Makefile, OR update `run-all.scm` to probe `vendor/ece/share/ece/` first
+- [x] 5.2 If hardcoded to `~/.local/share/ece/`, either: pass `ECE_UNIT_PATH=$(ECE_DIR)/src/ece-unit.scm` from the Makefile, OR update `run-all.scm` to probe `vendor/ece/src/` first
 - [x] 5.3 Verify `make test` locates and loads `ece-unit.scm` from the submodule path, not from `~/.local/`
 
 ## 6. Update CI workflows

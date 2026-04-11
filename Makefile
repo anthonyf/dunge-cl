@@ -25,6 +25,10 @@ $(ECE) $(ECE_BUILD):
 	$(MAKE) -C $(ECE_DIR)
 
 ece-clean:
+	@test -f $(ECE_DIR)/Makefile || { \
+	  echo >&2 "ERROR: vendor/ece submodule is not initialized."; \
+	  echo >&2 "Run: git submodule update --init"; \
+	  exit 1; }
 	$(MAKE) -C $(ECE_DIR) clean
 
 clean:
