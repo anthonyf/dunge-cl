@@ -5,9 +5,12 @@ See also: [README.org](README.org) | [DESIGN.md](DESIGN.md) — full game design
 ## Quick Reference
 
 ```bash
-make run       # Terminal game: ece game/main.scm
-make test      # Run all tests: ece tests/run-all.scm
-make build     # Web build: scripts/build-web.sh (produces dist/)
+# First clone: git clone --recurse-submodules (ECE lives at vendor/ece/)
+make ece       # First time: build the vendored ECE toolchain (slow)
+make run       # Terminal game: vendor/ece/bin/ece game/main.scm
+make test      # Run all tests
+make build     # Web build (produces dist/)
+make ece-clean # Clean the vendored ECE build
 make clean     # Remove dist/
 
 # Serve web build from remote VPS (run from local machine)
@@ -15,9 +18,11 @@ ssh -L 8080:localhost:8080 user@your-vps "python3 -m http.server 8080 --director
 # Then open http://localhost:8080
 ```
 
-The only runtime dependency is [ECE](https://github.com/anthonyf/ece) (needs `ece` and `ece-build` binaries on `PATH`). ECE itself requires SBCL to build from source; once installed, nothing else is needed.
+ECE is vendored as a git submodule at `vendor/ece/`, pinned to a specific commit. Dunge's Makefile builds and invokes the in-tree `vendor/ece/bin/ece` and `vendor/ece/bin/ece-build` — it does not use any globally-installed ECE. Build-time prerequisites for the submodule build: SBCL, qlot, binaryen (`wasm-as` ≥ 129).
 
 ## Architecture
+
+**ECE toolchain:** ECE is vendored as a git submodule at `vendor/ece/`, pinned to a specific commit. The Makefile builds ECE in-place via `make ece` (which delegates to ECE's own Makefile), and `make run`/`make test`/`make build` invoke `vendor/ece/bin/ece` and `vendor/ece/bin/ece-build` by absolute path. No globally-installed `ece` is consulted. The submodule pointer is the single source of truth for "which ECE version does Dunge build against" across local dev, CI, and historical checkouts. CI caches the built ECE binary keyed on the submodule SHA.
 
 **Pure ECE (Scheme dialect):** All game code lives in `game/*.scm` plus `browser-boot.scm`. No Common Lisp, no ASDF, no qlot, no JSCL.
 
@@ -50,7 +55,7 @@ The only runtime dependency is [ECE](https://github.com/anthonyf/ece) (needs `ec
 
 ## Rules
 
-- Always use `ece` — never invoke any CL toolchain
+- Always use the in-tree `vendor/ece/bin/ece` via `make` targets — never invoke a globally-installed `ece`, and never `apt install` / `brew install` ECE as a substitute for updating the submodule
 - Never push directly to main — always create a PR, even for documentation-only changes
 - Always use `--squash` when merging PRs (GitHub auto-deletes remote branches on merge)
 - Always run both `make test` AND `make build` after changes — tests run under the CL-hosted ECE interpreter, while the web build runs under the ECE WASM runtime, and bugs can surface in only one of them
@@ -67,6 +72,23 @@ The only runtime dependency is [ECE](https://github.com/anthonyf/ece) (needs `ec
 - String interpolation via ECE reader: `"Hello $name"` expands to `(string-append "Hello " (write-to-string name))`
 - For manual concatenation with mixed types, use `(fmt ...)` (defined in `game/engine.scm`) rather than `string-append` + `write-to-string`
 
+## Bumping ECE
+
+ECE is pinned via the `vendor/ece/` submodule. Update it with:
+
+```bash
+cd vendor/ece
+git fetch origin
+git checkout <new-sha>
+cd ../..
+make ece          # rebuild the submodule
+make test         # verify
+git add vendor/ece
+git commit -m "Bump ECE to <new-sha>"
+```
+
+Do not update ECE by editing `~/git/ece/` or by running `make install` in a separate checkout — Dunge ignores anything outside `vendor/ece/`.
+
 ## ECE Web Build Gotchas
 
 - **Authoring `.scm` files via shell heredoc in zsh corrupts `!` in symbols.** Zsh history expansion runs before heredoc quoting takes effect, so `cat > foo.scm << 'EOF' ... (js-set! ...) ... EOF` silently inserts a literal `\` before `!`, producing `js-set\!` on disk. Symptom: at bundle load, the unknown symbol dispatches to a null compiled-proc and `ref.cast (ref $compiled-proc)` fails with "illegal cast" at a location that looks unrelated to the symbol. Diagnose with `od -c file.scm | grep "\\\\"`. Workaround: author `.scm` files via the Write/Edit tools (or disable zsh histexpand), not heredocs.
@@ -74,5 +96,5 @@ The only runtime dependency is [ECE](https://github.com/anthonyf/ece) (needs `ec
 - **`(init-player!)` must be called at load time for the web build.** In terminal mode, `game/main.scm` does this; in the web build and tests, `browser-boot.scm` does it instead. Otherwise, `*player*` is `#f` and any `character-*` accessor triggers an "illegal cast" in WASM (or a clearer "hash-ref: not of type" error in CLI).
 - **`read-line` must be overridden to `browser-read-line`** so the game's ask/choose/read-choice flow captures continuations instead of reading from stdin. `browser-boot.scm` does this unconditionally — don't load `browser-boot.scm` from terminal-mode code.
 - **Output capture via `parameterize` on `current-output-port` does NOT survive `call/cc` across multiple test-step calls.** When the captured continuation is re-invoked in a later `test-step`, the dynamic-wind mechanism restores the old (now-closed) port. Use a mutable buffer + a `*in-test-step?*` flag to override `display`/`newline` globally during the step. See `tests/run-all.scm`.
-- **`ece-unit.scm` lives at `~/.local/share/ece/ece-unit.scm`** after `make install`. `tests/run-all.scm` loads it by that path. If ECE is installed elsewhere, adjust the path.
+- **`ece-unit.scm` lives at `vendor/ece/src/ece-unit.scm`** in the vendored submodule. `tests/run-all.scm` locates it via the `ECE_UNIT_PATH` env var, which the Makefile sets to the in-tree source path. (`make install` would copy it to `share/ece/` but we don't run `make install` on the submodule — we use the binaries in-place.)
 - **Return values from FFI callbacks are NOT marshalled** — `callback(procHandle)` in ECE's glue.js returns the raw `call_ece_proc` result without running it through `_eceToJs`, so what you see in JS is an internal handle integer. Don't rely on the return value; communicate via side effects (display → buffer).

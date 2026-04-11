@@ -4,6 +4,7 @@
 # Usage: scripts/build-web.sh
 #
 # Env vars:
+#   ECE_BIN     — path to ece-build binary (defaults to `ece-build` on PATH)
 #   COMMIT_SHA  — override git SHA in version stamp (for CI)
 #   BUILD_TIME  — override timestamp in version stamp (for CI)
 
@@ -15,8 +16,9 @@ cd "$ROOT_DIR"
 echo "=== Dunge Web Build (ECE) ==="
 
 # 1. Compile .scm sources into dist/ via ece-build
-echo "Running ece-build..."
-ece-build --target web --standalone -o dist/ \
+ECE_BUILD_BIN="${ECE_BIN:-ece-build}"
+echo "Running ece-build (${ECE_BUILD_BIN})..."
+"${ECE_BUILD_BIN}" --target web --standalone -o dist/ \
   game/engine.scm \
   game/dice.scm \
   game/items.scm \
