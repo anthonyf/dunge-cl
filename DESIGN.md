@@ -733,6 +733,8 @@ Roll or choose evocative features:
 
 ## Character Sheet
 
+> **Target design, not current engine.** This section describes the full Cairn-style character sheet — split `STR/DEX/WIL` current/max values, a 10-slot inventory grid, Fatigue boxes, and the Deprived flag. The current `character` record in `game/engine.scm` is a subset of this: single STR/DEX/WIL fields, an unbounded inventory list, no fatigue/deprived tracking. See §Data Structures > Character for the implemented shape, and treat the Fatigue / Deprived / slot-count material below (and the matching mechanics under §Inventory & Slots and §Magic System) as the Phase-3/7 target rather than something you can grep for in `game/*.scm` today.
+
 ### Core Stats
 
 ```
