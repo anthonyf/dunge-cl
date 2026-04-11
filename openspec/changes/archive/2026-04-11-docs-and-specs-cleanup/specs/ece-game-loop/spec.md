@@ -1,4 +1,4 @@
-## ADDED Requirements
+## MODIFIED Requirements
 
 ### Requirement: ECE CLI starts the game
 The `ece` CLI SHALL load `game/main.scm`, which in turn loads all game `.scm` files in dependency order, calls `(init-player!)`, and calls `(start)` to begin the game at the starting room. There SHALL NOT be a Common Lisp bootstrap layer — `make run` invokes `vendor/ece/bin/ece game/main.scm` directly.
@@ -10,14 +10,3 @@ The `ece` CLI SHALL load `game/main.scm`, which in turn loads all game `.scm` fi
 #### Scenario: No CL bootstrap is used
 - **WHEN** the game is started via `make run`
 - **THEN** no Common Lisp file (`src/ece-bootstrap.lisp`, `dunge.asd`, etc.) SHALL be loaded; the entire load sequence SHALL run under the ECE interpreter
-
-### Requirement: Dice rolling
-The engine SHALL provide `(roll-die sides)` returning a random integer from 1 to sides, and `(roll-dice n sides)` returning a list of n such rolls.
-
-#### Scenario: roll-die returns value in range
-- **WHEN** `(roll-die 6)` is called
-- **THEN** the result SHALL be an integer between 1 and 6 inclusive
-
-#### Scenario: roll-dice returns correct number of rolls
-- **WHEN** `(roll-dice 3 6)` is called
-- **THEN** the result SHALL be a list of 3 integers each between 1 and 6 inclusive
