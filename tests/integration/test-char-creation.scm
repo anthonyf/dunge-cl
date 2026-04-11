@@ -1,63 +1,67 @@
 ;;; test-char-creation.scm — Integration tests for character creation flow
 
-(define-test "character creation: start screen"
-  (with-fresh-state
-    (random-seed! 42)
-    (let ((out (test-step nil)))
-      (assert (string-contains? out "Welcome") "should show Welcome"))))
+(test "character creation: start screen"
+  (lambda ()
+    (with-fresh-state
+      (random-seed! 42)
+      (let ((out (test-step #f)))
+        (assert-true (string-contains? out "Welcome"))))))
 
-(define-test "character creation: name prompt"
-  (with-fresh-state
-    (random-seed! 42)
-    (test-step nil)
-    (let ((out (test-step "1")))
-      (assert (string-contains? out "name") "should ask for name"))))
+(test "character creation: name prompt"
+  (lambda ()
+    (with-fresh-state
+      (random-seed! 42)
+      (test-step #f)
+      (let ((out (test-step "1")))
+        (assert-true (string-contains? out "name"))))))
 
-(define-test "character creation: enter name"
-  (with-fresh-state
-    (random-seed! 42)
-    (test-step nil)
-    (test-step "1")
-    (let ((out (test-step "TestHero")))
-      (assert (string-contains? out "TestHero") "should show entered name")
-      (assert (equal? "TestHero" (character-name *player*))
-              "player name should be TestHero"))))
+(test "character creation: enter name"
+  (lambda ()
+    (with-fresh-state
+      (random-seed! 42)
+      (test-step #f)
+      (test-step "1")
+      (let ((out (test-step "TestHero")))
+        (assert-true (string-contains? out "TestHero"))
+        (assert-equal (character-name *player*) "TestHero")))))
 
-(define-test "character creation: choose background"
-  (with-fresh-state
-    (random-seed! 42)
-    (test-step nil)
-    (test-step "1")
-    (test-step "TestHero")
-    (test-step "1")
-    (let ((out (test-step "1")))
-      (assert (equal? "Soldier" (character-background *player*))
-              "background should be Soldier"))))
+(test "character creation: choose background"
+  (lambda ()
+    (with-fresh-state
+      (random-seed! 42)
+      (test-step #f)
+      (test-step "1")
+      (test-step "TestHero")
+      (test-step "1")
+      (let ((out (test-step "1")))
+        (assert-equal (character-background *player*) "Soldier")))))
 
-(define-test "character creation: stats are rolled"
-  (with-fresh-state
-    (random-seed! 42)
-    (test-step nil)
-    (test-step "1")
-    (test-step "TestHero")
-    (test-step "1")
-    (test-step "1")
-    (let ((out (test-step "4")))
-      (assert (number? (character-str *player*)) "STR should be a number")
-      (assert (number? (character-dex *player*)) "DEX should be a number")
-      (assert (number? (character-wil *player*)) "WIL should be a number"))))
+(test "character creation: stats are rolled"
+  (lambda ()
+    (with-fresh-state
+      (random-seed! 42)
+      (test-step #f)
+      (test-step "1")
+      (test-step "TestHero")
+      (test-step "1")
+      (test-step "1")
+      (let ((out (test-step "4")))
+        (assert-true (number? (character-str *player*)))
+        (assert-true (number? (character-dex *player*)))
+        (assert-true (number? (character-wil *player*)))))))
 
-(define-test "character creation: full flow to summary"
-  (with-fresh-state
-    (random-seed! 42)
-    (test-step nil)
-    (test-step "1")
-    (test-step "TestHero")
-    (test-step "1")
-    (test-step "1")
-    (test-step "4")
-    (test-step "1")
-    (test-step "1")
-    (test-step "1")
-    (let ((out (test-step "1")))
-      (assert (string-contains? out "Town Square") "output should mention town"))))
+(test "character creation: full flow to summary"
+  (lambda ()
+    (with-fresh-state
+      (random-seed! 42)
+      (test-step #f)
+      (test-step "1")
+      (test-step "TestHero")
+      (test-step "1")
+      (test-step "1")
+      (test-step "4")
+      (test-step "1")
+      (test-step "1")
+      (test-step "1")
+      (let ((out (test-step "1")))
+        (assert-true (string-contains? out "Town Square"))))))

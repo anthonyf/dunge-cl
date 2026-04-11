@@ -30,16 +30,16 @@
 ;;; Global Encounter State
 ;;;
 
-(define *current-encounter* nil)
+(define *current-encounter* #f)
 
 (define (setup-encounter enemy-record)
   "Set up a new combat encounter with the given enemy record."
   (set *current-encounter*
-       (make-encounter enemy-record t nil 'active)))
+       (make-encounter enemy-record #t #f 'active)))
 
 (define (clear-encounter)
   "Clear the current encounter."
-  (set *current-encounter* nil))
+  (set *current-encounter* #f))
 
 ;;;
 ;;; Attack Resolution
@@ -56,7 +56,7 @@
          (remainder (- damage hp-damage))
          (str-damage 0)
          (critical-save 'none)
-         (dead nil))
+         (dead #f))
     ;; Apply HP damage
     (hash-set! target 'hp (- hp hp-damage))
     ;; Spillover to STR
@@ -65,7 +65,7 @@
       (let ((new-str (max 0 (- (hash-ref target 'str) remainder))))
         (hash-set! target 'str new-str)
         (if (= new-str 0)
-            (set dead t)
+            (set dead #t)
             (set critical-save (str-save target)))))
     (hash-table 'damage hp-damage
                 'str-damage str-damage
@@ -97,8 +97,8 @@
   "Attempt to flee. DEX save; on fail, enemy gets a parting blow.
    Returns hash table with success and enemy-result."
   (if (dex-save *player*)
-      (hash-table 'success t 'enemy-result nil)
-      (hash-table 'success nil 'enemy-result (resolve-enemy-attack))))
+      (hash-table 'success #t 'enemy-result #f)
+      (hash-table 'success #f 'enemy-result (resolve-enemy-attack))))
 
 ;;;
 ;;; Combat Log Formatting
@@ -122,8 +122,8 @@
             (set lines (cons (fmt critical-prefix str-dmg critical-suffix) lines))
             (cond
               (dead (set lines (cons dead-msg lines)))
-              ((eq? crit nil) (set lines (cons fail-msg lines)))
-              ((eq? crit t) (set lines (cons endure-msg lines)))))
+              ((eq? crit #f) (set lines (cons fail-msg lines)))
+              ((eq? crit #t) (set lines (cons endure-msg lines)))))
           (reverse lines)))))
 
 (define (format-player-attack-lines result)
@@ -209,7 +209,7 @@
 (define (combat-choices)
   "Build combat choices from *player* inventory. Returns a list of choices."
   (let ((choices '())
-        (has-weapon nil))
+        (has-weapon #f))
     ;; Scan inventory for usable items
     (for-each
       (lambda (it)
@@ -217,7 +217,7 @@
           (cond
             ;; Weapon -> attack
             ((weapon? it)
-             (set has-weapon t)
+             (set has-weapon #t)
              (set choices
                (cons (make-choice
                        (item-use-label it)
@@ -225,7 +225,7 @@
                          (let* ((enc *current-encounter*)
                                 (player-result (resolve-player-attack (weapon-damage-die it)))
                                 (enemy-result (resolve-enemy-attack)))
-                           (update-encounter-state enc player-result enemy-result nil)
+                           (update-encounter-state enc player-result enemy-result #f)
                            (set-encounter-log! enc
                              (format-combat-log player-result enemy-result)))))
                      choices)))
@@ -240,7 +240,7 @@
                                 (enemy-result (resolve-enemy-attack)))
                            (set-character-inventory! *player*
                              (consume-item it (character-inventory *player*)))
-                           (update-encounter-state enc nil enemy-result nil)
+                           (update-encounter-state enc #f enemy-result #f)
                            (set-encounter-log! enc
                              (format-heal-log heal-result enemy-result))))
                        ;; Guard: only show if HP < max
@@ -257,7 +257,7 @@
                   (let* ((enc *current-encounter*)
                          (player-result (resolve-player-attack 4))
                          (enemy-result (resolve-enemy-attack)))
-                    (update-encounter-state enc player-result enemy-result nil)
+                    (update-encounter-state enc player-result enemy-result #f)
                     (set-encounter-log! enc
                       (format-combat-log player-result enemy-result)))))
               choices)))
@@ -268,8 +268,8 @@
               (lambda ()
                 (let* ((enc *current-encounter*)
                        (flee-result (resolve-flee)))
-                  (update-encounter-state enc nil
-                    (hash-ref flee-result 'enemy-result) t)
+                  (update-encounter-state enc #f
+                    (hash-ref flee-result 'enemy-result) #t)
                   (set-encounter-log! enc
                     (format-flee-log flee-result)))))
             choices))
@@ -293,7 +293,7 @@
   (when intro-fn (intro-fn))
   ;; First-round DEX save
   (let ((enc *current-encounter*))
-    (set-encounter-first-round! enc nil)
+    (set-encounter-first-round! enc #f)
     (if (dex-save *player*)
         (begin (display "You react quickly!") (newline))
         (let* ((enemy-result (resolve-enemy-attack))
@@ -301,7 +301,7 @@
                             (format-enemy-attack-lines enemy-result))))
           (display (join-lines lines))
           (newline)
-          (update-encounter-state enc nil enemy-result nil))))
+          (update-encounter-state enc #f enemy-result #f))))
   ;; Combat loop
   (let loop ()
     (let* ((enc *current-encounter*)
@@ -310,7 +310,7 @@
       (when (encounter-log enc)
         (display (encounter-log enc))
         (newline)
-        (set-encounter-log! enc nil))
+        (set-encounter-log! enc #f))
       (if (eq? state 'active)
           ;; Show stats + combat menu
           (let ((e (encounter-enemy enc)))

@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dunge</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: #1a1a2e;
+  color: #e0e0e0;
+  font-family: 'Courier New', Courier, monospace;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 2rem 1rem;
+  min-height: 100vh;
+}
+#game {
+  max-width: 640px;
+  width: 100%;
+}
+#game-output pre {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  margin: 0;
+  padding: 0;
+  line-height: 1.5;
+  font-size: 1rem;
+}
+#game-controls {
+  margin-top: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.choice-btn {
+  background: #16213e;
+  color: #e0e0e0;
+  border: 1px solid #0f3460;
+  padding: 0.6rem 1rem;
+  font-family: inherit;
+  font-size: 1rem;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s;
+}
+.choice-btn:hover {
+  background: #0f3460;
+}
+.choice-btn:focus {
+  outline: none;
+  border-color: #e94560;
+  box-shadow: 0 0 6px rgba(233, 69, 96, 0.4);
+}
+.prompt-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.prompt-label {
+  font-size: 1rem;
+}
+.prompt-input {
+  background: #16213e;
+  color: #e0e0e0;
+  border: 1px solid #0f3460;
+  padding: 0.5rem;
+  font-family: inherit;
+  font-size: 1rem;
+  outline: none;
+}
+.prompt-input:focus {
+  border-color: #e94560;
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.fade-in {
+  animation: fadeIn 150ms ease-in;
+}
+#build-version {
+  margin-top: 3rem;
+  font-size: 0.7rem;
+  color: #555;
+  text-align: center;
+}
+</style>
+</head>
+<body>
+<div id="game">
+  <div id="game-output"></div>
+  <div id="game-controls"></div>
+  <div id="build-version">BUILD_VERSION</div>
+</div>
+
+<script>
+// Helper invoked from ECE code via js-call. ECE 0.1.0's `js-set!` primitive
+// has a WASM cast bug, so browser-boot.scm uses js-call on this helper
+// instead to register callbacks (notably window.browserStep).
+window._setWindowProp = function(name, val) { window[name] = val; };
+</script>
+
+<!-- ECE Runtime, Bootstrap, and App -->
+<script src="ece-runtime.js"></script>
+<script src="ece-bootstrap.js"></script>
+<script src="app.js"></script>
+
+<script>
+(async function() {
+  // Output buffer — filled by ECE.io overrides, drained after each browserStep call
+  var outputBuffer = "";
+
+  // Decode a Uint16Array chunk-by-chunk. Using String.fromCharCode.apply on
+  // the whole array spreads every element onto the JS call stack, which
+  // overflows on inputs larger than ~100KB (varies by engine). A chunked
+  // loop stays safe for any realistic output size.
+  var DECODE_CHUNK = 8192;
+  function decodeUtf16(mem, len) {
+    if (len <= DECODE_CHUNK) {
+      return String.fromCharCode.apply(null, mem.subarray(0, len));
+    }
+    var s = "";
+    for (var i = 0; i < len; i += DECODE_CHUNK) {
+      var end = i + DECODE_CHUNK;
+      if (end > len) end = len;
+      s += String.fromCharCode.apply(null, mem.subarray(i, end));
+    }
+    return s;
+  }
+
+  // Override I/O to accumulate into buffer (not directly to DOM)
+  ECE.io.display_string = function(len) {
+    var mem = new Uint16Array(ECE.wasm.memory.buffer, 0, len);
+    outputBuffer += decodeUtf16(mem, len);
+  };
+  ECE.io.display_number = function(n) {
+    outputBuffer += String(n);
+  };
+  ECE.io.newline = function() {
+    outputBuffer += "\n";
+  };
+
+  // Decode WASM from base64 and instantiate
+  var wasmBytes = Uint8Array.from(atob(ECE_WASM_BASE64), function(c) { return c.charCodeAt(0); });
+  var imports = {
+    io: ECE.io,
+    loader: ECE.loader,
+    storage: ECE.storage,
+    canvas: ECE.canvas,
+    timing: ECE.timing,
+    math: ECE.math,
+    ffi: ECE.ffi
+  };
+  var result = await WebAssembly.instantiate(wasmBytes, imports);
+  ECE.wasm = result.instance.exports;
+  var envHandle = ECE.buildGlobalEnv();
+
+  // Boot bootstrap bundle
+  ECE.globalEnvHandle = envHandle;
+  ECE.loadEcecBundleText(atob(ECE_BOOTSTRAP_BUNDLE));
+  ECE.wasm.mark_handles();
+
+  // Load and execute app bundle (which includes browser-boot.scm,
+  // registering window.browserStep via FFI js-callback).
+  ECE.loadEcecBundleText(atob(ECE_APP_BUNDLE));
+
+  // DOM renderer: parse output buffer into text/choices/prompt and render
+  function renderStep(output) {
+    var outputEl = document.getElementById('game-output');
+    var controlsEl = document.getElementById('game-controls');
+    outputEl.innerHTML = '';
+    controlsEl.innerHTML = '';
+
+    if (!output) return;
+
+    var lines = output.split('\n');
+    var textLines = [];
+    var choices = [];
+    var promptText = null;
+
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i];
+      var choiceMatch = line.match(/^\s+(\d+)\.\s+(.+)$/);
+      var promptMatch = line.match(/^(.+?)\s*>\s*$/);
+
+      if (choiceMatch) {
+        choices.push({ number: choiceMatch[1], label: choiceMatch[2] });
+      } else if (promptMatch && i === lines.length - 1) {
+        promptText = promptMatch[1];
+      } else if (line === '> ' || line === '>') {
+        // skip bare prompt markers
+      } else {
+        textLines.push(line);
+      }
+    }
+
+    // Render text
+    if (textLines.length > 0) {
+      var pre = document.createElement('pre');
+      while (textLines.length > 0 && textLines[textLines.length - 1].trim() === '') {
+        textLines.pop();
+      }
+      pre.textContent = textLines.join('\n');
+      outputEl.appendChild(pre);
+    }
+
+    // Render choices as buttons
+    if (choices.length > 0) {
+      choices.forEach(function(c) {
+        var btn = document.createElement('button');
+        btn.className = 'choice-btn';
+        btn.textContent = c.label;
+        btn.onclick = function() { step(c.number); };
+        controlsEl.appendChild(btn);
+      });
+    } else if (promptText) {
+      // Render text prompt
+      var wrapper = document.createElement('div');
+      wrapper.className = 'prompt-wrapper';
+      var inputId = 'dunge-prompt-input';
+      var label = document.createElement('label');
+      label.className = 'prompt-label';
+      label.textContent = promptText;
+      label.htmlFor = inputId;
+      var input = document.createElement('input');
+      input.type = 'text';
+      input.className = 'prompt-input';
+      input.id = inputId;
+      var btn = document.createElement('button');
+      btn.className = 'choice-btn';
+      btn.textContent = 'Submit';
+      var submitFn = function() {
+        if (input.value.trim()) { step(input.value); }
+      };
+      btn.onclick = submitFn;
+      input.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') submitFn();
+      });
+      wrapper.appendChild(label);
+      wrapper.appendChild(input);
+      wrapper.appendChild(btn);
+      controlsEl.appendChild(wrapper);
+      input.focus();
+    }
+
+    // Auto-focus first choice button
+    var firstBtn = controlsEl.querySelector('.choice-btn');
+    if (firstBtn && !promptText) {
+      firstBtn.focus();
+    }
+
+    // Fade-in animation
+    outputEl.classList.remove('fade-in');
+    controlsEl.classList.remove('fade-in');
+    void outputEl.offsetWidth;
+    outputEl.classList.add('fade-in');
+    controlsEl.classList.add('fade-in');
+
+    window.scrollTo(0, 0);
+  }
+
+  // Keyboard navigation
+  document.addEventListener('keydown', function(e) {
+    if (document.activeElement && document.activeElement.tagName === 'INPUT') return;
+
+    var controlsEl = document.getElementById('game-controls');
+    var buttons = controlsEl.querySelectorAll('.choice-btn');
+    if (buttons.length === 0) return;
+
+    var num = parseInt(e.key);
+    if (num >= 1 && num <= 9 && num <= buttons.length) {
+      e.preventDefault();
+      buttons[num - 1].click();
+      return;
+    }
+
+    if (['ArrowDown', 'ArrowRight', 'ArrowUp', 'ArrowLeft'].indexOf(e.key) === -1) return;
+    e.preventDefault();
+
+    var currentIndex = -1;
+    for (var i = 0; i < buttons.length; i++) {
+      if (buttons[i] === document.activeElement) { currentIndex = i; break; }
+    }
+
+    var nextIndex;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+      nextIndex = (currentIndex + 1) % buttons.length;
+    } else {
+      nextIndex = currentIndex <= 0 ? buttons.length - 1 : currentIndex - 1;
+    }
+    buttons[nextIndex].focus();
+  });
+
+  // step(input): drain buffer, call browserStep, render collected output
+  function step(input) {
+    outputBuffer = "";
+    window.browserStep(input === undefined ? null : input);
+    renderStep(outputBuffer);
+  }
+
+  // Expose for button onclick handlers
+  window.step = step;
+
+  // Start the game
+  step(null);
+})();
+</script>
+</body>
+</html>
