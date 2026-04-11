@@ -50,7 +50,7 @@
 (define (find-background name)
   (let loop ((bgs *backgrounds*))
     (cond
-      ((null? bgs) nil)
+      ((null? bgs) #f)
       ((equal? (background-name (car bgs)) name) (car bgs))
       (else (loop (cdr bgs))))))
 

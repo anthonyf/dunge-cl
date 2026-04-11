@@ -46,7 +46,7 @@
      (fmt "Attack with " (item-display-name i)))
     ((healing-herb? i)
      (fmt "Use " (item-display-name i)))
-    (else nil)))
+    (else #f)))
 
 ;;;
 ;;; Consumption

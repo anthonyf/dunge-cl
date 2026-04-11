@@ -1,3 +1,0 @@
-[submodule "vendor/jscl"]
-	path = vendor/jscl
-	url = https://github.com/jscl-project/jscl.git

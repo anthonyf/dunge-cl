@@ -12,25 +12,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: true
 
-      - name: Install SBCL
+      - name: Install SBCL (needed to build ECE from source)
         run: sudo apt-get update && sudo apt-get install -y sbcl
 
-      - name: Setup ECE dependency
+      - name: Install ECE
         run: |
-          mkdir -p .qlot
-          git clone --depth 1 https://github.com/anthonyf/ece.git .qlot/ece-src
-          cat > .qlot/setup.lisp <<'EOF'
-          (require :asdf)
-          (push (merge-pathnames "ece-src/"
-                  (make-pathname :name nil :type nil :defaults *load-truename*))
-                asdf:*central-registry*)
-          EOF
+          git clone --depth 1 https://github.com/anthonyf/ece.git /tmp/ece
+          cd /tmp/ece
+          make install
+          echo "${HOME}/.local/bin" >> $GITHUB_PATH
 
-      - name: Run ECE tests
-        run: sbcl --non-interactive --load run-tests.lisp
+      - name: Run tests
+        run: ece tests/run-all.scm
 
       - name: Build web export
-        run: sbcl --non-interactive --load web-export.lisp
+        run: scripts/build-web.sh

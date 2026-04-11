@@ -1,3 +1,5 @@
+## MODIFIED Requirements
+
 ### Requirement: Build produces standalone HTML file
 The build process SHALL produce a `dist/` directory containing `index.html` and supporting JS/WASM files. Opening `index.html` in a browser SHALL start the game with no server required (standalone mode uses base64-encoded assets loaded via `<script src>`). The build SHALL use `ece-build --target web --standalone` with the ECE WASM runtime.
 
@@ -45,20 +47,20 @@ The deploy workflow SHALL NOT preserve files from previous deployments. Each dep
 - **WHEN** a new deploy runs after old JSCL-based files exist on gh-pages
 - **THEN** the old files SHALL be removed and only the new ECE WASM build output SHALL remain
 
-### Requirement: Game content vertically centered in viewport
-The game container SHALL be vertically centered in the browser viewport when content is shorter than the viewport height. When content exceeds the viewport height, the page SHALL scroll naturally from the top.
+## REMOVED Requirements
 
-#### Scenario: Short content centered
-- **WHEN** a game step renders text and choices that fit within the viewport
-- **THEN** the game container SHALL be vertically centered in the viewport
+### Requirement: JSCL bootstrap with new API
+**Reason**: JSCL is replaced by ECE's WASM runtime. No more JSCL bootstrap step.
+**Migration**: `ece-build --target web` handles compilation to WASM bytecode.
 
-#### Scenario: Long content scrolls from top
-- **WHEN** a game step renders content taller than the viewport
-- **THEN** the page SHALL scroll naturally and content SHALL start from the top
+### Requirement: ECE source filtered at form level
+**Reason**: The form-level CL reader/filter was specific to the JSCL build pipeline. `ece-build` compiles .scm files directly.
+**Migration**: No migration needed — `ece-build` handles compilation natively.
 
-### Requirement: Content fade-in on step change
-When new game content renders after a step, the output and controls SHALL fade in with a subtle CSS animation (approximately 150ms). The transition SHALL provide visual feedback that content has changed without feeling sluggish.
+### Requirement: handler-case and eval-when pass through to JSCL
+**Reason**: JSCL is removed. ECE compiles directly to WASM bytecode.
+**Migration**: No migration needed — ECE natively supports `handler-case` and `eval-when`.
 
-#### Scenario: New step fades in
-- **WHEN** a game step renders new content replacing the previous content
-- **THEN** the new text and controls SHALL fade in over approximately 150ms
+### Requirement: Browser boot errors are surfaced
+**Reason**: The JSCL-specific error surfacing mechanism is replaced by standard WASM error handling. ECE's WASM runtime throws JS errors on runtime failures.
+**Migration**: Standard browser error handling (try/catch in boot sequence) replaces JSCL-specific `console.error` patches.

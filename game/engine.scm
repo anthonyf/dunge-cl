@@ -2,17 +2,35 @@
 ;;; Rooms are plain functions that call each other directly.
 
 ;;;
+;;; String Helpers
+;;;
+
+(define (fmt . args)
+  "Concatenate args into a string. Non-string args are converted via write-to-string."
+  (apply string-append
+    (map (lambda (x)
+           (if (string? x) x (write-to-string x)))
+         args)))
+
+(define (lines . args)
+  "Join args as lines separated by newlines. Non-string args are converted."
+  (apply string-append
+    (map (lambda (x)
+           (string-append (if (string? x) x (write-to-string x)) "\n"))
+         args)))
+
+;;;
 ;;; Player Record
 ;;;
 
 (define-record character
   name background str dex wil hp hp-max armor gold fate inventory)
 
-(define *player* nil)
+(define *player* #f)
 
 (define (init-player!)
   "Initialize *player* with a blank character record."
-  (set *player* (make-character nil nil nil nil nil nil nil nil nil nil '())))
+  (set *player* (make-character #f #f #f #f #f #f #f #f #f #f '())))
 
 ;;;
 ;;; Display Helpers
@@ -38,7 +56,7 @@
 
 (define (make-choice label action . rest)
   "Create a choice. Optional guard function as third argument."
-  (let ((guard (if (null? rest) (lambda () t) (car rest))))
+  (let ((guard (if (null? rest) (lambda () #t) (car rest))))
     (hash-table 'label label
                 'action action
                 'guard guard)))
