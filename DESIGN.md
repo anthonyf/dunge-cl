@@ -88,20 +88,25 @@ Cairn treats large groups of similar creatures as **detachments** — a single u
 - When the group takes critical damage, it's "routed or broken" — narratively some flee, the rest fall
 - Blast spells (e.g. Elemental Wall) bypass the impaired penalty against detachments
 
-**Example enemy-specs:**
-```lisp
+**Example bestiary entries:**
+
+Bestiary entries are created via `(make-bestiary-entry name hp armor attack-die str dex wil)` in `game/bestiary.scm`. Group enemies are authored as a single entry with pre-scaled HP and attack die:
+
+```scheme
 ;; Solo goblin
-'("Goblin" 4 0 6 :str 8 :dex 12 :wil 8)
+(make-bestiary-entry "Goblin" 4 0 6 8 12 8)
 
 ;; Small group: 2 goblins (HP 4→6, attack 2d6 keep highest ≈ d8)
-'("2 Goblins" 6 0 8 :str 8 :dex 12 :wil 8)
+(make-bestiary-entry "2 Goblins" 6 0 8 8 12 8)
 
 ;; Pack: 5 wolves (HP 6→12, enhanced d12 attack)
-'("Wolf Pack" 12 0 12 :str 12 :dex 14 :wil 8)
+(make-bestiary-entry "Wolf Pack" 12 0 12 12 14 8)
 
 ;; Detachment: skeleton horde (HP 5→15, enhanced d12, player impaired)
-'("Skeleton Horde" 15 1 12 :str 8 :dex 13 :wil 0)
+(make-bestiary-entry "Skeleton Horde" 15 1 12 8 13 0)
 ```
+
+`make-enemy-from-bestiary` looks up the entry by name at encounter setup time and produces the `enemy` record that combat resolution operates on.
 
 ### Armor
 
@@ -772,108 +777,118 @@ Conditions: _______________
 
 ## Core Game Loop
 
+The current engine has no explicit "loop driver" — rooms are plain Scheme procedures that call each other directly in tail position. There is no scene registry, no automatic perception pass on entry, no dungeon-turn counter, and no choice-condition DSL. A full session is the composition of: `main.scm` loading files → `init-player!` → `(start)` → a chain of room procedures, each of which does I/O and tail-calls the next room.
+
 ```
 ┌─────────────────────────────────────────────────────────┐
 │                     GAME START                          │
-│            Character Creation / Load Game               │
+│  game/main.scm loads engine/dice/items/combat/bestiary/ │
+│  content, then calls (init-player!) and (start).        │
+│  (In the web build / tests, browser-boot.scm performs   │
+│  the init-player! step instead of game/main.scm.)       │
 └─────────────────────┬───────────────────────────────────┘
-					  │
-					  ▼
+                      │
+                      ▼
 ┌─────────────────────────────────────────────────────────┐
-│                   SCENE ENTRY                           │
-│  1. Load/generate scene content                         │
-│  2. Run automatic checks (perception, hearing, etc.)    │
-│  3. Update game state based on check results            │
-│  4. Advance dungeon turn if applicable                  │
-│  5. Check for wandering monsters (every 2 turns)        │
+│                CHARACTER CREATION                       │
+│  Name prompt → background pick → 3d6 stat rolls → swap  │
+│  → starting equipment → character summary → town.       │
 └─────────────────────┬───────────────────────────────────┘
-					  │
-					  ▼
+                      │
+                      ▼
 ┌─────────────────────────────────────────────────────────┐
-│                CHOICE GENERATION                        │
-│  For each potential choice:                             │
-│    - Check conditions (items, flags, passed checks)     │
-│    - If conditions met, add to available choices        │
-│  Always include: navigation, basic actions              │
+│                  ROOM PROCEDURE                         │
+│  Each room is a plain (define (room-name) ...).         │
+│  Body typically:                                        │
+│    1. (text ...) / (p ...) to print title + prose       │
+│    2. (choose (label body) ...) to present a menu       │
+│    3. Menu branch runs arbitrary Scheme and tail-calls  │
+│       the next room procedure                           │
 └─────────────────────┬───────────────────────────────────┘
-					  │
-					  ▼
+                      │
+                      ▼
 ┌─────────────────────────────────────────────────────────┐
-│                  PRESENT SCENE                          │
-│  - Display scene description                            │
-│  - Show available choices                               │
-│  - (Optional) Show roll log                             │
-│  - Wait for player input                                │
+│                 ACTION DISPATCH                         │
+│  A (choose) branch can run any Scheme expression:       │
+│    • Direct tail call to another room: (library)        │
+│    • Enter combat: (run-combat "Goblin" intro-fn)       │
+│    • Mutate player: (set-character-gold! *player* g)    │
+│    • Consume item: (consume-item it inventory)          │
+│    • Conditional branch: (if ... (room-a) (room-b))     │
+│  Guard closures on (make-choice ... guard) hide actions │
+│  that don't apply (e.g. "Use Herb" while at full HP).   │
 └─────────────────────┬───────────────────────────────────┘
-					  │
-					  ▼
+                      │
+                      ▼
 ┌─────────────────────────────────────────────────────────┐
-│                RESOLVE CHOICE                           │
-│  Based on choice type:                                  │
-│    Navigation → Load new scene                          │
-│    Combat → Enter combat loop                           │
-│    Skill use → Roll, determine outcome                  │
-│    Item use → Apply effect                              │
-│    Interaction → Dialogue/reaction                      │
-│  Update game state (HP, inventory, flags, turns)        │
-└─────────────────────┬───────────────────────────────────┘
-					  │
-					  ▼
-┌─────────────────────────────────────────────────────────┐
-│               OUTCOME DISPLAY                           │
-│  - Show result of action                                │
-│  - Show any rolls (if visibility enabled)               │
-│  - Update displayed stats if changed                    │
-└─────────────────────┬───────────────────────────────────┘
-					  │
-					  ▼
-┌─────────────────────────────────────────────────────────┐
-│                CHECK GAME STATE                         │
-│  - Player dead? → Game Over                             │
-│  - Objective complete? → Victory/Progression            │
-│  - Otherwise → Return to Scene Entry or Choice Gen      │
-└─────────────────────┴───────────────────────────────────┘
+│              NEXT ROOM (TAIL CALL)                      │
+│  The game loop is implicit: every room's action ends    │
+│  with a direct call to another room procedure in tail   │
+│  position. ECE's TCO keeps the stack bounded, so the    │
+│  session runs indefinitely without a separate driver.   │
+│  There is no *current-room* variable and no scene IDs.  │
+└─────────────────────────────────────────────────────────┘
 ```
 
+> **Not yet implemented (Phase 3/7):** dungeon-turn advance, wandering-monster checks on scene entry, passed-check / flag tracking, roll-log persistence, and roll-visibility settings. These are tracked in [TODOs.org](TODOs.org) and described in the "Future: Game State" subsection below.
+
 ### Combat Loop (Sub-Loop)
+
+`run-combat` in `game/combat.scm` drives a full encounter to completion. An encounter has exactly one enemy (group enemies are modeled as a single enemy with pre-scaled HP and attack die). The player always chooses their action from a menu built by `combat-choices`; the enemy retaliates automatically each time the player acts (no AI branching).
 
 ```
 ┌─────────────────────────────────────────────────────────┐
 │                  COMBAT START                           │
-│  First round: PC makes DEX save                        │
-│    Pass → PC acts first (normal round)                  │
-│    Fail → enemy attacks unopposed, then normal rounds   │
-│  Rounds 2+: PC always acts first, then enemy            │
+│  setup-encounter creates an encounter record:           │
+│    (enemy, first-round=#t, log=#f, state='active)       │
+│  intro-fn prints the flavor narration (if supplied).    │
+│  First round: PC makes a DEX save.                      │
+│    Pass → "You react quickly!"; normal round order.     │
+│    Fail → "Caught off guard!" enemy attacks unopposed,  │
+│           then normal rounds.                           │
 └─────────────────────┬───────────────────────────────────┘
-					  │
-					  ▼
+                      │
+                      ▼
 ┌─────────────────────────────────────────────────────────┐
 │                  COMBAT ROUND                           │
-│  PC acts, then enemy acts                               │
+│  1. Drain encounter-log (if any) to the display.        │
+│  2. If state != 'active, exit to TERMINAL STATE.        │
+│  3. Display enemy HP/STR and player HP/STR.             │
+│  4. Build and display combat-choices from *player*      │
+│     inventory (filtered by each choice's guard):        │
+│       • Each weapon → "Attack with <name> (dN)"         │
+│       • Healing Herb → "Use Healing Herb" (if HP < max) │
+│       • Unarmed d4 (only if no weapon is carried)       │
+│       • Flee (always available)                         │
+│  5. Player picks an action and the action thunk runs:   │
+│     it resolves the player's effect and the enemy's     │
+│     retaliation (if applicable), then calls             │
+│     update-encounter-state to set the next state.       │
 └─────────────────────┬───────────────────────────────────┘
-					  │
-		  ┌───────────┴───────────┐
-		  ▼                       ▼
-┌─────────────────────┐ ┌─────────────────────┐
-│   PLAYER TURN       │ │   ENEMY TURN        │
-│ Present choices:    │ │ AI determines action│
-│  - Attack [target]  │ │ Resolve attack/act  │
-│  - Use item         │ │ Apply damage to PC  │
-│  - Flee             │ │ Check for Critical  │
-│  - Special action   │ │                     │
-│ Resolve chosen      │ │                     │
-│ Apply damage        │ │                     │
-│ Check for Critical  │ │                     │
-└─────────┬───────────┘ └──────────┬──────────┘
-		  │                        │
-		  └───────────┬────────────┘
-					  ▼
+                      │
+                      ▼
 ┌─────────────────────────────────────────────────────────┐
-│                 END OF ROUND                            │
-│  - Check if all enemies dead → Victory                  │
-│  - Check if player dead → Defeat                        │
-│  - Check morale (first death, 50% down) → Flee?         │
-│  - Otherwise → Next round                               │
+│              STATE PRIORITY (per round)                 │
+│  update-encounter-state applies:                        │
+│    victory > death > incapacitated > fled > active      │
+│                                                         │
+│  • victory        — enemy STR = 0 or failed STR save    │
+│  • death          — player STR = 0                      │
+│  • incapacitated  — player failed a critical STR save   │
+│  • fled           — player chose Flee and DEX succeeded │
+│                     (parting blow on fail)              │
+│  • active         — loop back to COMBAT ROUND           │
+└─────────────────────┬───────────────────────────────────┘
+                      │
+                      ▼
+┌─────────────────────────────────────────────────────────┐
+│                 TERMINAL STATE                          │
+│  cleanup-combat resets HP/STR on death or incapacitated │
+│  (so the game can continue for development/testing),    │
+│  clears *current-encounter*, and returns the final      │
+│  state symbol to run-combat's caller. There is no       │
+│  morale check and no per-enemy AI — behavior is         │
+│  deterministic from the state priority above.           │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -881,176 +896,133 @@ Conditions: _______________
 
 ## Data Structures
 
-### Scene/Vignette
+### Rooms (Scenes/Vignettes)
 
-```common-lisp
-(defclass vignette ()
-  ((id          :initarg :id          :accessor vignette-id)
-   (title       :initarg :title       :accessor vignette-title)
-   (description :initarg :description :accessor vignette-description)
-   (choices     :initarg :choices     :accessor vignette-choices     :initform nil)
-   ;; Automatic checks to run on entry
-   (perception-checks :initarg :perception-checks
-                      :accessor vignette-perception-checks
-                      :initform nil)
-   ;; Scene state
-   (visited-p   :accessor vignette-visited-p   :initform nil)
-   (flags       :accessor vignette-flags       :initform (make-hash-table :test 'equal))))
+There is no dedicated "vignette" or "scene" data type. Rooms are plain Scheme procedures defined with `define` in `game/content.scm`; entering a room means calling its procedure. A room procedure typically calls `(text ...)` / `(p ...)` to display content, `(choose ...)` to present a menu, and then tail-calls the next room procedure. Any per-room state (visited flags, dynamic descriptions) is handled with normal `define` / mutable globals on a case-by-case basis — there is no uniform flags/visited table.
 
-(defmethod get-description ((v vignette))
-  ;; May vary based on flags, visited status, etc.
-  (vignette-description v))
-
-(defmethod get-available-choices ((v vignette) game-state)
-  (remove-if-not (lambda (choice)
-                   (conditions-met-p choice game-state))
-                 (vignette-choices v)))
-```
+See `openspec/specs/ece-room-system/spec.md` for the normative "rooms are plain functions" model.
 
 ### Choice
 
-```common-lisp
-(defclass choice ()
-  ((label      :initarg :label      :accessor choice-label)
-   (conditions :initarg :conditions :accessor choice-conditions :initform nil)
-   (action     :initarg :action     :accessor choice-action)))
+A choice is a hash-table built by `(make-choice label action [guard])` in `game/engine.scm`. `label` is a string, `action` is a thunk invoked when the player picks the option, and the optional `guard` is a predicate thunk that returns `#t` if the choice should be offered and `#f` if it should be hidden. When no guard is supplied, `make-choice` installs a default that always returns `#t`.
 
-(defmethod conditions-met-p ((c choice) game-state)
-  (every (lambda (condition)
-           (evaluate condition game-state))
-         (choice-conditions c)))
+```scheme
+(define (make-choice label action . rest)
+  (let ((guard (if (null? rest) (lambda () #t) (car rest))))
+    (hash-table 'label label
+                'action action
+                'guard guard)))
 
-(defmethod execute-choice ((c choice) game-state)
-  (perform (choice-action c) game-state))
+(define (choice-visible? choice)
+  ((hash-ref choice 'guard)))
 ```
 
-### Condition Types
+Rooms typically build their choice lists inline using the `choose` macro, which wraps `make-choice` + `display-choices` + `read-choice`. See `openspec/specs/ece-choice-system/spec.md` for the normative model.
 
-```common-lisp
-;; Base condition — generic function
-(defgeneric evaluate (condition game-state)
-  (:documentation "Return T if the condition is satisfied."))
+### Condition guards
 
-;; Specific conditions
-(defclass has-item-condition ()
-  ((item-id :initarg :item-id :accessor condition-item-id)))
+There is no `has-item-condition` / `flag-condition` / `stat-condition` class hierarchy. Guards are plain Scheme closures that can inspect whatever they need — the player record, the current encounter, or local room state. For example, the combat menu hides the "Use Healing Herb" option when the player is already at full HP with this guard:
 
-(defclass passed-check-condition ()
-  ((check-id :initarg :check-id :accessor condition-check-id)))
-
-(defclass flag-condition ()
-  ((flag-name      :initarg :flag-name      :accessor condition-flag-name)
-   (expected-value :initarg :expected-value  :accessor condition-expected-value)))
-
-(defclass stat-condition ()
-  ((stat    :initarg :stat    :accessor condition-stat)    ; :str, :dex, or :wil
-   (minimum :initarg :minimum :accessor condition-minimum)))
+```scheme
+(lambda () (< (character-hp *player*) (character-hp-max *player*)))
 ```
+
+There is no "passed checks" table and no "flags" hash — predicates look at live state every time they are called. This is the same pattern the `combat-choices` function in `game/combat.scm` uses to decide which actions to offer each round.
 
 ### Character
 
-```common-lisp
-(defconstant +max-slots+ 10)
+The player is a single `character` record defined in `game/engine.scm`. Stats (STR/DEX/WIL) are stored as a single field each — there is no split "current" vs "max" stat; HP is the only field with an accompanying `hp-max`. Inventory is a plain list of item records. Encumbrance / fatigue / "deprived" status are not implemented.
 
-(defclass character ()
-  ((name       :initarg :name       :accessor character-name)
-   (background :initarg :background :accessor character-background)
+```scheme
+(define-record character
+  name background str dex wil hp hp-max armor gold fate inventory)
 
-   (str-current :initarg :str :accessor character-str-current)
-   (str-max     :initarg :str :accessor character-str-max)
-   (dex-current :initarg :dex :accessor character-dex-current)
-   (dex-max     :initarg :dex :accessor character-dex-max)
-   (wil-current :initarg :wil :accessor character-wil-current)
-   (wil-max     :initarg :wil :accessor character-wil-max)
+(define *player* #f)
 
-   (hp-current  :initarg :hp  :accessor character-hp-current)
-   (hp-max      :initarg :hp  :accessor character-hp-max)
-
-   (armor     :initarg :armor     :accessor character-armor     :initform 0)
-   (gold      :initarg :gold      :accessor character-gold      :initform 0)
-   (inventory :initarg :inventory :accessor character-inventory  :initform nil)
-   (fatigue   :accessor character-fatigue  :initform 0)))
-
-(defun used-slots (character)
-  (+ (character-fatigue character)
-     (reduce #'+ (character-inventory character)
-             :key #'item-slots :initial-value 0)))
-
-(defun deprived-p (character)
-  (>= (used-slots character) +max-slots+))
-
-(defun stat-value (character stat)
-  "Return the current value of STAT (:str, :dex, or :wil)."
-  (ecase stat
-    (:str (character-str-current character))
-    (:dex (character-dex-current character))
-    (:wil (character-wil-current character))))
-
-(defun make-save (character stat)
-  "Roll d20 against STAT. Returns a plist with :stat, :target, :roll, :success."
-  (let* ((target (stat-value character stat))
-         (roll   (1+ (random 20)))
-         (success (<= roll target)))
-    (list :stat stat :target target :roll roll :success success)))
-
-(defun take-damage (character amount)
-  "Apply AMOUNT damage (after armor). Mutates CHARACTER.
-Returns a plist with :damage, :hp-damage, :str-damage, :critical, :dead."
-  (let* ((remaining (- amount (character-armor character)))
-         (hp-dmg 0) (str-dmg 0) (critical nil) (dead nil))
-    (when (plusp remaining)
-      ;; Absorb with HP first
-      (when (plusp (character-hp-current character))
-        (let ((absorbed (min remaining (character-hp-current character))))
-          (decf (character-hp-current character) absorbed)
-          (decf remaining absorbed)
-          (setf hp-dmg absorbed)))
-      ;; Overflow to STR
-      (when (plusp remaining)
-        (decf (character-str-current character) remaining)
-        (setf str-dmg remaining)
-        ;; Critical damage check
-        (let ((save (make-save character :str)))
-          (unless (getf save :success)
-            (setf critical t)))
-        (when (<= (character-str-current character) 0)
-          (setf dead t))))
-    (list :damage amount :hp-damage hp-dmg :str-damage str-dmg
-          :critical critical :dead dead)))
+(define (init-player!)
+  (set *player* (make-character #f #f #f #f #f #f #f #f #f #f '())))
 ```
+
+Saves and attack resolution are generic across any hash-table-backed record (`character`, `enemy`, etc.) and live in `game/combat.scm`:
+
+```scheme
+(define (str-save target)
+  (<= (roll-d20) (hash-ref target 'str)))
+
+;; Damage application: armor absorbs first, then HP absorbs, then overflow
+;; to STR. Critical STR save triggers on any STR spillover. Death at STR = 0.
+(define (resolve-attack attacker-die target)
+  (let* ((roll (roll-die attacker-die))
+         (armor (hash-ref target 'armor))
+         (damage (max 0 (- roll armor)))
+         (hp (hash-ref target 'hp))
+         (hp-damage (min damage hp))
+         (remainder (- damage hp-damage))
+         (str-damage 0)
+         (critical-save 'none)
+         (dead #f))
+    (hash-set! target 'hp (- hp hp-damage))
+    (when (> remainder 0)
+      (set str-damage remainder)
+      (let ((new-str (max 0 (- (hash-ref target 'str) remainder))))
+        (hash-set! target 'str new-str)
+        (if (= new-str 0)
+            (set dead #t)
+            (set critical-save (str-save target)))))
+    (hash-table 'damage hp-damage
+                'str-damage str-damage
+                'critical-save critical-save
+                'dead dead)))
+```
+
+Because both `character` and `enemy` records are backed by ECE hash-tables with symbol-keyed fields, `resolve-attack` works uniformly on either side of a combat round.
 
 ### Game State
 
-```common-lisp
-(defclass game-state ()
-  ((character       :initarg :character   :accessor game-character)
-   (current-scene-id :initarg :scene-id   :accessor game-current-scene-id)
-   (dungeon-turn     :accessor game-dungeon-turn     :initform 0)
-   (turns-since-rest :accessor game-turns-since-rest :initform 0)
-   (turns-since-wandering-check :accessor game-turns-since-wandering-check
-                                :initform 0)
-   (global-flags   :accessor game-global-flags   :initform (make-hash-table :test 'equal))
-   (scene-flags    :accessor game-scene-flags    :initform (make-hash-table :test 'equal))
-   (passed-checks  :accessor game-passed-checks  :initform nil)  ; list of check IDs
-   (roll-log       :accessor game-roll-log       :initform nil)
-   ;; Settings: :hidden, :visible, or :log
-   (show-rolls     :accessor game-show-rolls     :initform :hidden)))
+The current engine has **no** aggregated `game-state` object. Live state is split across:
 
-(defmethod advance-turn ((gs game-state))
-  (incf (game-dungeon-turn gs))
-  (incf (game-turns-since-rest gs))
-  (incf (game-turns-since-wandering-check gs)))
+- `*player*` — the `character` record (all persistent player data)
+- `*current-encounter*` — the `encounter` record during combat, otherwise `#f`
+- room-function locals / globals for anything else a room needs to track
 
-(defmethod check-wandering-monster ((gs game-state))
-  (when (>= (game-turns-since-wandering-check gs) 2)
-    (setf (game-turns-since-wandering-check gs) 0)
-    (= (1+ (random 6)) 1)))
+There is no dungeon-turn counter, no wandering-monster check, no roll log, and no roll-visibility setting. The subsection below is aspirational.
 
-(defmethod needs-rest-p ((gs game-state))
-  (>= (game-turns-since-rest gs) 6))
+#### Future: Game State (Aspirational)
 
-(defmethod log-roll ((gs game-state) roll-data)
-  (push roll-data (game-roll-log gs)))
+> **Not implemented.** This is a design sketch for Phase 3/7 goals tracked in [TODOs.org](TODOs.org). Do not grep `game/*.scm` for `game-state`, `dungeon-turn`, `roll-log`, or `show-rolls` — none of them exist. When we wire up dungeon turns and wandering monsters, we expect to introduce a record roughly like this:
+
+```scheme
+(define-record game-state
+  character           ; the *player* record
+  current-scene-id    ; symbol or #f
+  dungeon-turn        ; integer
+  turns-since-rest    ; integer
+  turns-since-wandering-check  ; integer
+  global-flags        ; hash-table
+  scene-flags         ; hash-table
+  passed-checks       ; list of check-id symbols
+  roll-log            ; list of roll records (most recent first)
+  show-rolls)         ; 'hidden | 'visible | 'log
+
+(define (advance-turn gs)
+  (set-game-state-dungeon-turn! gs
+    (+ 1 (game-state-dungeon-turn gs)))
+  (set-game-state-turns-since-rest! gs
+    (+ 1 (game-state-turns-since-rest gs)))
+  (set-game-state-turns-since-wandering-check! gs
+    (+ 1 (game-state-turns-since-wandering-check gs))))
+
+(define (check-wandering-monster gs)
+  (when (>= (game-state-turns-since-wandering-check gs) 2)
+    (set-game-state-turns-since-wandering-check! gs 0)
+    (= (roll-die 6) 1)))
+
+(define (needs-rest? gs)
+  (>= (game-state-turns-since-rest gs) 6))
+
+(define (log-roll gs roll-data)
+  (set-game-state-roll-log! gs
+    (cons roll-data (game-state-roll-log gs))))
 ```
 
 ---
