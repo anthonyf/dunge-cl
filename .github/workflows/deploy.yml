@@ -17,14 +17,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install SBCL (needed to build ECE from source)
-        run: sudo apt-get update && sudo apt-get install -y sbcl
+      - name: Install ECE build prerequisites (SBCL + binaryen)
+        run: sudo apt-get update && sudo apt-get install -y sbcl binaryen
+
+      - name: Install qlot
+        run: |
+          export QLOT_BIN_DIR="$HOME/.local/bin"
+          mkdir -p "$QLOT_BIN_DIR"
+          curl -L https://qlot.tech/installer | QLOT_BIN_DIR="$QLOT_BIN_DIR" bash
+          echo "$QLOT_BIN_DIR" >> $GITHUB_PATH
 
       - name: Install ECE
         run: |
           git clone --depth 1 https://github.com/anthonyf/ece.git /tmp/ece
           cd /tmp/ece
-          make install
+          qlot install
+          make install PREFIX=$HOME/.local
           echo "${HOME}/.local/bin" >> $GITHUB_PATH
 
       - name: Run tests
