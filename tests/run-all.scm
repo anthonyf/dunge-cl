@@ -2,9 +2,19 @@
 ;;;
 ;;; Usage: ece tests/run-all.scm
 ;;; Exit code: 0 = all pass, 1 = failures
-
-;; Load ECE's test framework
-(load "~/.local/share/ece/ece-unit.scm")
+;;;
+;;; The ece-unit.scm framework ships in ECE's share directory. The
+;;; default path assumes `make install PREFIX=$HOME/.local`. Override
+;;; with ECE_UNIT_PATH for other layouts (Homebrew, Nix, /usr/local,
+;;; in-tree dev builds, etc.) — e.g.:
+;;;
+;;;   ECE_UNIT_PATH=/opt/homebrew/share/ece/ece-unit.scm ece tests/run-all.scm
+;;;
+;;; ECE 0.1.0 raises CL-level conditions on load failure that escape
+;;; scheme `guard`, so we can't probe candidate paths at runtime — the
+;;; env var is the portable escape hatch.
+(load (or (get-environment-variable "ECE_UNIT_PATH")
+          "~/.local/share/ece/ece-unit.scm"))
 
 ;; Load game files
 (load "game/engine.scm")
@@ -47,10 +57,13 @@
 
 (define (test-step input)
   "Call browser-step with INPUT, capture all output to buffer.
-   Returns the captured output string."
+   Returns the captured output string. The flag is always reset, even
+   if browser-step raises, so a failing test doesn't swallow the
+   subsequent test summary into the buffer."
   (set *test-output-buffer* "")
   (set *in-test-step?* #t)
-  (browser-step input)
+  (guard (e (#t (set *in-test-step?* #f) (raise e)))
+    (browser-step input))
   (set *in-test-step?* #f)
   *test-output-buffer*)
 

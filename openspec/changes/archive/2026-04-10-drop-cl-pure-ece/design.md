@@ -90,3 +90,57 @@ Use ECE's `js-callback` FFI to expose `browser-step` to JavaScript, wrapped in `
 **[Web build size]** → Current JSCL build produces a 2.7MB single HTML file. ECE WASM standalone build produces ~7.5MB across multiple files. Trade-off accepted: WASM is the strategic direction, and assets compress well with gzip/brotli.
 
 **[Integration test fidelity]** → `test-step` in pure ECE uses `parameterize` on `current-output-port`, which requires `display`/`newline` to respect the current output port. ECE's implementations do (standard R7RS behavior). If any game code uses low-level output primitives that bypass `current-output-port`, those tests would silently lose capture. Mitigated by running tests and comparing output against the CL runner before deleting it.
+
+## Implementation Deltas
+
+This section records where the merged implementation diverged from the design above. Preserved after archiving so future readers don't copy approaches that turned out to be wrong.
+
+### 1. `test-step` uses a global display/newline override, not `parameterize`
+
+**Design said:** "Pure ECE test-step via parameterize + open-output-string"
+
+**What shipped:** A global override of `display` and `newline` gated by a `*in-test-step?*` flag, writing to a mutable `*test-output-buffer*`.
+
+**Why it changed:** `parameterize` on `current-output-port` is implemented via `dynamic-wind`. When `browser-step` suspends via `call/cc` (inside `browser-read-line`) and is later resumed from a subsequent `test-step` call, `dynamic-wind` restores the dynamic extent from when the continuation was captured — including the `current-output-port` binding that pointed at the first step's (now abandoned) `open-output-string` port. All output after the resume routed to a stale port, so integration tests beyond the first step captured nothing. The first call works because nothing's been captured yet; the second call is where it breaks.
+
+A mutable global buffer with direct `display`/`newline` overrides sidesteps the dynamic-wind path entirely — the continuation captures nothing output-related, so resumption does the right thing. The flag is reset in a `guard` so a failing test doesn't leave `*in-test-step?*` set to `#t` and swallow the final summary.
+
+### 2. Browser FFI uses `js-call` on a helper, not `js-set!`
+
+**Design said:**
+```scheme
+(guard (e (#t #f))
+  (js-set! (js-eval "window") "browserStep"
+    (js-callback browser-step)))
+```
+
+**What shipped:**
+```scheme
+(guard (e (#t #f))
+  (js-call (js-eval "window") "_setWindowProp"
+    (js-string "browserStep")
+    (js-callback
+      (lambda (js-input)
+        (let ((input (if (js-null? js-input)
+                         #f
+                         (js-ref->string js-input))))
+          (browser-step input))))))
+```
+
+**Why it changed:**
+1. **`js-set!` has a WASM cast bug in ECE 0.1.0.** Calling `(js-set! obj prop val)` at bundle-load time crashes the WASM runtime with an `illegal cast` error, regardless of what `val` is. `js-get` and `js-call` work fine. Workaround: `web/index.html` installs `window._setWindowProp = (name, val) => { window[name] = val; }` before loading the ECE bundle, and `browser-boot.scm` calls it via `js-call`.
+2. **FFI callbacks receive `js-ref` handles, not scheme strings.** `js-callback` passes each JS argument through `%js-alloc` + `make-js-ref`, so the scheme procedure sees a `js-ref` value, not the unwrapped string. The browser-boot wrapper converts via `js-ref->string` (with a `js-null?` check for the initial `null` call).
+
+### 3. `browser-boot.scm` also calls `(init-player!)` and overrides `read-line`
+
+**Design didn't mention it.** In terminal mode, `game/main.scm` loads the game files, calls `(init-player!)`, then calls `(start)`. The web build doesn't include `main.scm` (ece-build takes individual .scm files, not a loader), and tests use `with-fresh-state` per test. Without someone calling `init-player!` at load time, `*player*` is `#f` when `(start)` first runs, and `(character-name *player*)` triggers a hash-table cast error in WASM (or a clearer "hash-ref: not of type" in CLI).
+
+Similarly, `read-line` defaults to stdin reading, which doesn't work in the browser. `browser-boot.scm` now does both at load time, so any consumer that loads `browser-boot.scm` (web build or test runner) gets the browser-friendly setup automatically.
+
+### 4. Pre-existing `fmt`/`lines` breakage
+
+**Not anticipated by the design at all.** The game extensively calls `(fmt ...)` and `(lines ...)`, but neither was defined anywhere — in ECE, in dunge, or in any deleted CL file. The old `qlot exec sbcl` runner was also broken at HEAD of `main` before this change started (same `Unbound variable: fmt` error). I added minimal `fmt`/`lines` definitions at the top of `game/engine.scm` (string-append with `write-to-string` coercion, and line-joined variant). Worth filing a separate issue to understand how the game was ever working.
+
+### 5. `ECE_UNIT_PATH` env var for test runner portability
+
+**Design didn't specify path resolution.** Hardcoding `~/.local/share/ece/ece-unit.scm` in `tests/run-all.scm` breaks for non-default ECE installs (Homebrew, Nix, custom `PREFIX`). Added an env var override so CI or users can point at a different location. Runtime probing of candidate paths was attempted but abandoned: ECE 0.1.0 surfaces `load` failures as CL-level conditions that escape scheme `guard`, so we can't fall through on missing files.

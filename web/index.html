@@ -112,10 +112,28 @@ window._setWindowProp = function(name, val) { window[name] = val; };
   // Output buffer — filled by ECE.io overrides, drained after each browserStep call
   var outputBuffer = "";
 
+  // Decode a Uint16Array chunk-by-chunk. Using String.fromCharCode.apply on
+  // the whole array spreads every element onto the JS call stack, which
+  // overflows on inputs larger than ~100KB (varies by engine). A chunked
+  // loop stays safe for any realistic output size.
+  var DECODE_CHUNK = 8192;
+  function decodeUtf16(mem, len) {
+    if (len <= DECODE_CHUNK) {
+      return String.fromCharCode.apply(null, mem.subarray(0, len));
+    }
+    var s = "";
+    for (var i = 0; i < len; i += DECODE_CHUNK) {
+      var end = i + DECODE_CHUNK;
+      if (end > len) end = len;
+      s += String.fromCharCode.apply(null, mem.subarray(i, end));
+    }
+    return s;
+  }
+
   // Override I/O to accumulate into buffer (not directly to DOM)
   ECE.io.display_string = function(len) {
     var mem = new Uint16Array(ECE.wasm.memory.buffer, 0, len);
-    outputBuffer += String.fromCharCode.apply(null, mem);
+    outputBuffer += decodeUtf16(mem, len);
   };
   ECE.io.display_number = function(n) {
     outputBuffer += String(n);
@@ -201,12 +219,15 @@ window._setWindowProp = function(name, val) { window[name] = val; };
       // Render text prompt
       var wrapper = document.createElement('div');
       wrapper.className = 'prompt-wrapper';
+      var inputId = 'dunge-prompt-input';
       var label = document.createElement('label');
       label.className = 'prompt-label';
       label.textContent = promptText;
+      label.htmlFor = inputId;
       var input = document.createElement('input');
       input.type = 'text';
       input.className = 'prompt-input';
+      input.id = inputId;
       var btn = document.createElement('button');
       btn.className = 'choice-btn';
       btn.textContent = 'Submit';
