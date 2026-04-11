@@ -95,13 +95,6 @@ body {
   <div id="build-version">BUILD_VERSION</div>
 </div>
 
-<script>
-// Helper invoked from ECE code via js-call. ECE 0.1.0's `js-set!` primitive
-// has a WASM cast bug, so browser-boot.scm uses js-call on this helper
-// instead to register callbacks (notably window.browserStep).
-window._setWindowProp = function(name, val) { window[name] = val; };
-</script>
-
 <!-- ECE Runtime, Bootstrap, and App -->
 <script src="ece-runtime.js"></script>
 <script src="ece-bootstrap.js"></script>
