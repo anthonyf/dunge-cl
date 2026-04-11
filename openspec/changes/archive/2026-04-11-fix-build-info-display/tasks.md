@@ -11,16 +11,16 @@
 
 ## 3. Commit and PR
 
-- [ ] 3.1 Create branch `fix-build-info-display`, commit the script change with a concise message
-- [ ] 3.2 Push and open PR via `gh pr create`, reference this openspec change in the body
-- [ ] 3.3 Wait for CI (`gh run watch`) — build-and-test job green
-- [ ] 3.4 Squash-merge the PR
+- [x] 3.1 Create branch `fix-build-info-display`, commit the script change with a concise message
+- [x] 3.2 Push and open PR via `gh pr create`, reference this openspec change in the body
+- [x] 3.3 Wait for CI (`gh run watch`) — build-and-test job green
+- [x] 3.4 Squash-merge the PR
 
 ## 4. Deploy verification
 
-- [ ] 4.1 After merge, wait for the deploy workflow to finish (`gh run list --branch main --limit 3`)
-- [ ] 4.2 Reload the live site and confirm the footer shows `v <7-char> · YYYY-MM-DD HH:MM UTC` — the committer TZ no longer leaks
+- [x] 4.1 After merge, wait for the deploy workflow to finish (`gh run list --branch main --limit 3`)
+- [x] 4.2 Reload the live site and confirm the footer shows `v <7-char> · YYYY-MM-DD HH:MM UTC` — the committer TZ no longer leaks
 
 ## 5. Archive the openspec change
 
-- [ ] 5.1 `/opsx:archive fix-build-info-display` — move to `openspec/changes/archive/YYYY-MM-DD-fix-build-info-display/`, sync the spec delta into `openspec/specs/ece-web-build/spec.md`
+- [x] 5.1 `/opsx:archive fix-build-info-display` — move to `openspec/changes/archive/YYYY-MM-DD-fix-build-info-display/`, sync the spec delta into `openspec/specs/ece-web-build/spec.md`
