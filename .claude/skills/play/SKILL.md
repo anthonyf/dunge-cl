@@ -6,10 +6,10 @@ disable-model-invocation: true
 
 Launch the Dunge text adventure game in the terminal.
 
-Run this in SBCL via qlot:
+Run this through the vendored ECE CLI:
 
 ```bash
-qlot exec sbcl --eval '(asdf:load-system :dunge)' --eval '(in-package :dunge-user)' --eval '(game-repl (room (quote dunge::start)))'
+make run
 ```
 
 Use the Bash tool to execute this command. The game is interactive,

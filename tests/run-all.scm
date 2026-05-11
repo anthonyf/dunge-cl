@@ -10,8 +10,8 @@
 ;;;
 ;;;   ECE_UNIT_PATH=/opt/homebrew/share/ece/ece-unit.scm ece tests/run-all.scm
 ;;;
-;;; ECE 0.1.0 raises CL-level conditions on load failure that escape
-;;; scheme `guard`, so we can't probe candidate paths at runtime — the
+;;; ECE 0.1.0 raises host-level load errors that escape Scheme `guard`,
+;;; so we can't probe candidate paths at runtime — the
 ;;; env var is the portable escape hatch.
 (load (or (get-environment-variable "ECE_UNIT_PATH")
           "~/.local/share/ece/ece-unit.scm"))

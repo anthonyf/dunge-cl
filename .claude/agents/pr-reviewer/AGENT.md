@@ -19,15 +19,17 @@ Run these checks in order and report results:
 
 ### 1. Formatting Check
 ```bash
-make check-fmt
+git diff --check
+git diff --check --cached
 ```
-If this fails, report which files need formatting and suggest running `make fmt`.
+If either command fails, report the whitespace errors.
 
 ### 2. Test Suite
 ```bash
-make test-all
+make test
+make build
 ```
-Both SBCL unit tests and Playwright web tests must pass. Report any failures with error details.
+ECE tests and the WASM web build must pass. Report any failures with error details.
 
 ### 3. Staged Files Audit
 ```bash
@@ -36,14 +38,14 @@ git status
 ```
 - Verify only intended files are staged
 - Flag any accidentally included files (lockfiles, build artifacts, `.env`, credentials)
-- Check that no src/ changes are missing from the staging area
+- Check that no intended game, test, script, or web changes are missing from the staging area
 
 ### 4. Convention Compliance
-For each changed `.lisp` file, verify:
-- Uses `(in-package #:dunge)` (for src/ files)
-- New exported symbols are in `packages.lisp` `:export` list
-- No UIOP dependency in source files
-- `main.lisp` load order is last (if `.asd` file changed)
+For each changed app file, verify:
+- Common Lisp remains confined to `vendor/ece/`
+- ECE code uses `#t` / `#f`, not CL `t` / `nil`
+- New game files are wired into `game/main.scm`, `tests/run-all.scm`, and `scripts/build-web.sh` where needed
+- Browser-only FFI remains guarded so CLI tests can load `browser-boot.scm`
 
 ### 5. Git Workflow
 - Confirm we're NOT on `main` branch (never push directly to main)
@@ -54,7 +56,7 @@ For each changed `.lisp` file, verify:
 ```bash
 make build
 ```
-Web build must succeed — JSCL runtime errors can be silent.
+Web build must succeed and emit the expected WASM bundle plus custom `index.html`.
 
 ## Output Format
 
@@ -63,12 +65,11 @@ Pre-PR Quality Report
 =====================
 
 [PASS/FAIL] Formatting
-[PASS/FAIL] SBCL Tests
-[PASS/FAIL] Web Tests
+[PASS/FAIL] ECE Tests
+[PASS/FAIL] Web Build
 [PASS/FAIL] Staged Files
 [PASS/FAIL] Conventions
 [PASS/FAIL] Git Workflow
-[PASS/FAIL] Web Build
 
 Overall: READY / NOT READY
 
