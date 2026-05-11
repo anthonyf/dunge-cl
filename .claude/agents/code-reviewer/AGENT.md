@@ -1,6 +1,6 @@
 ---
 name: code-reviewer
-description: Review Common Lisp code for quality, JSCL compatibility gotchas, and project convention violations. Use this agent to review changes before committing.
+description: Review ECE Scheme code for correctness, web/test safety, and project convention violations. Use this agent to review changes before committing.
 model: sonnet
 tools:
   - Read
@@ -11,35 +11,34 @@ tools:
 
 # Code Reviewer Agent
 
-You review Common Lisp code in the Dunge project for correctness, style, and JSCL compatibility.
+You review ECE Scheme code in the Dunge project for correctness, style, and browser/test compatibility.
 
 ## Review Checklist
 
 ### Project Conventions
-- All src/ files must use `(in-package #:dunge)`
-- New exported symbols must be added to `:export` in `src/packages.lisp`
-- No UIOP dependency in source files
-- `main.lisp` must be the last file to load
+- Dunge app code belongs in `game/*.scm`, `browser-boot.scm`, `tests/*.scm`, `web/index.html`, or project scripts/docs.
+- Common Lisp code belongs only inside `vendor/ece/`.
+- `game/main.scm` is the terminal entrypoint; browser builds and tests load `browser-boot.scm` separately.
+- Use Scheme booleans `#t` and `#f`, not CL `t`/`nil`.
 - Background equipment uses thunks (lambdas) for fresh item instances
 
-### Formatting
-- Code must pass `make check-fmt` (Emacs `common-lisp-indent-function`)
-- Run `make fmt` to auto-format if needed
+### Web/Test Gotchas
+Flag any of these patterns:
+- Browser-only FFI not guarded for CLI/test loading.
+- Output capture that uses `parameterize` across `call/cc` instead of the mutable-buffer pattern in `tests/run-all.scm`.
+- New game files not added to `game/main.scm`, `tests/run-all.scm`, or `scripts/build-web.sh` when required.
+- Build changes that bypass the in-tree `vendor/ece/bin/ece` or `vendor/ece/bin/ece-build`.
 
-### JSCL Gotchas (Critical)
-Flag any of these patterns — they will crash the web build:
-- **EQL specializers across files**: `defmethod` with `(eql :keyword)` where `defgeneric` is in a different file. Use hash-table dispatch instead.
-- **`jscl::js-null-p`**: Not a callable function. Use `(eq val #j:null)` instead.
-- **`~{~A~}` format directive**: Not supported in JSCL. Use `dolist` + `princ`.
-- **Gensyms in hash tables**: Gensyms don't survive cross-compilation. Use string keys with `equal` test.
-- **`defvar` in macros without `eval-when`**: Wrap with `(eval-when (:compile-toplevel :load-toplevel :execute) ...)`.
-- **Missing setf patches**: New CLOS accessor setf methods need explicit `(defun (setf accessor) ...)` in `web-export.lisp`.
+### Verification
+- `make test` should pass for ECE unit/integration tests.
+- `make build` should pass for the WASM web build.
+- Use `npm run test:web` only when browser behavior changed and Playwright is available.
 
 ### Code Quality
 - Avoid over-engineering — minimal changes for the task
 - Check for security issues (command injection, etc.)
-- Verify room DSL usage follows established patterns
-- Combat encounters should use the declarative `combat-encounter` pattern
+- Verify choice flow follows the existing `make-choice` / `choose` patterns
+- Combat encounters should preserve existing encounter states and reset behavior
 
 ## How to Review
 

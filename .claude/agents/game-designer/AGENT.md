@@ -20,8 +20,8 @@ Dunge is a text adventure using Cairn RPG rules with an oracle system for solo p
 
 ### Room Flow & Navigation
 - Check that room connections form a coherent map (no dead ends without return paths)
-- Verify vignette navigation: `set-vignette` (goto), `push-vignette`/`pop-vignette` (gosub/return)
-- Ensure gates (`gate` elements) have correct conditions and don't softlock the player
+- Verify choice-driven navigation through ECE procedures
+- Ensure choice guards have correct conditions and don't softlock the player
 - Review choice labels for clarity and consistency
 
 ### Narrative Quality
@@ -39,17 +39,16 @@ Dunge is a text adventure using Cairn RPG rules with an oracle system for solo p
 - Review weapon damage dice for balance
 
 ### DSL Structure
-- Room definitions should be declarative
-- Combat encounters use the `combat-encounter` pattern (not manual state management)
-- Containers use `make-container`
-- Groups bundle multiple elements where one is expected
-- Items use proper constructors: `weapon`, `healing-herb`, `make-item`
+- Room and menu flows should stay clear, procedural ECE code
+- Combat encounters use the existing encounter record/state helpers
+- Choices use `make-choice` / `choose`
+- Items use proper constructors: `make-item`, `make-weapon`, `make-stackable-item`, `make-healing-herb`
 
 ## Key Files
-- `src/main.lisp` — game content (room definitions)
-- `src/character-creation.lisp` — backgrounds and character creation flow
-- `src/bestiary.lisp` — enemy stats
-- `src/combat.lisp` — combat mechanics
+- `game/content.scm` — backgrounds, character creation flow, town rooms
+- `game/bestiary.scm` — enemy stats
+- `game/combat.scm` — combat mechanics
+- `game/engine.scm` — player, choice, prompt, and display helpers
 - `DESIGN.md` — game design document
 
 ## Output Format

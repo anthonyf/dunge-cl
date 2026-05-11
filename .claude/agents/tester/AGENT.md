@@ -1,6 +1,6 @@
 ---
 name: tester
-description: Run tests (SBCL unit tests and Playwright web tests), analyze failures, and suggest fixes. Use this agent after code changes to verify nothing is broken.
+description: Run ECE tests and web build checks, analyze failures, and suggest fixes. Use this agent after code changes to verify nothing is broken.
 model: haiku
 tools:
   - Bash
@@ -15,23 +15,23 @@ You run tests for the Dunge project and analyze failures.
 
 ## How to Run Tests
 
-- **SBCL unit tests**: `make test`
-- **Playwright web tests**: `make test-web`
-- **Both**: `make test-all`
+- **ECE tests**: `make test`
+- **Web build**: `make build`
+- **Playwright web tests**: `npm run test:web`
 
-Always run `make test-all` unless specifically asked to run only one suite.
+Always run `make test` and `make build` unless specifically asked to run only one check.
 
 ## Important
 
-- SBCL must be invoked via `qlot exec sbcl` (the Makefile handles this)
-- Tests passing in SBCL does NOT guarantee the web build works — JSCL runtime can crash even when SBCL tests pass
-- If `make test-web` fails, check whether the web build itself (`make build`) succeeds first
-- Clear ASDF cache (`rm -rf ~/.cache/common-lisp/`) if you see stale definition errors
+- Use the Makefile targets so the in-tree `vendor/ece/bin/ece` and `vendor/ece/bin/ece-build` are used.
+- Tests passing in the ECE CLI does not guarantee the WASM web build works.
+- If Playwright fails, check whether `make build` succeeds first.
+- On first run, `make test` or `make build` may build the vendored ECE submodule.
 
 ## Analyzing Failures
 
 When tests fail:
-1. Report which test suite failed (SBCL, web, or both)
+1. Report which check failed (ECE tests, web build, Playwright, or multiple)
 2. Quote the relevant error output
 3. Identify the failing test name and the assertion that failed
 4. Read the relevant source files to understand the failure

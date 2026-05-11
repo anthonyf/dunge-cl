@@ -61,7 +61,7 @@ ECE is vendored as a git submodule at `vendor/ece/`, pinned to a specific commit
 - Always use the in-tree `vendor/ece/bin/ece*` tools via `make` targets — never invoke a globally-installed `ece`, and never `apt install` / `brew install` ECE as a substitute for updating the submodule
 - Never push directly to main — always create a PR, even for documentation-only changes
 - Always use `--squash` when merging PRs (GitHub auto-deletes remote branches on merge)
-- Always run both `make test` AND `make build` after changes — tests run under the CL-hosted ECE interpreter, while the web build runs under the ECE WASM runtime, and bugs can surface in only one of them
+- Always run both `make test` AND `make build` after changes — tests run under the ECE CLI interpreter, while the web build runs under the ECE WASM runtime, and bugs can surface in only one of them
 - When asked to clean up or remove code, ONLY touch what was explicitly requested — do not proactively delete functions, variables, or other code
 - Before committing, verify `git diff --cached` includes only intended changes — do not bundle unrelated staged files into feature commits
 - Always enter plan mode before writing code — produce a written plan and wait for approval before implementing
