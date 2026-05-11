@@ -10,6 +10,7 @@ make ece       # First time: build the vendored ECE toolchain (slow)
 make run       # Terminal game: vendor/ece/bin/ece game/main.scm
 make test      # Run all tests
 make build     # Web build (produces dist/)
+make serve     # Live browser dev server via vendor/ece/bin/ece-serve
 make ece-clean # Clean the vendored ECE build
 make clean     # Remove dist/
 
@@ -18,15 +19,15 @@ ssh -L 8080:localhost:8080 user@your-vps "python3 -m http.server 8080 --director
 # Then open http://localhost:8080
 ```
 
-ECE is vendored as a git submodule at `vendor/ece/`, pinned to a specific commit. Dunge's Makefile builds and invokes the in-tree `vendor/ece/bin/ece` and `vendor/ece/bin/ece-build` — it does not use any globally-installed ECE. Build-time prerequisites for the submodule build: SBCL, qlot, binaryen (`wasm-as` ≥ 129).
+ECE is vendored as a git submodule at `vendor/ece/`, pinned to a specific commit. Dunge's Makefile builds ECE by running plain `make` in `vendor/ece/`, then invokes the resulting in-tree `vendor/ece/bin/ece`, `vendor/ece/bin/ece-build`, and `vendor/ece/bin/ece-serve` — it does not use any globally-installed ECE. Build-time prerequisites for the submodule build: SBCL, qlot, binaryen (`wasm-as` ≥ 129).
 
 ## Architecture
 
-**ECE toolchain:** ECE is vendored as a git submodule at `vendor/ece/`, pinned to a specific commit. The Makefile builds ECE in-place via `make ece` (which delegates to ECE's own Makefile), and `make run`/`make test`/`make build` invoke `vendor/ece/bin/ece` and `vendor/ece/bin/ece-build` by absolute path. No globally-installed `ece` is consulted. The submodule pointer is the single source of truth for "which ECE version does Dunge build against" across local dev, CI, and historical checkouts. CI caches the built ECE binary keyed on the submodule SHA.
+**ECE toolchain:** ECE is vendored as a git submodule at `vendor/ece/`, pinned to a specific commit. The Makefile builds ECE in-place via `make ece`, which does exactly one thing inside the submodule: `make -C vendor/ece`. ECE's own Makefile creates `vendor/ece/bin/ece`, dispatcher symlinks, and staged `share/ece/` assets. `make run`/`make test`/`make build`/`make serve` invoke those in-tree tools by absolute path. No globally-installed `ece` is consulted. The submodule pointer is the single source of truth for "which ECE version does Dunge build against" across local dev, CI, and historical checkouts. CI caches the built ECE binary keyed on the submodule SHA.
 
 **Pure ECE (Scheme dialect):** All game code lives in `game/*.scm` plus `browser-boot.scm`. No Common Lisp, no ASDF, no qlot, no JSCL.
 
-**Source files** load in order (via `game/main.scm` for terminal play, or baked into the web bundle by `ece-build`):
+**Source files** load in order (via `game/main.scm` for terminal play, `web/main.scm` for `ece-serve`, or baked into the web bundle by `ece-build`):
 
 1. `game/engine.scm` — player record, display helpers (`text`, `p`, `fmt`, `lines`), `make-choice`, `choose` macro, `ask`
 2. `game/dice.scm` — dice rolling (`roll-die`, `roll-dice`, `roll-d20`)
@@ -36,7 +37,7 @@ ECE is vendored as a git submodule at `vendor/ece/`, pinned to a specific commit
 6. `game/content.scm` — backgrounds, character creation flow, town rooms, test combat encounter
 7. `game/main.scm` — terminal entrypoint: loads files, calls `(init-player!)`, calls `(start)`
 
-`browser-boot.scm` is loaded by the web build and the test runner (not by `game/main.scm`). It provides:
+`browser-boot.scm` is loaded by the web build, `web/main.scm`, and the test runner (not by `game/main.scm`). It provides:
 - `*top-continuation*` / `*resume-continuation*` — suspend/resume for browser I/O
 - `browser-step` — called by JS to step the game
 - `browser-read-line` — continuation-capturing replacement for `read-line`
@@ -51,11 +52,13 @@ ECE is vendored as a git submodule at `vendor/ece/`, pinned to a specific commit
 
 **Tests:** `tests/run-all.scm` loads ECE's `ece-unit.scm`, loads all game files plus `browser-boot.scm`, defines `test-step` (buffer-based output capture — `parameterize` on `current-output-port` doesn't survive `call/cc` across multiple `test-step` calls, so we override `display`/`newline` globally when `*in-test-step?*` is true) and `with-fresh-state`, loads each test file, and calls `run-tests`. Unit tests use `ece-unit` API (`test`, `assert-true`, `assert-equal`, `assert-false`).
 
-**Web build:** `scripts/build-web.sh` runs `ece-build --target web --standalone` on the game files and `browser-boot.scm`, producing `dist/{app.ecec, app.js, ece-runtime.js, ece-bootstrap.js, index.html}`. The script then replaces `ece-build`'s generic `index.html` with `web/index.html` (game-specific CSS, JS renderer, choice/prompt DOM, keyboard nav) and stamps in a build version. The JS renderer installs a `window._setWindowProp` helper **before** loading the bundle (see JS gotchas below).
+**Web build:** `scripts/build-web.sh` runs `ece-build --target web --standalone` on the game files and `browser-boot.scm`, producing `dist/{app.ecec, app.js, ece-runtime.js, ece-bootstrap.js, index.html}`. The script then replaces `ece-build`'s generic `index.html` with `web/index.html` (game-specific CSS, JS renderer, choice/prompt DOM, keyboard nav) and stamps in a build version. `web/index.html` also supports `ece-serve` by loading raw `runtime.wasm`/`bootstrap.ecec` plus `/__ece_dev/artifacts/app.ecec` when the standalone base64 bundles are absent.
+
+**ECE app/dev server flow:** Upstream ECE creates app-local browser skeletons with `vendor/ece/bin/ece init web DIR`. Dunge's checked-in app surface is `web/`: `web/main.scm` is the `ece-serve` entrypoint, `web/index.html` is the custom host page, and `make web-dev-assets` copies ignored runtime files (`web/ece-runtime.js`, `web/runtime.wasm`, `web/bootstrap.ecec`) from the vendored ECE build. `make serve PORT=8080` runs `cd web && vendor/ece/bin/ece-serve main.scm --port 8080`. In Emacs, load `vendor/ece/emacs/geiser-ece.el`, enable `geiser-ece-dev-mode`, then use `geiser-ece-dev-start`, `geiser-ece-dev-connect`, or `geiser-ece-dev-connect-repl` against the printed/local session.
 
 ## Rules
 
-- Always use the in-tree `vendor/ece/bin/ece` via `make` targets — never invoke a globally-installed `ece`, and never `apt install` / `brew install` ECE as a substitute for updating the submodule
+- Always use the in-tree `vendor/ece/bin/ece*` tools via `make` targets — never invoke a globally-installed `ece`, and never `apt install` / `brew install` ECE as a substitute for updating the submodule
 - Never push directly to main — always create a PR, even for documentation-only changes
 - Always use `--squash` when merging PRs (GitHub auto-deletes remote branches on merge)
 - Always run both `make test` AND `make build` after changes — tests run under the CL-hosted ECE interpreter, while the web build runs under the ECE WASM runtime, and bugs can surface in only one of them
@@ -66,8 +69,9 @@ ECE is vendored as a git submodule at `vendor/ece/`, pinned to a specific commit
 ## Conventions
 
 - Every `.scm` file uses standard Scheme booleans (`#t`, `#f`) — not CL `t`/`nil`
-- `game/main.scm` is the terminal entrypoint; the web build and tests do NOT load it
-- `browser-boot.scm` is only loaded by the web build and the test runner, never by `game/main.scm`
+- `game/main.scm` is the terminal entrypoint; the web build, `ece-serve`, and tests do NOT load it
+- `web/main.scm` is the browser-dev entrypoint for `ece-serve`; run it from `web/` so its relative `(load "../game/...")` forms and static root line up
+- `browser-boot.scm` is loaded by the web build, `web/main.scm`, and the test runner, never by `game/main.scm`
 - Background equipment uses thunks (lambdas) to create fresh item instances per playthrough
 - String interpolation via ECE reader: `"Hello $name"` expands to `(string-append "Hello " (write-to-string name))`
 - For manual concatenation with mixed types, use `(fmt ...)` (defined in `game/engine.scm`) rather than `string-append` + `write-to-string`
@@ -83,6 +87,7 @@ git checkout <new-sha>
 cd ../..
 make ece          # rebuild the submodule
 make test         # verify
+make build        # verify browser packaging
 git add vendor/ece
 git commit -m "Bump ECE to <new-sha>"
 ```

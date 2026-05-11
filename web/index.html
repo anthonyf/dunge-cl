@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Dunge</title>
+<script>window.ECE_DEV_WS_URL = null;</script>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body {
@@ -95,7 +96,8 @@ body {
   <div id="build-version">BUILD_VERSION</div>
 </div>
 
-<!-- ECE Runtime, Bootstrap, and App -->
+<!-- ECE Runtime, Bootstrap, and App. ece-bootstrap.js/app.js exist in
+     standalone builds; ece-serve serves app.ecec from /__ece_dev/artifacts/. -->
 <script src="ece-runtime.js"></script>
 <script src="ece-bootstrap.js"></script>
 <script src="app.js"></script>
@@ -135,8 +137,6 @@ body {
     outputBuffer += "\n";
   };
 
-  // Decode WASM from base64 and instantiate
-  var wasmBytes = Uint8Array.from(atob(ECE_WASM_BASE64), function(c) { return c.charCodeAt(0); });
   var imports = {
     io: ECE.io,
     loader: ECE.loader,
@@ -144,20 +144,63 @@ body {
     canvas: ECE.canvas,
     timing: ECE.timing,
     math: ECE.math,
-    ffi: ECE.ffi
+    ffi: ECE.ffi,
+    wasm_host: ECE.wasmHost
   };
-  var result = await WebAssembly.instantiate(wasmBytes, imports);
-  ECE.wasm = result.instance.exports;
-  var envHandle = ECE.buildGlobalEnv();
 
-  // Boot bootstrap bundle
-  ECE.globalEnvHandle = envHandle;
-  ECE.loadEcecBundleText(atob(ECE_BOOTSTRAP_BUNDLE));
-  ECE.wasm.mark_handles();
+  async function instantiateRuntime() {
+    if (typeof ECE_WASM_BASE64 !== 'undefined') {
+      var wasmBytes = Uint8Array.from(atob(ECE_WASM_BASE64), function(c) {
+        return c.charCodeAt(0);
+      });
+      var embedded = await WebAssembly.instantiate(wasmBytes, imports);
+      return embedded.instance.exports;
+    }
+    var streamed = await WebAssembly.instantiateStreaming(fetch('runtime.wasm'), imports);
+    return streamed.instance.exports;
+  }
 
-  // Load and execute app bundle (which includes browser-boot.scm,
-  // registering window.browserStep via FFI js-callback).
-  ECE.loadEcecBundleText(atob(ECE_APP_BUNDLE));
+  async function loadBootstrap() {
+    if (typeof ECE_BOOTSTRAP_BUNDLE !== 'undefined') {
+      ECE.loadArchiveBundle(atob(ECE_BOOTSTRAP_BUNDLE));
+    } else {
+      var bootstrap = await fetch('bootstrap.ecec', { cache: 'no-store' });
+      ECE.loadArchiveBundle(await bootstrap.text());
+    }
+    ECE.wasm.mark_handles();
+  }
+
+  async function loadStandaloneApp() {
+    if (typeof ECE_APP_BUNDLE === 'undefined') return false;
+    ECE.loadArchiveBundle(atob(ECE_APP_BUNDLE));
+    return true;
+  }
+
+  async function reloadProgram(archiveUrl, zoneModuleUrl, manifestUrl) {
+    await ECE.reloadProgramFromUrls(archiveUrl, zoneModuleUrl || null, manifestUrl || null);
+  }
+
+  async function loadDevApp() {
+    var archiveUrl = '/__ece_dev/artifacts/app.ecec';
+    var zoneModuleUrl = '/__ece_dev/artifacts/app-zones.wasm';
+    var manifestUrl = '/__ece_dev/artifacts/app-zones.manifest';
+    var response = await fetch(archiveUrl, { cache: 'no-store' });
+    if (!response.ok) return false;
+
+    var nativeResponses = await Promise.allSettled([
+      fetch(zoneModuleUrl, { cache: 'no-store' }),
+      fetch(manifestUrl, { cache: 'no-store' })
+    ]);
+    if (nativeResponses[0].status === 'fulfilled' &&
+        nativeResponses[0].value.ok &&
+        nativeResponses[1].status === 'fulfilled' &&
+        nativeResponses[1].value.ok) {
+      await reloadProgram(archiveUrl, zoneModuleUrl, manifestUrl);
+    } else {
+      await reloadProgram(archiveUrl);
+    }
+    return true;
+  }
 
   // DOM renderer: parse output buffer into text/choices/prompt and render
   function renderStep(output) {
@@ -296,7 +339,59 @@ body {
   // Expose for button onclick handlers
   window.step = step;
 
-  // Start the game
+  async function handleDevMessage(raw, socket) {
+    var msg = JSON.parse(String(raw || '{}'));
+    if (msg.type === 'program-reload') {
+      await reloadProgram(msg.archiveUrl, msg.zoneModuleUrl, msg.manifestUrl);
+      step(null);
+      return;
+    }
+    if (msg.type === 'eval-source') {
+      try {
+        var result = ECE.evalStringLast(String(msg.source || ''));
+        socket.send(JSON.stringify({
+          type: 'eval-result',
+          id: String(msg.id || ''),
+          ok: true,
+          result: String(ECE._eceToJs(result))
+        }));
+      } catch (err) {
+        socket.send(JSON.stringify({
+          type: 'eval-error',
+          id: String(msg.id || ''),
+          ok: false,
+          error: String(err && err.message || err)
+        }));
+      }
+    }
+  }
+
+  function connectDevServer() {
+    if (!window.ECE_DEV_WS_URL) return;
+
+    var queue = Promise.resolve();
+    function enqueue(work) {
+      queue = queue.then(work).catch(function(err) {
+        outputBuffer += 'Error: ' + String(err && err.message || err) + '\n';
+        renderStep(outputBuffer);
+      });
+    }
+
+    var socket = new WebSocket(window.ECE_DEV_WS_URL);
+    socket.addEventListener('message', function(event) {
+      enqueue(function() { return handleDevMessage(event.data, socket); });
+    });
+  }
+
+  ECE.wasm = await instantiateRuntime();
+  ECE.globalEnvHandle = ECE.buildGlobalEnv();
+  await loadBootstrap();
+
+  var loaded = await loadStandaloneApp();
+  if (!loaded) loaded = await loadDevApp();
+  if (!loaded) throw new Error('Dunge app bundle was not found');
+
+  connectDevServer();
   step(null);
 })();
 </script>

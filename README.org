@@ -13,7 +13,7 @@ Dunge is a solo RPG text adventure using [[https://cairnrpg.com/cairn-srd/][Cair
 
 Game content is written in [[https://github.com/anthonyf/ece][ECE]], a Scheme dialect with first-class continuations, macros, and string interpolation. ECE targets two deployment modes from the same game code:
 - *Terminal* — the ECE interpreter runs the game as a synchronous REPL
-- *Browser* — ~ece-build~ compiles the game to a WASM bundle for event-driven DOM rendering
+- *Browser* — ECE's app tooling compiles the game to a WASM bundle for event-driven DOM rendering, and ~ece-serve~ provides a live browser development server
 
 ** Quick Start
 
@@ -29,12 +29,34 @@ make ece
 make run       # Terminal game
 make test      # Run all tests
 make build     # Web build (produces dist/)
+make serve     # Live browser dev server on http://127.0.0.1:8080
 make clean     # Remove dist/
 #+end_src
 
 If you forgot ~--recurse-submodules~, run ~git submodule update --init~ to populate ~vendor/ece/~.
 
-~make run~, ~make test~, and ~make build~ all depend on the in-tree ECE binary and will trigger ~make ece~ automatically on first use.
+~make run~, ~make test~, ~make build~, and ~make serve~ all depend on the in-tree ECE binary and will trigger ~make ece~ automatically on first use.
+
+** Browser App Development
+
+ECE creates new browser apps with:
+
+#+begin_src bash
+vendor/ece/bin/ece init web my-app
+#+end_src
+
+Dunge already has that app-local browser surface under ~web/~:
+- ~web/main.scm~ is the ~ece-serve~ entrypoint. It loads the game files and ~browser-boot.scm~.
+- ~web/index.html~ is the custom Dunge host page and works both in standalone ~dist/~ builds and in live ~ece-serve~ sessions.
+- ~make web-dev-assets~ copies the ignored ECE runtime assets needed by ~ece-serve~ into ~web/~.
+
+Start live development with:
+
+#+begin_src bash
+make serve PORT=8080
+#+end_src
+
+Then open ~http://127.0.0.1:8080/~. From Emacs, load ECE's Geiser integration from ~vendor/ece/emacs/geiser-ece.el~, enable ~geiser-ece-dev-mode~, and connect/start with the ~geiser-ece-dev-*~ commands. ~ece-serve~ writes the local session metadata and dev token so Emacs can attach without pasting a token manually.
 
 ** Dependencies
 
@@ -45,7 +67,7 @@ If you forgot ~--recurse-submodules~, run ~git submodule update --init~ to popul
 - [[https://www.gnu.org/software/make/][GNU Make]] — build automation
 - [[https://nodejs.org/][Node.js]] + [[https://playwright.dev/][Playwright]] — browser tests (~npm install~)
 
-SBCL, Qlot, and binaryen are only needed when (re)building the vendored ECE submodule. Once ~vendor/ece/bin/ece~ exists, Dunge's everyday commands don't invoke them.
+SBCL, Qlot, and binaryen are only needed when (re)building the vendored ECE submodule. Dunge delegates that build with plain ~make -C vendor/ece~; ECE's own Makefile handles any internal setup and creates ~vendor/ece/bin/ece~ plus its dispatcher symlinks. Once ~vendor/ece/bin/ece~ exists, Dunge's everyday commands don't invoke those build tools directly.
 
 ** Bumping the ECE pin
 
@@ -58,6 +80,8 @@ git checkout <new-sha>
 cd ../..
 make ece          # rebuild the submodule
 make test         # verify
+make build        # verify browser packaging
+make serve        # optional live browser smoke check
 git add vendor/ece
 git commit -m "Bump ECE to <new-sha>"
 #+end_src
