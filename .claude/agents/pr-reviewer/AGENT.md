@@ -20,8 +20,9 @@ Run these checks in order and report results:
 ### 1. Formatting Check
 ```bash
 git diff --check
+git diff --check --cached
 ```
-If this fails, report the whitespace errors.
+If either command fails, report the whitespace errors.
 
 ### 2. Test Suite
 ```bash
