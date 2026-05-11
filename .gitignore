@@ -13,3 +13,9 @@
 /dist/
 /node_modules/
 /test-results/
+/web/.tmp/
+/web/app.js
+/web/bootstrap.ecec
+/web/ece-bootstrap.js
+/web/ece-runtime.js
+/web/runtime.wasm

@@ -1,9 +1,11 @@
-.PHONY: run test build clean ece ece-clean
+.PHONY: run test build serve web-dev-assets clean ece ece-clean
 
 ECE_DIR   := $(CURDIR)/vendor/ece
 ECE       := $(ECE_DIR)/bin/ece
 ECE_BUILD := $(ECE_DIR)/bin/ece-build
+ECE_SERVE := $(ECE_DIR)/bin/ece-serve
 ECE_UNIT  := $(ECE_DIR)/src/ece-unit.scm
+PORT      ?= 8080
 
 ece: $(ECE)
 
@@ -16,12 +18,31 @@ test: $(ECE)
 build: $(ECE) $(ECE_BUILD)
 	ECE_BIN=$(ECE_BUILD) scripts/build-web.sh
 
-$(ECE) $(ECE_BUILD):
+serve: $(ECE) $(ECE_SERVE) web-dev-assets
+	cd web && $(ECE_SERVE) main.scm --port $(PORT)
+
+web-dev-assets: web/ece-runtime.js web/runtime.wasm web/bootstrap.ecec web/ece-bootstrap.js web/app.js
+
+web/ece-runtime.js: $(ECE)
+	cp $(ECE_DIR)/share/ece/glue.js $@
+
+web/runtime.wasm: $(ECE)
+	cp $(ECE_DIR)/share/ece/runtime.wasm $@
+
+web/bootstrap.ecec: $(ECE)
+	cp $(ECE_DIR)/share/ece/bootstrap.ecec $@
+
+web/ece-bootstrap.js:
+	printf '%s\n' '// dev placeholder: ece-serve loads bootstrap.ecec directly' > $@
+
+web/app.js:
+	printf '%s\n' '// dev placeholder: ece-serve loads /__ece_dev/artifacts/app.ecec' > $@
+
+$(ECE) $(ECE_BUILD) $(ECE_SERVE):
 	@test -f $(ECE_DIR)/Makefile || { \
 	  echo >&2 "ERROR: vendor/ece submodule is not initialized."; \
 	  echo >&2 "Run: git submodule update --init"; \
 	  exit 1; }
-	cd $(ECE_DIR) && qlot install
 	$(MAKE) -C $(ECE_DIR)
 
 ece-clean:
