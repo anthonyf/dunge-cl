@@ -17,7 +17,7 @@ Dunge currently has no declared relationship to ECE at all. The Makefile, tests,
 - **Delete `setup-vps.sh`** — it's unreferenced, its `qlot install` step in the Dunge repo is a no-op, and a new VPS can just clone Dunge and run `make test`.
 - **Rewrite `README.org`** to match the pure-ECE, submodule-based reality (dependencies, quick start, `make ece` target, `--recurse-submodules` clone note).
 - **Remove the dead CL indent rule from `.dir-locals.el`** (the `make-room` DSL form no longer exists).
-- **Document the ECE-bump workflow in `CLAUDE.md`** so future sessions know how to update the ECE pin intentionally.
+- **Document the ECE-bump workflow in development notes** so future sessions know how to update the ECE pin intentionally.
 
 ## Capabilities
 
@@ -36,5 +36,5 @@ Dunge currently has no declared relationship to ECE at all. The Makefile, tests,
 - **Reproducibility:** Any historical Dunge commit can be rebuilt with its exact ECE version via `git checkout <sha> && git submodule update && make test`.
 - **CI:** Most runs skip ECE rebuild via cache. ECE version bumps in Dunge trigger a single rebuild+cache-population run, then subsequent PRs are fast again.
 - **Deleted files:** `setup-vps.sh`, the dead indent rule from `.dir-locals.el`.
-- **Rewritten files:** `README.org`, `Makefile`, `scripts/build-web.sh`, `.github/workflows/ci.yml`, `.github/workflows/deploy.yml`, `CLAUDE.md` (ECE-bump section added).
+- **Rewritten files:** `README.org`, `Makefile`, `scripts/build-web.sh`, `.github/workflows/ci.yml`, `.github/workflows/deploy.yml`, development notes (ECE-bump section added).
 - **New files:** `.gitmodules`, `vendor/ece/` (submodule).

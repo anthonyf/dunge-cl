@@ -45,4 +45,4 @@
 
 ## 7. Update Documentation
 
-- [x] 7.1 Update `CLAUDE.md` — remove CL-specific rules, formatting section, JSCL gotchas; update architecture, quick reference, conventions for pure ECE. Added ECE web build gotchas section covering the `js-set!` bug, FFI js-ref unwrapping, `init-player!` placement, `read-line` override, parameterize+call/cc pitfall, and `ece-unit.scm` path.
+- [x] 7.1 Update the development notes — remove CL-specific rules, formatting section, JSCL gotchas; update architecture, quick reference, conventions for pure ECE. Added ECE web build gotchas section covering the `js-set!` bug, FFI js-ref unwrapping, `init-player!` placement, `read-line` override, parameterize+call/cc pitfall, and `ece-unit.scm` path.

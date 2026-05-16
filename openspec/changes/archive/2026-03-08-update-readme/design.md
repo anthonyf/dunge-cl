@@ -11,7 +11,7 @@ Documentation-only change. No architectural decisions needed.
 
 **Non-Goals:**
 - Restructuring the README format
-- Rewriting DESIGN.md or CLAUDE.md
+- Rewriting DESIGN.md or development-agent guidance
 - Adding new documentation files
 
 ## Decisions

@@ -1,6 +1,6 @@
 ## Why
 
-The pure-ECE migration (PR #33) and the vendor-submodule migration (PR #40) deleted whole swaths of the old Common Lisp / JSCL / ASDF toolchain, but several live OpenSpec capability docs and large sections of `DESIGN.md` still describe the pre-migration world as if it were current. Readers (and future Claude sessions) treating those docs as ground truth will chase nonexistent files like `qlfile`, `dunge.asd`, `web-export.lisp`, and code constructs like `define-room` / `*rooms*` / `goto` that no longer exist in the codebase. We want the docs to match reality before they mislead someone.
+The pure-ECE migration (PR #33) and the vendor-submodule migration (PR #40) deleted whole swaths of the old Common Lisp / JSCL / ASDF toolchain, but several live OpenSpec capability docs and large sections of `DESIGN.md` still describe the pre-migration world as if it were current. Readers (and future coding-agent sessions) treating those docs as ground truth will chase nonexistent files like `qlfile`, `dunge.asd`, `web-export.lisp`, and code constructs like `define-room` / `*rooms*` / `goto` that no longer exist in the codebase. We want the docs to match reality before they mislead someone.
 
 ## What Changes
 
