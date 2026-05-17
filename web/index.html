@@ -162,43 +162,36 @@ body {
 
   async function loadBootstrap() {
     if (typeof ECE_BOOTSTRAP_BUNDLE !== 'undefined') {
-      ECE.loadArchiveBundle(atob(ECE_BOOTSTRAP_BUNDLE));
+      ECE.loadArchiveBundleBase64(ECE_BOOTSTRAP_BUNDLE);
     } else {
-      var bootstrap = await fetch('bootstrap.ecec', { cache: 'no-store' });
-      ECE.loadArchiveBundle(await bootstrap.text());
+      await ECE.fetchAndLoadArchiveBundle('bootstrap.ecec', { cache: 'no-store' });
     }
     ECE.wasm.mark_handles();
   }
 
   async function loadStandaloneApp() {
     if (typeof ECE_APP_BUNDLE === 'undefined') return false;
-    ECE.loadArchiveBundle(atob(ECE_APP_BUNDLE));
+    ECE.loadArchiveBundleBase64(ECE_APP_BUNDLE);
     return true;
   }
 
-  async function reloadProgram(archiveUrl, zoneModuleUrl, manifestUrl) {
-    await ECE.reloadProgramFromUrls(archiveUrl, zoneModuleUrl || null, manifestUrl || null);
+  async function reloadProgram(archiveUrl) {
+    // ECE.reloadProgramFromUrls still hangs Chrome for this app, even when
+    // called with only the archive URL. Keep the live path on the same
+    // JS-side archive loader used by standalone startup until ECE exposes
+    // a public reset-and-load helper for this narrower reload mode.
+    ECE.wasm.reset_handles();
+    ECE._refreshSingletonHandles();
+    ECE._symCache = {};
+    await ECE.fetchAndLoadArchiveBundle(archiveUrl, { cache: 'no-store' });
   }
 
   async function loadDevApp() {
     var archiveUrl = '/__ece_dev/artifacts/app.ecec';
-    var zoneModuleUrl = '/__ece_dev/artifacts/app-zones.wasm';
-    var manifestUrl = '/__ece_dev/artifacts/app-zones.manifest';
     var response = await fetch(archiveUrl, { cache: 'no-store' });
     if (!response.ok) return false;
 
-    var nativeResponses = await Promise.allSettled([
-      fetch(zoneModuleUrl, { cache: 'no-store' }),
-      fetch(manifestUrl, { cache: 'no-store' })
-    ]);
-    if (nativeResponses[0].status === 'fulfilled' &&
-        nativeResponses[0].value.ok &&
-        nativeResponses[1].status === 'fulfilled' &&
-        nativeResponses[1].value.ok) {
-      await reloadProgram(archiveUrl, zoneModuleUrl, manifestUrl);
-    } else {
-      await reloadProgram(archiveUrl);
-    }
+    await reloadProgram(archiveUrl);
     return true;
   }
 
@@ -342,7 +335,7 @@ body {
   async function handleDevMessage(raw, socket) {
     var msg = JSON.parse(String(raw || '{}'));
     if (msg.type === 'program-reload') {
-      await reloadProgram(msg.archiveUrl, msg.zoneModuleUrl, msg.manifestUrl);
+      await reloadProgram(msg.archiveUrl);
       step(null);
       return;
     }
@@ -393,7 +386,15 @@ body {
 
   connectDevServer();
   step(null);
-})();
+})().catch(function(err) {
+  var outputEl = document.getElementById('game-output');
+  var controlsEl = document.getElementById('game-controls');
+  outputEl.innerHTML = '';
+  controlsEl.innerHTML = '';
+  var pre = document.createElement('pre');
+  pre.textContent = 'Error: ' + String(err && err.message || err);
+  outputEl.appendChild(pre);
+});
 </script>
 </body>
 </html>
