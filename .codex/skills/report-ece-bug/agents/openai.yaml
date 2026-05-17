@@ -1,0 +1,4 @@
+interface:
+  display_name: "Report ECE Bug"
+  short_description: "File detailed ECE GitHub bug reports"
+  default_prompt: "Use $report-ece-bug to file a detailed ECE GitHub issue for the bug we just encountered."
