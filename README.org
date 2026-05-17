@@ -92,6 +92,8 @@ This project is licensed under the [[https://www.gnu.org/licenses/gpl-3.0.html][
 
 ** Documentation
 
-- [[file:CLAUDE.md][CLAUDE.md]] — architecture, conventions, quick reference
+- [[file:docs/DEVELOPMENT.md][docs/DEVELOPMENT.md]] — development workflow, architecture, and ECE gotchas
 - [[file:DESIGN.md][DESIGN.md]] — full game design document (Cairn rules, oracle system, dungeon generation)
+- [[file:STORY.md][STORY.md]] — story, setting, progression, and endings
 - [[file:TODOs.org][TODOs.org]] — Remaining work
+- [[file:AGENTS.md][AGENTS.md]] — short guidance for coding agents

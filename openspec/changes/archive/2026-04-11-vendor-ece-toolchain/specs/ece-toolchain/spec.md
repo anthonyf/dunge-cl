@@ -92,10 +92,10 @@ The following files SHALL be deleted or updated to reflect the post-migration, s
 - **WHEN** a user reads `README.org` after the change
 - **THEN** the Dependencies section SHALL list ECE (via submodule) and its build-time requirements (SBCL, qlot, binaryen) rather than describing ECE as "implemented in Common Lisp" or listing JSCL as a vendored dependency; the Quick Start section SHALL show `git clone --recurse-submodules` and document `make ece`; the Makefile target list SHALL NOT include `make fmt` or `make setup`
 
-### Requirement: CLAUDE.md documents the ECE-bump workflow
+### Requirement: Development notes document the ECE-bump workflow
 
-`CLAUDE.md` SHALL document how to bump the vendored ECE version so future Claude sessions update the pin intentionally rather than editing a separate ECE checkout. The documentation SHALL include: (a) the exact sequence of commands to checkout a new ECE commit in `vendor/ece/`, rebuild via `make ece`, run tests, and commit the pointer bump; (b) a rule forbidding global `ece` installation as a substitute for updating the submodule.
+Development notes SHALL document how to bump the vendored ECE version so future coding-agent sessions update the pin intentionally rather than editing a separate ECE checkout. The documentation SHALL include: (a) the exact sequence of commands to checkout a new ECE commit in `vendor/ece/`, rebuild via `make ece`, run tests, and commit the pointer bump; (b) a rule forbidding global `ece` installation as a substitute for updating the submodule.
 
 #### Scenario: ECE-bump section exists
-- **WHEN** a reader searches `CLAUDE.md` for "bump" or "ECE version"
+- **WHEN** a reader searches the development notes for "bump" or "ECE version"
 - **THEN** there SHALL be a subsection describing the `cd vendor/ece → git fetch → git checkout <sha> → cd ../.. → make ece → make test → git add vendor/ece → git commit` flow

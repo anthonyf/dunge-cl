@@ -92,10 +92,10 @@ The following files SHALL be deleted or updated to reflect the post-migration, s
 - **WHEN** a user reads `README.org` after the change
 - **THEN** the Dependencies section SHALL list ECE (via submodule) and its build-time requirements (SBCL, qlot, binaryen) rather than describing ECE as "implemented in Common Lisp" or listing JSCL as a vendored dependency; the Quick Start section SHALL show `git clone --recurse-submodules` and document `make ece`; the Makefile target list SHALL NOT include `make fmt` or `make setup`
 
-### Requirement: CLAUDE.md documents the ECE-bump workflow
+### Requirement: Development docs document the ECE-bump workflow
 
-`CLAUDE.md` SHALL document how to bump the vendored ECE version so future Claude sessions update the pin intentionally rather than editing a separate ECE checkout. The documentation SHALL include: (a) the exact sequence of commands to checkout a new ECE commit in `vendor/ece/`, rebuild via `make ece`, run tests, and commit the pointer bump; (b) a rule forbidding global `ece` installation as a substitute for updating the submodule.
+The project documentation SHALL document how to bump the vendored ECE version so contributors and coding agents update the pin intentionally rather than editing a separate ECE checkout. The documentation SHALL include: (a) the exact sequence of commands to checkout a new ECE commit in `vendor/ece/`, rebuild via `make ece`, run tests, run the web build, and commit the pointer bump; (b) a rule forbidding global `ece` installation as a substitute for updating the submodule.
 
 #### Scenario: ECE-bump section exists
-- **WHEN** a reader searches `CLAUDE.md` for "bump" or "ECE version"
-- **THEN** there SHALL be a subsection describing the `cd vendor/ece → git fetch → git checkout <sha> → cd ../.. → make ece → make test → git add vendor/ece → git commit` flow
+- **WHEN** a reader searches `README.org` or `docs/DEVELOPMENT.md` for "bump" or "ECE version"
+- **THEN** there SHALL be a subsection describing the `cd vendor/ece -> git fetch -> git checkout <sha> -> cd ../.. -> make ece -> make test -> make build -> git add vendor/ece -> git commit` flow

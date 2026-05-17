@@ -120,7 +120,7 @@ Specifically:
 - `README.org` — rewrite dependency list, quick start, and remove references to `make fmt`, `make setup`, JSCL, qlot, `vendor/jscl/`, "ECE interpreter implemented in Common Lisp"
 - `.dir-locals.el` — the `make-room` indent rule is dead code; the file itself becomes empty and can be deleted
 - `setup-vps.sh` — delete entirely; a new VPS can just `apt install sbcl`, clone Dunge, and `make test`
-- `CLAUDE.md` — add a short section on bumping the ECE pin so future Claude sessions don't try to update it by editing `~/git/ece/`
+- Development notes — add a short section on bumping the ECE pin so future coding-agent sessions don't try to update it by editing `~/git/ece/`
 
 ## Risks / Trade-offs
 
@@ -135,7 +135,7 @@ Specifically:
 
 **[Cache-key collisions or stale hits]** — Cache is keyed on ECE submodule SHA and OS. If ECE's Makefile output ever depends on something outside those inputs (host libc version, etc.), a cache hit could ship a subtly broken binary. Mitigated by: (a) cache key also includes `runner.os`, (b) worst case is manual cache bust via key change in the workflow. Not blocking.
 
-**[Bumping ECE is now a two-step ritual]** — `cd vendor/ece && git checkout <sha> && cd ../.. && make ece && git add vendor/ece && git commit`. Previously the user could `make install` in `~/git/ece/` and have it take effect silently. The new flow is strictly more work, but it produces a reviewable commit and is the whole point of the change. Documented in CLAUDE.md.
+**[Bumping ECE is now a two-step ritual]** — `cd vendor/ece && git checkout <sha> && cd ../.. && make ece && git add vendor/ece && git commit`. Previously the user could `make install` in `~/git/ece/` and have it take effect silently. The new flow is strictly more work, but it produces a reviewable commit and is the whole point of the change. Documented in the development notes.
 
 **[`vendor/ece/` vs `~/git/ece/` duplication]** — The user keeps two ECE checkouts on their machine. Minor disk cost. They could collapse by using `vendor/ece/` as their iteration workspace and deleting `~/git/ece/`, but there's no pressure to — the two-workspace model is fine.
 

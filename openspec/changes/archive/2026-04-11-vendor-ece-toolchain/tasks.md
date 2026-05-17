@@ -63,11 +63,11 @@
 - [x] 8.6 Remove the "Remove ASDF cache, .fasl files" language from `make clean`
 - [x] 8.7 Add a short note on the submodule model and how to bump ECE
 
-## 9. Update CLAUDE.md
+## 9. Update Development Notes
 
 - [x] 9.1 Add an "ECE toolchain" subsection under Architecture describing: submodule at `vendor/ece/`, Makefile builds in-tree, `make ece` target, single source of truth
 - [x] 9.2 Add a "Bumping ECE" subsection under Rules or Conventions: `cd vendor/ece && git fetch && git checkout <sha> && cd ../.. && make ece && make test && git add vendor/ece && git commit`
-- [x] 9.3 Remove any stale references to "install ECE globally" or "`ece` on `$PATH`" in existing CLAUDE.md sections
+- [x] 9.3 Remove any stale references to "install ECE globally" or "`ece` on `$PATH`" in existing development-note sections
 - [x] 9.4 Add a rule: "Do not `apt install` or otherwise install ECE globally when working on Dunge — it must build from the submodule"
 
 ## 10. Full verification
