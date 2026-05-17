@@ -175,10 +175,11 @@ body {
     return true;
   }
 
-  async function reloadProgram(archiveUrl, zoneModuleUrl, manifestUrl) {
-    // Latest ece-serve can emit native zones and reload through Scheme,
-    // but that path currently deadlocks Chrome for this app. The JS-side
-    // archive loader matches standalone startup while keeping live reloads.
+  async function reloadProgram(archiveUrl) {
+    // ECE.reloadProgramFromUrls still hangs Chrome for this app, even when
+    // called with only the archive URL. Keep the live path on the same
+    // JS-side archive loader used by standalone startup until ECE exposes
+    // a public reset-and-load helper for this narrower reload mode.
     ECE.wasm.reset_handles();
     ECE._refreshSingletonHandles();
     ECE._symCache = {};
@@ -334,7 +335,7 @@ body {
   async function handleDevMessage(raw, socket) {
     var msg = JSON.parse(String(raw || '{}'));
     if (msg.type === 'program-reload') {
-      await reloadProgram(msg.archiveUrl, msg.zoneModuleUrl, msg.manifestUrl);
+      await reloadProgram(msg.archiveUrl);
       step(null);
       return;
     }
