@@ -16,7 +16,7 @@ project documentation in the README or `docs/`; keep this file short.
 Use the Makefile so Dunge uses the vendored ECE toolchain in `vendor/ece/`.
 
 ```bash
-make ece       # build the vendored ECE toolchain
+make ece       # build the vendored ECE toolchain and web dev assets
 make run       # terminal game
 make test      # ECE unit/integration tests
 make build     # standalone web build in dist/

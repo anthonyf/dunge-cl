@@ -3,6 +3,9 @@
 ;;; Run from this directory with:
 ;;;   ../vendor/ece/bin/ece-serve main.scm --port 8080
 ;;;
+;;; Or open this file in Emacs and run:
+;;;   M-x geiser-ece-dev-jack-in
+;;;
 ;;; The Makefile wraps that as:
 ;;;   make serve
 

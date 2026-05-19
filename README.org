@@ -22,7 +22,7 @@ Game content is written in [[https://github.com/anthonyf/ece][ECE]], a Scheme di
 git clone --recurse-submodules https://github.com/anthonyf/dunge-cl.git
 cd dunge-cl
 
-# First time: build the vendored ECE toolchain (slow, a few minutes)
+# First time: build the vendored ECE toolchain and browser dev assets
 make ece
 
 # Everyday commands
@@ -35,7 +35,7 @@ make clean     # Remove dist/
 
 If you forgot ~--recurse-submodules~, run ~git submodule update --init~ to populate ~vendor/ece/~.
 
-~make run~, ~make test~, ~make build~, and ~make serve~ all depend on the in-tree ECE binary and will trigger ~make ece~ automatically on first use.
+~make run~, ~make test~, ~make build~, and ~make serve~ all depend on the in-tree ECE binary and will trigger the ECE build automatically on first use. ~make ece~ also refreshes the ignored runtime files under ~web/~ so Emacs jack-in sessions can start the browser app directly.
 
 ** Browser App Development
 
@@ -48,15 +48,29 @@ vendor/ece/bin/ece init web my-app
 Dunge already has that app-local browser surface under ~web/~:
 - ~web/main.scm~ is the ~ece-serve~ entrypoint. It loads the game files and ~browser-boot.scm~.
 - ~web/index.html~ is the custom Dunge host page and works both in standalone ~dist/~ builds and in live ~ece-serve~ sessions.
-- ~make web-dev-assets~ copies the ignored ECE runtime assets needed by ~ece-serve~ into ~web/~.
+- ~make ece~ and ~make web-dev-assets~ copy the ignored ECE runtime assets needed by ~ece-serve~ into ~web/~.
+- ~web/.dir-locals.el~ points Geiser at the vendored ~../vendor/ece/bin/ece-repl~ so jack-in does not accidentally use an older globally installed ~ece-serve~.
 
-Start live development with:
+The Emacs jack-in flow uses ~web/main.scm~ as the current buffer because ~geiser-ece-dev-jack-in~ treats the current ~.scm~ file as the app entrypoint and ~ece-serve~ serves ~index.html~ from that file's directory.
+
+#+begin_src text
+M-x load-file RET vendor/ece/emacs/geiser-ece.el RET
+C-x C-f web/main.scm
+M-x geiser-ece-dev-mode
+M-x geiser-ece-dev-jack-in
+#+end_src
+
+That starts ~ece-serve~, opens ~http://127.0.0.1:8080/~, and opens an ~ece-dev>~ REPL connected to the browser runtime. After jack-in, edit files under ~game/~ or ~browser-boot.scm~ and use the ~geiser-ece-dev-*~ eval/reload commands; saving a watched file also triggers an app rebuild and browser reload.
+
+If Emacs already had ~web/main.scm~ open before ~web/.dir-locals.el~ existed, run ~M-x normal-mode~ in that buffer (or reopen the file) and accept the directory-local variables before jack-in. A page showing only ~Not Found: /~ usually means Emacs started an older/global ~ece-serve~ instead of the vendored one.
+
+You can still start the same dev server from the terminal with:
 
 #+begin_src bash
 make serve PORT=8080
 #+end_src
 
-Then open ~http://127.0.0.1:8080/~. From Emacs, load ECE's Geiser integration from ~vendor/ece/emacs/geiser-ece.el~, enable ~geiser-ece-dev-mode~, and connect/start with the ~geiser-ece-dev-*~ commands. ~ece-serve~ writes the local session metadata and dev token so Emacs can attach without pasting a token manually.
+Then open ~http://127.0.0.1:8080/~ or attach from Emacs with ~geiser-ece-dev-connect-repl~. ~ece-serve~ writes local session metadata and a dev token so Emacs can attach without pasting a token manually.
 
 ** Dependencies
 
