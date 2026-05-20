@@ -26,7 +26,7 @@
     (setf (game-start game) (and (game-rooms game)
 				 (name (first (game-rooms game)))))))
 
-(defun rooms (&rest rooms)
+(defun game (&rest rooms)
   (let ((game (make-instance 'game :rooms rooms)))
     (clrhash *rooms*)
     (maphash (lambda (name room)
@@ -161,12 +161,12 @@
 
 
 #+nil
-(evaluate (rooms (room "entrance"
-		       (p "You stand at the entrance of a dark dungeon.")
-		       (choice ("Look in the chest" (gosub "chest"))
-			       ("Enter the dungeon" (goto "hallway"))
-			       ("Leave" (quit))))
-		 (room "chest"
-		       (p "Inside the chest is a brass key."))
-		 (room "hallway"
-		       (p "You are on a long dark hallway."))))
+(evaluate (game (room "entrance"
+		      (p "You stand at the entrance of a dark dungeon.")
+		      (choice ("Look in the chest" (gosub "chest"))
+			("Enter the dungeon" (goto "hallway"))
+			("Leave" (quit))))
+		(room "chest"
+		      (p "Inside the chest is a brass key."))
+		(room "hallway"
+		      (p "You are on a long dark hallway."))))
