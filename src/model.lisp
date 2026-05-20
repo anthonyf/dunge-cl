@@ -50,6 +50,18 @@
 (defun gosub (room-name)
   (make-instance 'gosub :room-name room-name))
 
+(defclass enter ()
+  ((target :reader enter-target :initarg :target :initform nil)))
+
+(defun enter (target)
+  (make-instance 'enter :target target))
+
+(defclass back ()
+  ())
+
+(defun back ()
+  (make-instance 'back))
+
 (defclass choice ()
   ((label :accessor label :initarg :label :initform nil)
    (target :accessor target :initarg :target :initform nil)))
@@ -57,15 +69,61 @@
 (defclass choices ()
   ((options :accessor options :initarg :options :initform nil)))
 
+(defun option (label target)
+  (make-instance 'choice :label label :target target))
+
 (defmacro choice (&body options)
   `(make-instance 'choices
 		  :options (list
 			    ,@(mapcar (lambda (option)
 					(destructuring-bind (label target) option
-					  `(make-instance 'choice
-							  :label ,label
-							  :target ,target)))
+					  `(option ,label ,target)))
 				      options))))
+
+(defclass placement ()
+  ((thing :reader placed-thing :initarg :thing :initform nil)
+   (description :reader placement-description :initarg :description :initform nil)
+   (interaction-label :reader interaction-label
+		      :initarg :interaction-label
+		      :initform nil)
+   (interaction-target :reader interaction-target
+		       :initarg :interaction-target
+		       :initform nil)))
+
+(defun placed (thing &key description interaction-label interaction-target)
+  (make-instance 'placement
+		 :thing thing
+		 :description description
+		 :interaction-label interaction-label
+		 :interaction-target interaction-target))
+
+(defclass item ()
+  ((name :reader name :initarg :name :initform nil)
+   (description :reader description :initarg :description :initform nil)))
+
+(defun item (name &key description)
+  (make-instance 'item :name name :description description))
+
+(defclass container ()
+  ((name :reader name :initarg :name :initform nil)
+   (description :reader description :initarg :description :initform nil)
+   (open-choice :reader open-choice :initarg :open-choice :initform nil)
+   (close-choice :reader close-choice :initarg :close-choice :initform nil)
+   (contents :accessor contents :initarg :contents :initform nil)))
+
+(defmacro container (name &key description open-choice contents close-choice)
+  `(make-instance 'container
+		  :name ,name
+		  :description ,description
+		  :open-choice ,open-choice
+		  :contents (list ,@contents)
+		  :close-choice ,close-choice))
+
+(defclass container-view ()
+  ((container :reader viewed-container :initarg :container :initform nil)))
+
+(defun container-view (container)
+  (make-instance 'container-view :container container))
 
 (defclass p ()
   ((text :reader text :initarg :text :initform nil))

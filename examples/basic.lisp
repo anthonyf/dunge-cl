@@ -4,11 +4,14 @@
   (evaluate
    (game (room "entrance"
 	       (p "You stand at the entrance of a dark dungeon.")
+	       (container "chest"
+		 :description "You see a chest in the corner of the room."
+		 :open-choice "Open the chest"
+		 :contents ((item "A brass key")
+			    (item "A sword"))
+		 :close-choice "Close the chest")
 	       (choice
-		 ("Look in the chest" (gosub "chest"))
 		 ("Enter the dungeon" (goto "hallway"))
 		 ("Leave" (quit))))
-	 (room "chest"
-	       (p "Inside the chest is a brass key."))
 	 (room "hallway"
 	       (p "You are on a long dark hallway.")))))
