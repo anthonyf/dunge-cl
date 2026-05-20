@@ -1,3 +1,5 @@
 
 (uiop:define-package #:dunge
-  (:use #:cl))
+  (:use #:cl)
+  (:mix #:trivia)
+  (:shadow #:room))
