@@ -11,6 +11,7 @@
 
 (defclass game ()
   ((rooms :reader game-rooms :initarg :rooms :initform nil)
+   (player :accessor game-player :initarg :player :initform nil)
    (room-index :reader room-index :initform (make-hash-table :test 'equal))
    (start :accessor game-start :initarg :start :initform nil)))
 
