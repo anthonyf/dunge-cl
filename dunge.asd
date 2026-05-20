@@ -7,5 +7,5 @@
   :description "A dungeon generation system"
   :components ((:module "src"
 		:components ((:file "package")
-			     (:file "main")))))
-
+			     (:file "model")
+			     (:file "runtime")))))
