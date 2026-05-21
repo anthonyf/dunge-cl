@@ -72,7 +72,7 @@ Examples:
 
 #### Multiple Enemies & Detachments
 
-Cairn treats large groups of similar creatures as **detachments** — a single unit with shared HP and stats. Our engine uses this approach for all multi-enemy encounters: rather than tracking individual combatants, a group is represented as one enemy with boosted stats.
+Cairn treats large groups of similar creatures as **detachments** — a single unit with shared HP and stats. Dunge uses this approach for multi-enemy encounters: rather than tracking individual combatants, a group can be represented as one enemy profile with boosted stats.
 
 | Group Size | HP Modifier | Attack Modifier | Notes |
 |------------|-------------|-----------------|-------|
@@ -81,32 +81,21 @@ Cairn treats large groups of similar creatures as **detachments** — a single u
 | 4-6 (pack) | Double HP | Enhanced (d12) | e.g. "Pack of Wolves": 12 HP, d12 attack |
 | 7+ (detachment) | Triple HP | Enhanced (d12), blast | Player attacks impaired (d4) unless blast |
 
-**How it works in-engine:**
-- A group encounter is still a single `combat-encounter` with one enemy-spec
+**Design model:**
+- A group encounter can be represented as a single encounter with one enemy profile
 - The enemy name reflects the group: "2 Goblins", "Wolf Pack", "Skeleton Horde"
 - HP and attack die are pre-calculated from the base creature stats using the table above
 - When the group takes critical damage, it's "routed or broken" — narratively some flee, the rest fall
 - Blast spells (e.g. Elemental Wall) bypass the impaired penalty against detachments
 
-**Example bestiary entries:**
+**Example bestiary profiles:**
 
-Bestiary entries are created via `(make-bestiary-entry name hp armor attack-die str dex wil)` in `game/bestiary.scm`. Group enemies are authored as a single entry with pre-scaled HP and attack die:
-
-```scheme
-;; Solo goblin
-(make-bestiary-entry "Goblin" 4 0 6 8 12 8)
-
-;; Small group: 2 goblins (HP 4→6, attack 2d6 keep highest ≈ d8)
-(make-bestiary-entry "2 Goblins" 6 0 8 8 12 8)
-
-;; Pack: 5 wolves (HP 6→12, enhanced d12 attack)
-(make-bestiary-entry "Wolf Pack" 12 0 12 12 14 8)
-
-;; Detachment: skeleton horde (HP 5→15, enhanced d12, player impaired)
-(make-bestiary-entry "Skeleton Horde" 15 1 12 8 13 0)
-```
-
-`make-enemy-from-bestiary` looks up the entry by name at encounter setup time and produces the `enemy` record that combat resolution operates on.
+| Profile | HP | Armor | Attack | STR | DEX | WIL | Notes |
+|---------|----|-------|--------|-----|-----|-----|-------|
+| Goblin | 4 | 0 | d6 | 8 | 12 | 8 | Solo baseline |
+| 2 Goblins | 6 | 0 | d8 | 8 | 12 | 8 | Small group, pre-scaled |
+| Wolf Pack | 12 | 0 | d12 | 12 | 14 | 8 | Pack, enhanced attack |
+| Skeleton Horde | 15 | 1 | d12 | 8 | 13 | 0 | Detachment, player attacks impaired |
 
 ### Armor
 
@@ -733,7 +722,7 @@ Roll or choose evocative features:
 
 ## Character Sheet
 
-> **Target design, not current engine.** This section describes the full Cairn-style character sheet — split `STR/DEX/WIL` current/max values, a 10-slot inventory grid, Fatigue boxes, and the Deprived flag. The current `character` record in `game/engine.scm` is a subset of this: single STR/DEX/WIL fields, an unbounded inventory list, no fatigue/deprived tracking. See §Data Structures > Character for the implemented shape, and treat the Fatigue / Deprived / slot-count material below (and the matching mechanics under §Inventory & Slots and §Magic System) as the Phase-3/7 target rather than something you can grep for in `game/*.scm` today.
+This is the target Cairn-style character sheet for play. It includes current/max stat tracking, a 10-slot inventory grid, Fatigue boxes, and the Deprived flag. The implementation can grow toward this shape incrementally, but this is the player-facing model the rest of the design assumes.
 
 ### Core Stats
 
@@ -779,15 +768,13 @@ Conditions: _______________
 
 ## Core Game Loop
 
-The current engine has no explicit "loop driver" — rooms are plain Scheme procedures that call each other directly in tail position. There is no scene registry, no automatic perception pass on entry, no dungeon-turn counter, and no choice-condition DSL. A full session is the composition of: `main.scm` loading files → `init-player!` → `(start)` → a chain of room procedures, each of which does I/O and tail-calls the next room.
+The target loop is a scene-based choice cycle. Each scene presents prose, reveals any context-sensitive options, accepts one player choice, resolves consequences, advances time when appropriate, and then moves to the next scene or sub-loop.
 
 ```
 ┌─────────────────────────────────────────────────────────┐
 │                     GAME START                          │
-│  game/main.scm loads engine/dice/items/combat/bestiary/ │
-│  content, then calls (init-player!) and (start).        │
-│  (In the web build / tests, browser-boot.scm performs   │
-│  the init-player! step instead of game/main.scm.)       │
+│  Initialize player state, load content tables, choose   │
+│  a starting scene, and begin the main play loop.        │
 └─────────────────────┬───────────────────────────────────┘
                       │
                       ▼
@@ -799,51 +786,44 @@ The current engine has no explicit "loop driver" — rooms are plain Scheme proc
                       │
                       ▼
 ┌─────────────────────────────────────────────────────────┐
-│                  ROOM PROCEDURE                         │
-│  Each room is a plain (define (room-name) ...).         │
-│  Body typically:                                        │
-│    1. (text ...) / (p ...) to print title + prose       │
-│    2. (choose (label body) ...) to present a menu       │
-│    3. Menu branch runs arbitrary Scheme and tail-calls  │
-│       the next room procedure                           │
+│                SCENE RESOLUTION                         │
+│  Each scene contributes:                                │
+│    1. Title and prose                                   │
+│    2. Visible exits, actions, item uses, and checks     │
+│    3. Consequences for the chosen option                │
 └─────────────────────┬───────────────────────────────────┘
                       │
                       ▼
 ┌─────────────────────────────────────────────────────────┐
 │                 ACTION DISPATCH                         │
-│  A (choose) branch can run any Scheme expression:       │
-│    • Direct tail call to another room: (library)        │
-│    • Enter combat: (run-combat "Goblin" intro-fn)       │
-│    • Mutate player: (set-character-gold! *player* g)    │
-│    • Consume item: (consume-item it inventory)          │
-│    • Conditional branch: (if ... (room-a) (room-b))     │
-│  Guard closures on (make-choice ... guard) hide actions │
-│  that don't apply (e.g. "Use Herb" while at full HP).   │
+│  A choice can:                                          │
+│    • Move to another scene                              │
+│    • Enter combat or another sub-loop                   │
+│    • Mutate player, inventory, or world state           │
+│    • Consume an item or spend a resource                │
+│    • Branch on a hidden check or known flag             │
+│  Inapplicable actions stay hidden.                      │
 └─────────────────────┬───────────────────────────────────┘
                       │
                       ▼
 ┌─────────────────────────────────────────────────────────┐
-│              NEXT ROOM (TAIL CALL)                      │
-│  The game loop is implicit: every room's action ends    │
-│  with a direct call to another room procedure in tail   │
-│  position. ECE's TCO keeps the stack bounded, so the    │
-│  session runs indefinitely without a separate driver.   │
-│  There is no *current-room* variable and no scene IDs.  │
+│                   NEXT SCENE                            │
+│  The chosen action returns the next scene or terminal   │
+│  result. The implementation should keep long sessions   │
+│  bounded and avoid growing control stack over time.     │
 └─────────────────────────────────────────────────────────┘
 ```
 
-> **Not yet implemented (Phase 3/7):** dungeon-turn advance, wandering-monster checks on scene entry, passed-check / flag tracking, roll-log persistence, and roll-visibility settings. These are tracked in [TODOs.org](TODOs.org) and described in the "Future: Game State" subsection below.
+Future loop features include dungeon-turn advance, wandering-monster checks on scene entry, passed-check / flag tracking, roll-log persistence, and roll-visibility settings. These are tracked in [TODOs.org](TODOs.org) and described in the "Future: Game State" subsection below.
 
 ### Combat Loop (Sub-Loop)
 
-`run-combat` in `game/combat.scm` drives a full encounter to completion. An encounter has exactly one enemy (group enemies are modeled as a single enemy with pre-scaled HP and attack die). The player always chooses their action from a menu built by `combat-choices`; the enemy retaliates automatically each time the player acts (no AI branching).
+Combat is a sub-loop that runs one encounter to a terminal result. An encounter may contain a single foe or a group modeled as one pre-scaled enemy profile. The player chooses an action each round; enemies retaliate or react according to the encounter rules.
 
 ```
 ┌─────────────────────────────────────────────────────────┐
 │                  COMBAT START                           │
-│  setup-encounter creates an encounter record:           │
-│    (enemy, first-round=#t, log=#f, state='active)       │
-│  intro-fn prints the flavor narration (if supplied).    │
+│  Create encounter state and present opening narration.  │
 │  First round: PC makes a DEX save.                      │
 │    Pass → "You react quickly!"; normal round order.     │
 │    Fail → "Caught off guard!" enemy attacks unopposed,  │
@@ -854,18 +834,15 @@ The current engine has no explicit "loop driver" — rooms are plain Scheme proc
 ┌─────────────────────────────────────────────────────────┐
 │                  COMBAT ROUND                           │
 │  1. Drain encounter-log (if any) to the display.        │
-│  2. If state != 'active, exit to TERMINAL STATE.        │
+│  2. If the state is no longer active, exit.             │
 │  3. Display enemy HP/STR and player HP/STR.             │
-│  4. Build and display combat-choices from *player*      │
-│     inventory (filtered by each choice's guard):        │
+│  4. Build and display combat choices from inventory:    │
 │       • Each weapon → "Attack with <name> (dN)"         │
 │       • Healing Herb → "Use Healing Herb" (if HP < max) │
 │       • Unarmed d4 (only if no weapon is carried)       │
 │       • Flee (always available)                         │
-│  5. Player picks an action and the action thunk runs:   │
-│     it resolves the player's effect and the enemy's     │
-│     retaliation (if applicable), then calls             │
-│     update-encounter-state to set the next state.       │
+│  5. Resolve the player's effect, enemy retaliation,     │
+│     and the resulting encounter state.                  │
 └─────────────────────┬───────────────────────────────────┘
                       │
                       ▼
@@ -885,12 +862,9 @@ The current engine has no explicit "loop driver" — rooms are plain Scheme proc
                       ▼
 ┌─────────────────────────────────────────────────────────┐
 │                 TERMINAL STATE                          │
-│  cleanup-combat resets HP/STR on death or incapacitated │
-│  (so the game can continue for development/testing),    │
-│  clears *current-encounter*, and returns the final      │
-│  state symbol to run-combat's caller. There is no       │
-│  morale check and no per-enemy AI — behavior is         │
-│  deterministic from the state priority above.           │
+│  Return victory, death, incapacitated, or fled to the   │
+│  caller. Later versions can add morale, surrender,      │
+│  pursuit, and more varied enemy behavior here.          │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -900,132 +874,36 @@ The current engine has no explicit "loop driver" — rooms are plain Scheme proc
 
 ### Rooms (Scenes/Vignettes)
 
-There is no dedicated "vignette" or "scene" data type. Rooms are plain Scheme procedures defined with `define` in `game/content.scm`; entering a room means calling its procedure. A room procedure typically calls `(text ...)` / `(p ...)` to display content, `(choose ...)` to present a menu, and then tail-calls the next room procedure. Any per-room state (visited flags, dynamic descriptions) is handled with normal `define` / mutable globals on a case-by-case basis — there is no uniform flags/visited table.
-
-See `openspec/specs/ece-room-system/spec.md` for the normative "rooms are plain functions" model.
+A room or scene is the smallest authored unit of play. It has a title, descriptive text, exits/actions, and any local state needed for dynamic descriptions or one-time events. "Room" can mean a literal dungeon chamber, a town location, a wilderness waypoint, or a focused narrative vignette.
 
 ### Choice
 
-A choice is a hash-table built by `(make-choice label action [guard])` in `game/engine.scm`. `label` is a string, `action` is a thunk invoked when the player picks the option, and the optional `guard` is a predicate thunk that returns `#t` if the choice should be offered and `#f` if it should be hidden. When no guard is supplied, `make-choice` installs a default that always returns `#t`.
-
-```scheme
-(define (make-choice label action . rest)
-  (let ((guard (if (null? rest) (lambda () #t) (car rest))))
-    (hash-table 'label label
-                'action action
-                'guard guard)))
-
-(define (choice-visible? choice)
-  ((hash-ref choice 'guard)))
-```
-
-Rooms typically build their choice lists inline using the `choose` macro, which wraps `make-choice` + `display-choices` + `read-choice`. See `openspec/specs/ece-choice-system/spec.md` for the normative model.
+A choice has a player-facing label, an effect, and optional visibility conditions. Choices are rebuilt from the current situation each time the scene is shown so the menu can reflect hidden checks, inventory, resources, NPC disposition, and prior actions.
 
 ### Condition guards
 
-There is no `has-item-condition` / `flag-condition` / `stat-condition` class hierarchy. Guards are plain Scheme closures that can inspect whatever they need — the player record, the current encounter, or local room state. For example, the combat menu hides the "Use Healing Herb" option when the player is already at full HP with this guard:
-
-```scheme
-(lambda () (< (character-hp *player*) (character-hp-max *player*)))
-```
-
-There is no "passed checks" table and no "flags" hash — predicates look at live state every time they are called. This is the same pattern the `combat-choices` function in `game/combat.scm` uses to decide which actions to offer each round.
+Condition guards decide whether a choice is currently visible. Common guards include having an item, passing a hidden stat check, knowing a rumor, having enough light, having already searched a feature, or being in a strong fictional position. A failed guard usually hides the option rather than showing a disabled command.
 
 ### Character
 
-The player is a single `character` record defined in `game/engine.scm`. Stats (STR/DEX/WIL) are stored as a single field each — there is no split "current" vs "max" stat; HP is the only field with an accompanying `hp-max`. Inventory is a plain list of item records. Encumbrance / fatigue / "deprived" status are not implemented.
-
-```scheme
-(define-record character
-  name background str dex wil hp hp-max armor gold fate inventory)
-
-(define *player* #f)
-
-(define (init-player!)
-  (set *player* (make-character #f #f #f #f #f #f #f #f #f #f '())))
-```
-
-Saves and attack resolution are generic across any hash-table-backed record (`character`, `enemy`, etc.) and live in `game/combat.scm`:
-
-```scheme
-(define (str-save target)
-  (<= (roll-d20) (hash-ref target 'str)))
-
-;; Damage application: armor absorbs first, then HP absorbs, then overflow
-;; to STR. Critical STR save triggers on any STR spillover. Death at STR = 0.
-(define (resolve-attack attacker-die target)
-  (let* ((roll (roll-die attacker-die))
-         (armor (hash-ref target 'armor))
-         (damage (max 0 (- roll armor)))
-         (hp (hash-ref target 'hp))
-         (hp-damage (min damage hp))
-         (remainder (- damage hp-damage))
-         (str-damage 0)
-         (critical-save 'none)
-         (dead #f))
-    (hash-set! target 'hp (- hp hp-damage))
-    (when (> remainder 0)
-      (set str-damage remainder)
-      (let ((new-str (max 0 (- (hash-ref target 'str) remainder))))
-        (hash-set! target 'str new-str)
-        (if (= new-str 0)
-            (set dead #t)
-            (set critical-save (str-save target)))))
-    (hash-table 'damage hp-damage
-                'str-damage str-damage
-                'critical-save critical-save
-                'dead dead)))
-```
-
-Because both `character` and `enemy` records are backed by ECE hash-tables with symbol-keyed fields, `resolve-attack` works uniformly on either side of a combat round.
+The player character tracks name, background, STR/DEX/WIL, HP and max HP, armor, gold, fate points, inventory, fatigue, and conditions. Saves and damage use the same rules for player characters and monsters: roll under the relevant stat for saves, armor absorbs damage, HP absorbs next, and overflow wounds STR.
 
 ### Game State
 
-The current engine has **no** aggregated `game-state` object. Live state is split across:
-
-- `*player*` — the `character` record (all persistent player data)
-- `*current-encounter*` — the `encounter` record during combat, otherwise `#f`
-- room-function locals / globals for anything else a room needs to track
-
-There is no dungeon-turn counter, no wandering-monster check, no roll log, and no roll-visibility setting. The subsection below is aspirational.
+A full game state should collect persistent player data, current scene, dungeon turn, light duration, encounter state, global flags, scene flags, passed hidden checks, roll log, and roll-visibility settings. This gives the game one place to save/load and one place for procedures like wandering monsters and rest to inspect time and risk.
 
 #### Future: Game State (Aspirational)
 
-> **Not implemented.** This is a design sketch for Phase 3/7 goals tracked in [TODOs.org](TODOs.org). Do not grep `game/*.scm` for `game-state`, `dungeon-turn`, `roll-log`, or `show-rolls` — none of them exist. When we wire up dungeon turns and wandering monsters, we expect to introduce a record roughly like this:
+The saveable state model should support:
 
-```scheme
-(define-record game-state
-  character           ; the *player* record
-  current-scene-id    ; symbol or #f
-  dungeon-turn        ; integer
-  turns-since-rest    ; integer
-  turns-since-wandering-check  ; integer
-  global-flags        ; hash-table
-  scene-flags         ; hash-table
-  passed-checks       ; list of check-id symbols
-  roll-log            ; list of roll records (most recent first)
-  show-rolls)         ; 'hidden | 'visible | 'log
-
-(define (advance-turn gs)
-  (set-game-state-dungeon-turn! gs
-    (+ 1 (game-state-dungeon-turn gs)))
-  (set-game-state-turns-since-rest! gs
-    (+ 1 (game-state-turns-since-rest gs)))
-  (set-game-state-turns-since-wandering-check! gs
-    (+ 1 (game-state-turns-since-wandering-check gs))))
-
-(define (check-wandering-monster gs)
-  (when (>= (game-state-turns-since-wandering-check gs) 2)
-    (set-game-state-turns-since-wandering-check! gs 0)
-    (= (roll-die 6) 1)))
-
-(define (needs-rest? gs)
-  (>= (game-state-turns-since-rest gs) 6))
-
-(define (log-roll gs roll-data)
-  (set-game-state-roll-log! gs
-    (cons roll-data (game-state-roll-log gs))))
-```
+- Character and inventory
+- Current town/dungeon/scene location
+- Dungeon-turn counters and light timers
+- Wandering-monster cadence
+- Global story flags and per-scene flags
+- Previously passed hidden checks
+- Recent roll log
+- Roll visibility mode: hidden, visible, or log-only
 
 ---
 
