@@ -6,6 +6,7 @@
   (:export
    #:*input*
    #:*output*
+   #:action
    #:back
    #:choice
    #:close-choice
@@ -17,6 +18,7 @@
    #:description
    #:enter
    #:enter-target
+   #:entity
    #:entities
    #:evaluate
    #:game
@@ -40,8 +42,11 @@
    #:quit
    #:room
    #:room-name
+   #:say
+   #:shown-when
    #:target
    #:text
+   #:toggle
    #:viewed-container))
 
 (uiop:define-package #:dunge-user

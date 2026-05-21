@@ -16,4 +16,5 @@
   :description "Examples for Dunge"
   :components ((:module "examples"
 		:components ((:file "package")
-			     (:file "basic")))))
+			     (:file "basic")
+			     (:file "control-panel")))))

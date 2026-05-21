@@ -1,4 +1,4 @@
-(in-package #:dunge)
+(in-package #:dunge-examples)
 
 (defun control-panel-example ()
   (evaluate
