@@ -1,0 +1,61 @@
+#+TITLE: Dunge Roadmap
+
+* Phase 1: Interactive Fiction Foundation
+- [X] Game object with named rooms and a starting room
+- [X] Room descriptions, paragraph text, and numbered choices
+- [X] Navigation between rooms, sub-scenes, and backtracking
+- [X] Containers and placed items with interaction choices
+- [X] Local entity state, references, conditional visibility, and simple effects
+- [ ] Load authored games from external data or user packages
+- [ ] Add save/load for current room, player state, entity state, and world flags
+
+* Phase 2: Character And Inventory
+- [ ] Character creation flow with name, background, stats, HP, armor, gold, fate, and inventory
+- [ ] Background starting gear matching the design document
+- [ ] Inventory slots, bulky items, stackable supplies, and gold handling
+- [ ] Fatigue and Deprived status
+- [ ] Item use effects for healing herbs, light sources, tools, spellbooks, scrolls, and relics
+
+* Phase 3: Cairn Mechanics
+- [ ] Dice utilities and roll records
+- [ ] STR/DEX/WIL saves
+- [ ] Damage resolution: armor, HP, STR spillover, critical damage, and death
+- [ ] Rest and recovery rules
+- [ ] Fate points, scars, desperate escape, and true death
+
+* Phase 4: Exploration Procedures
+- [ ] Dungeon turn tracking
+- [ ] Light source duration and darkness consequences
+- [ ] Wandering monster checks
+- [ ] Surprise, reaction rolls, and morale
+- [ ] Searching, listening, doors, traps, and hidden exits
+- [ ] Roll visibility setting and roll log
+
+* Phase 5: Combat
+- [ ] Encounter state and bestiary-backed enemies
+- [ ] Combat choices for weapons, items, spells, fleeing, surrender, and improvised actions
+- [ ] Group enemy / detachment handling
+- [ ] Enemy behavior, morale, pursuit, and surrender
+- [ ] Combat spell shortlist: Cure Wounds, Shield, Sleep, Charm, Pacify, Frenzy, Web
+
+* Phase 6: Procedural Generation And Oracle
+- [ ] Authored dungeon skeletons with procedural room details
+- [ ] Monster, treasure, hazard, feature, and activity tables
+- [ ] Yes/no oracle with likelihood levels
+- [ ] Twist, complication, spark, and random-event tables
+- [ ] Seeding rules for previous-adventurer remains, journals, and regalia clues
+
+* Phase 7: Town, Story, And Progression
+- [ ] Town hub with guild, inn, blacksmith, merchant, temple, and mayor's mansion
+- [ ] Rotating bounty board and reward loop
+- [ ] Dunge regalia artifacts and lore fragments
+- [ ] Previous-adventurer journals and milestone reveals
+- [ ] Mayor meeting gates and alternate dialogue paths
+- [ ] Final confrontation branches: slay Dunge, return the regalia, or die trying
+
+* Phase 8: Presentation And Polish
+- [ ] Compact, readable play transcript
+- [ ] Character panel and inventory view
+- [ ] Settings for roll visibility and logging
+- [ ] Error handling for invalid choices and malformed content
+- [ ] Example games that demonstrate rooms, containers, state, combat, and story progression
