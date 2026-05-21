@@ -2,9 +2,6 @@
 
 ;;; Game model and DSL constructors
 
-(defvar *rooms* (make-hash-table :test 'equal)
-  "Room registry for the most recently constructed game.")
-
 (defclass game ()
   ((rooms :reader game-rooms :initarg :rooms :initform nil)
    (global-state :reader game-global-state
@@ -28,10 +25,6 @@
 (defun game (&rest rooms)
   (let ((game (make-instance 'game :rooms rooms)))
     (prepare-game game)
-    (clrhash *rooms*)
-    (maphash (lambda (name room)
-	       (setf (gethash name *rooms*) room))
-	     (room-index game))
     game))
 
 (defclass room ()
