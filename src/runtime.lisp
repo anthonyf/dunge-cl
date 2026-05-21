@@ -18,18 +18,15 @@
   (:documentation "Collect choice objects contributed by an AST node."))
 
 (defun control-result-p (thing)
-  (or (eq thing :quit)
-      (typep thing 'goto)
-      (typep thing 'gosub)
-      (typep thing 'enter)
-      (typep thing 'back)
-      (typep thing 'refresh)
-      (typep thing 'room)))
+  (match thing
+    ((or :quit (goto) (gosub) (enter) (back) (refresh) (room)) t)
+    (_ nil)))
 
 (defun immediate-control-result (thing)
-  (cond
-    ((typep thing 'quit) :quit)
-    ((control-result-p thing) thing)))
+  (match thing
+    ((quit) :quit)
+    ((or :quit (goto) (gosub) (enter) (back) (refresh) (room)) thing)
+    (_ nil)))
 
 (defun find-room (game room-name)
   (multiple-value-bind (room present-p) (gethash room-name (room-index game))
@@ -56,27 +53,27 @@
     (loop with context = (find-room game (game-start game))
 	  with return-stack = nil
 	  do (let ((result (evaluate context)))
-	       (cond
-		 ((eq result :quit)
+	       (match result
+		 (:quit
 		  (return :quit))
-		 ((typep result 'refresh)
+		 ((refresh)
 		  nil)
-		 ((typep result 'goto)
-		  (setf context (find-room game (room-name result))))
-		 ((typep result 'gosub)
+		 ((goto room-name)
+		  (setf context (find-room game room-name)))
+		 ((gosub room-name)
 		  (push context return-stack)
-		  (setf context (find-room game (room-name result))))
-		 ((typep result 'enter)
+		  (setf context (find-room game room-name)))
+		 ((enter target)
 		  (push context return-stack)
-		  (setf context (enter-target result)))
-		 ((typep result 'back)
+		  (setf context target))
+		 ((back)
 		  (if return-stack
 		      (setf context (pop return-stack))
 		      (return result)))
-		 (return-stack
-		  (setf context (pop return-stack)))
-		 (t
-		  (return result)))))))
+		 (_
+		  (if return-stack
+		      (setf context (pop return-stack))
+		      (return result))))))))
 
 (defmethod evaluate ((room room))
   (let ((*scene* room)
