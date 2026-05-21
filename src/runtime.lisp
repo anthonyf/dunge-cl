@@ -82,14 +82,12 @@
   (let ((*scene* room)
 	(*self* nil))
     (format *output* "~&~A~%" (name room))
-    (let ((collected-options nil))
-      (dolist (entity (entities room))
-	(let ((result (or (immediate-control-result entity)
-			  (describe-entity entity))))
-	  (when (control-result-p result)
-	    (return-from evaluate result)))
-	(setf collected-options
-	      (append collected-options (copy-list (collect-choices entity)))))
+    (dolist (entity (entities room))
+      (let ((result (or (immediate-control-result entity)
+			(describe-entity entity))))
+	(when (control-result-p result)
+	  (return-from evaluate result))))
+    (let ((collected-options (collect-options-from (entities room))))
       (if collected-options
 	  (evaluate (make-instance 'choices :options collected-options))
 	  room))))
@@ -99,6 +97,10 @@
 
 (defmethod collect-choices ((thing t))
   nil)
+
+(defun collect-options-from (things)
+  (loop for thing in things
+	append (copy-list (collect-choices thing))))
 
 (defmethod evaluate ((paragraph p))
   (format *output* "~A~%" (text paragraph)))
@@ -129,12 +131,8 @@
   nil)
 
 (defmethod collect-choices ((entity entity))
-  (let ((*self* entity)
-	(collected-options nil))
-    (dolist (child (entities entity))
-      (setf collected-options
-	    (append collected-options (copy-list (collect-choices child)))))
-    collected-options))
+  (let ((*self* entity))
+    (collect-options-from (entities entity))))
 
 (defmethod describe-entity ((conditional conditional))
   (when (evaluate-condition (conditional-condition conditional))
@@ -147,11 +145,7 @@
 
 (defmethod collect-choices ((conditional conditional))
   (when (evaluate-condition (conditional-condition conditional))
-    (let ((collected-options nil))
-      (dolist (child (entities conditional))
-	(setf collected-options
-	      (append collected-options (copy-list (collect-choices child)))))
-      collected-options)))
+    (collect-options-from (entities conditional))))
 
 (defmethod describe-entity ((action action))
   nil)
@@ -188,10 +182,9 @@
 	  (let ((result (or (immediate-control-result entity)
 			    (describe-entity entity))))
 	    (when (control-result-p result)
-	      (return-from evaluate result)))
-	  (setf collected-options
-		(append collected-options (copy-list (collect-choices entity)))))
+	      (return-from evaluate result))))
 	(format *output* "There is nothing here.~%"))
+    (setf collected-options (collect-options-from (contents container)))
     (setf collected-options
 	  (append collected-options
 		  (list (option (or (close-choice container) "Back")
@@ -275,6 +268,8 @@
       expression))
 
 (defun operator-name (operator)
+  (unless (symbolp operator)
+    (error "DSL operator must be a symbol, got ~S." operator))
   (string-downcase (symbol-name operator)))
 
 (defun evaluate-condition (condition)
@@ -332,7 +327,8 @@
        (destructuring-bind (path value) arguments
 	 (unless (state-path-symbol-p path)
 	   (error "SET target must be a state path, got ~S." path))
-	 (set-state-path-value path (evaluate-expression value))))
+	 (set-state-path-value path (evaluate-expression value))
+	 nil))
       ((string= operator "toggle")
        (destructuring-bind (path) arguments
 	 (unless (state-path-symbol-p path)
