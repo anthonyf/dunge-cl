@@ -1,4 +1,4 @@
-(in-package #:dunge)
+(in-package #:dunge-examples)
 
 (defun basic-example ()
   (evaluate
