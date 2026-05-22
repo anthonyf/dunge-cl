@@ -26,9 +26,23 @@ jobs:
           sudo apt-get update
           sudo apt-get install --yes sbcl
 
-      - name: Install Qlot
+      - name: Capture SBCL version
+        id: sbcl
         run: |
-          curl --location https://qlot.tech/installer | sh
+          version="$(sbcl --version)"
+          echo "version=${version// /-}" >> "$GITHUB_OUTPUT"
+
+      - name: Install Qlot
+        env:
+          QLOT_INSTALLER_URL: https://github.com/fukamachi/qlot/releases/download/1.8.3/qlot-installer-1.8.3.sh
+          QLOT_INSTALLER_SHA256: 8b8bb87c35600f05f38b71fb07309dfef9fb846592dee151cc92c8c294971e66
+        run: |
+          installer="$(mktemp)"
+          checksum_file="$(mktemp)"
+          curl --fail --silent --show-error --location "$QLOT_INSTALLER_URL" --output "$installer"
+          echo "$QLOT_INSTALLER_SHA256  $installer" > "$checksum_file"
+          sha256sum --check "$checksum_file"
+          sh "$installer"
           echo "$HOME/.qlot/bin" >> "$GITHUB_PATH"
 
       - name: Cache Lisp dependencies
@@ -37,9 +51,9 @@ jobs:
           path: |
             .qlot
             ~/.cache/common-lisp
-          key: ${{ runner.os }}-sbcl-${{ hashFiles('qlfile.lock') }}
+          key: ${{ runner.os }}-${{ steps.sbcl.outputs.version }}-${{ hashFiles('qlfile.lock') }}
           restore-keys: |
-            ${{ runner.os }}-sbcl-
+            ${{ runner.os }}-${{ steps.sbcl.outputs.version }}-
 
       - name: Install dependencies
         run: qlot install
