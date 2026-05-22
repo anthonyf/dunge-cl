@@ -173,7 +173,7 @@
 
 (defmethod evaluate ((invocation action-invocation))
   (let ((*self* (action-owner invocation)))
-    (let ((result (execute-effect (effects (invoked-action invocation)))))
+    (let ((result (evaluate-effects (effects (invoked-action invocation)))))
       (or result (refresh)))))
 
 (defmethod describe-entity ((item item))
@@ -343,11 +343,23 @@
        (conditional-effect-then effect)
        (conditional-effect-else effect))))
 
+(defun normalize-effects-for-execution (effects)
+  (cond
+    ((or (typep effects 'effect-node)
+	 (typep effects 'goto)
+	 (typep effects 'gosub)
+	 (typep effects 'enter)
+	 (typep effects 'back)
+	 (typep effects 'quit)
+	 (typep effects 'refresh))
+     effects)
+    ((listp effects)
+     (effect-sequence-from-branch effects))
+    (t
+     effects)))
+
 (defun evaluate-effects (effects)
-  (execute-effect
-   (if (typep effects 'sequence)
-       effects
-       (make-instance 'sequence :effects effects))))
+  (execute-effect (normalize-effects-for-execution effects)))
 
 (defmethod execute-effect ((effect goto))
   (goto (evaluate-expression (room-name effect))))

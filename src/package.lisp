@@ -25,6 +25,7 @@
    #:enter-target
    #:entity
    #:entities
+   #:evaluate-expression
    #:evaluate-condition
    #:evaluate
    #:execute-effect
