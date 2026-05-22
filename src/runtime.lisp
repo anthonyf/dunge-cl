@@ -1,6 +1,10 @@
 (in-package #:dunge)
 
 ;;; Evaluator and console runtime
+;;; Control protocol: control AST nodes evaluate to themselves and are
+;;; propagated upward unchanged. Rooms with no choices return FALL-THROUGH
+;;; instead of returning the room. The game loop consumes these objects and
+;;; dispatches on their type.
 
 (defvar *input* *standard-input*)
 (defvar *output* *standard-output*)
@@ -26,19 +30,17 @@
 (defgeneric execute-effect (thing)
   (:documentation "Execute a Dunge effect/control AST node."))
 
-(defun control-result-p (thing)
-  (or (eq thing :quit)
-      (typep thing 'goto)
-      (typep thing 'gosub)
-      (typep thing 'enter)
-      (typep thing 'back)
-      (typep thing 'refresh)
-      (typep thing 'room)))
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defclass fall-through ()
+    ()))
 
-(defun immediate-control-result (thing)
-  (cond
-    ((typep thing 'quit) :quit)
-    ((control-result-p thing) thing)))
+(defun fall-through ()
+  (make-instance 'fall-through))
+
+(defun control-result-p (thing)
+  (match thing
+    ((or (goto) (gosub) (enter) (back) (quit) (refresh) (fall-through)) t)
+    (_ nil)))
 
 (defun find-room (game room-name)
   (multiple-value-bind (room present-p) (gethash room-name (room-index game))
@@ -65,26 +67,28 @@
     (loop with context = (find-room game (game-start game))
 	  with return-stack = nil
 	  do (let ((result (evaluate context)))
-	       (cond
-		 ((eq result :quit)
-		  (return :quit))
-		 ((typep result 'refresh)
+	       (match result
+		 ((quit)
+		  (return result))
+		 ((refresh)
 		  nil)
-		 ((typep result 'goto)
-		  (setf context (find-room game (room-name result))))
-		 ((typep result 'gosub)
+		 ((goto (room-name room-name))
+		  (setf context (find-room game room-name)))
+		 ((gosub (room-name room-name))
 		  (push context return-stack)
-		  (setf context (find-room game (room-name result))))
-		 ((typep result 'enter)
+		  (setf context (find-room game room-name)))
+		 ((enter (target target))
 		  (push context return-stack)
-		  (setf context (enter-target result)))
-		 ((typep result 'back)
+		  (setf context target))
+		 ((back)
 		  (if return-stack
 		      (setf context (pop return-stack))
 		      (return result)))
-		 (return-stack
-		  (setf context (pop return-stack)))
-		 (t
+		 ((fall-through)
+		  (if return-stack
+		      (setf context (pop return-stack))
+		      (return context)))
+		 (_
 		  (return result)))))))
 
 (defmethod evaluate ((room room))
@@ -92,14 +96,15 @@
 	(*self* nil))
     (format *output* "~&~A~%" (name room))
     (dolist (entity (entities room))
-      (let ((result (or (immediate-control-result entity)
+      (let ((result (if (control-result-p entity)
+			entity
 			(describe-entity entity))))
 	(when (control-result-p result)
 	  (return-from evaluate result))))
     (let ((collected-options (collect-options-from (entities room))))
       (if collected-options
 	  (evaluate (make-instance 'choices :options collected-options))
-	  room))))
+	  (fall-through)))))
 
 (defmethod describe-entity ((thing t))
   nil)
@@ -125,7 +130,7 @@
     (let ((index (and options (read-choice-index (length options)))))
       (if index
 	  (evaluate (target (nth (1- index) options)))
-	  :quit))))
+	  (quit)))))
 
 (defmethod evaluate ((effect effect-node))
   (execute-effect effect))
@@ -139,7 +144,8 @@
 (defmethod describe-entity ((entity entity))
   (let ((*self* entity))
     (dolist (child (entities entity))
-      (let ((result (or (immediate-control-result child)
+      (let ((result (if (control-result-p child)
+			child
 			(describe-entity child))))
 	(when (control-result-p result)
 	  (return-from describe-entity result)))))
@@ -152,7 +158,8 @@
 (defmethod describe-entity ((conditional conditional))
   (when (evaluate-condition (conditional-condition conditional))
     (dolist (child (entities conditional))
-      (let ((result (or (immediate-control-result child)
+      (let ((result (if (control-result-p child)
+			child
 			(describe-entity child))))
 	(when (control-result-p result)
 	  (return-from describe-entity result)))))
@@ -194,7 +201,8 @@
     (format *output* "~&~A~%" (name container))
     (if (contents container)
 	(dolist (entity (contents container))
-	  (let ((result (or (immediate-control-result entity)
+	  (let ((result (if (control-result-p entity)
+			    entity
 			    (describe-entity entity))))
 	    (when (control-result-p result)
 	      (return-from evaluate result))))
@@ -374,7 +382,7 @@
   effect)
 
 (defmethod execute-effect ((effect quit))
-  :quit)
+  effect)
 
 (defmethod execute-effect ((effect refresh))
   effect)
@@ -396,7 +404,7 @@
   back)
 
 (defmethod evaluate ((quit quit))
-  :quit)
+  quit)
 
 (defmethod evaluate ((refresh refresh))
   refresh)
