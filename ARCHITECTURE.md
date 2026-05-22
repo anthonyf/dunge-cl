@@ -107,6 +107,10 @@ Structural passes that need to visit every authored node should go through
 `node-children` and `walk-node-tree` instead of open-coding recursive descent.
 Context-sensitive passes, such as action-owner assignment and validation, can
 still thread their own context while relying on the same child-access protocol.
+Simple AST classes should be declared with `define-ast-node`, which keeps the
+class definition, simple constructor, scene ID, and child traversal hooks in one
+place. Behavior methods such as `describe-entity`, `execute-effect`, and
+`validate-node` stay separate.
 
 ## Effects And Sequences
 

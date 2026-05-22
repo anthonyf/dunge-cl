@@ -2,7 +2,70 @@
 
 ;;; Game model and DSL constructors
 
-(defclass game ()
+(defgeneric node-id (thing)
+  (:documentation "Return the scene-local id for THING, or NIL."))
+
+(defgeneric node-children (thing)
+  (:documentation "Return child AST nodes that participate in scene indexing."))
+
+(defmacro define-ast-node (name superclasses slots &body options)
+  "Define an AST node class and its local constructor/traversal boilerplate."
+  (labels ((method-option-form (option generic-function)
+             (destructuring-bind (keyword lambda-list &body body) option
+               (declare (ignore keyword))
+               (unless (and (listp lambda-list)
+                            (= 1 (length lambda-list))
+                            (symbolp (first lambda-list)))
+                 (error "DEFINE-AST-NODE method option for ~S must use a single-argument lambda list; got ~S."
+                        name
+                        lambda-list))
+               `(defmethod ,generic-function ((,(first lambda-list) ,name))
+                  ,@body))))
+    (let (constructor id children class-options)
+      (dolist (option options)
+        (unless (consp option)
+          (error "Malformed DEFINE-AST-NODE option ~S." option))
+        (case (first option)
+          (:constructor
+           (when constructor
+             (error "Duplicate DEFINE-AST-NODE :CONSTRUCTOR option for ~S." name))
+           (setf constructor option))
+          (:id
+           (when id
+             (error "Duplicate DEFINE-AST-NODE :ID option for ~S." name))
+           (setf id option))
+          (:children
+           (when children
+             (error "Duplicate DEFINE-AST-NODE :CHILDREN option for ~S." name))
+           (setf children option))
+          (:class-option
+           (setf class-options (append class-options (rest option))))
+          (otherwise
+           (error "Unknown DEFINE-AST-NODE option ~S for ~S."
+                  (first option)
+                  name))))
+      `(progn
+         (defclass ,name ,superclasses
+           ,slots
+           ,@class-options)
+         ,@(when constructor
+             (destructuring-bind (keyword function lambda-list &rest initargs)
+                 constructor
+               (declare (ignore keyword))
+               `((defun ,function ,lambda-list
+                   (make-instance ',name ,@initargs)))))
+         ,@(when id
+             `(,(method-option-form id 'node-id)))
+         ,@(when children
+             `(,(method-option-form children 'node-children)))))))
+
+(defmethod node-id ((thing t))
+  nil)
+
+(defmethod node-children ((thing t))
+  nil)
+
+(define-ast-node game ()
   ((rooms :reader game-rooms :initarg :rooms :initform nil)
    (global-state :reader game-global-state
                  :initform (make-hash-table :test 'eql))
@@ -10,7 +73,8 @@
                   :initform (make-hash-table :test 'eql))
    (player :accessor game-player :initarg :player :initform nil)
    (room-index :reader room-index :initform (make-hash-table :test 'equal))
-   (start :accessor game-start :initarg :start :initform nil)))
+   (start :accessor game-start :initarg :start :initform nil))
+  (:children (thing) (game-rooms thing)))
 
 (defmethod initialize-instance :after ((game game) &key)
   (clrhash (room-index game))
@@ -28,50 +92,39 @@
     (validate-game game)
     game))
 
-(defclass room ()
+(define-ast-node room ()
   ((name :reader name :initarg :name :initform nil)
    (scene-index :reader scene-index
                 :initform (make-hash-table :test 'equal))
-   (entities :accessor entities :initform nil :initarg :entities)))
+   (entities :accessor entities :initform nil :initarg :entities))
+  (:constructor room (name &rest entities) :name name :entities entities)
+  (:children (thing) (entities thing)))
 
-(defun room (name &rest entities)
-  (make-instance 'room :name name :entities entities))
-
-(defclass effect-node ()
+(define-ast-node effect-node ()
   ())
 
-(defclass control-node (effect-node)
+(define-ast-node control-node (effect-node)
   ())
 
-(defclass fall-through (control-node)
-  ())
+(define-ast-node fall-through (control-node)
+  ()
+  (:constructor fall-through ()))
 
-(defun fall-through ()
-  (make-instance 'fall-through))
+(define-ast-node goto (control-node)
+  ((room-name :reader room-name :initarg :room-name :initform nil))
+  (:constructor goto (room-name) :room-name room-name))
 
-(defclass goto (control-node)
-  ((room-name :reader room-name :initarg :room-name :initform nil)))
+(define-ast-node gosub (control-node)
+  ((room-name :reader room-name :initarg :room-name :initform nil))
+  (:constructor gosub (room-name) :room-name room-name))
 
-(defun goto (room-name)
-  (make-instance 'goto :room-name room-name))
+(define-ast-node enter (control-node)
+  ((target :reader enter-target :initarg :target :initform nil))
+  (:constructor enter (target) :target target))
 
-(defclass gosub (control-node)
-  ((room-name :reader room-name :initarg :room-name :initform nil)))
-
-(defun gosub (room-name)
-  (make-instance 'gosub :room-name room-name))
-
-(defclass enter (control-node)
-  ((target :reader enter-target :initarg :target :initform nil)))
-
-(defun enter (target)
-  (make-instance 'enter :target target))
-
-(defclass back (control-node)
-  ())
-
-(defun back ()
-  (make-instance 'back))
+(define-ast-node back (control-node)
+  ()
+  (:constructor back ()))
 
 (defun state-scope-key (scope)
   (case scope
@@ -100,7 +153,7 @@
     (error "Choice ids must be keywords; got ~S." id))
   id)
 
-(defclass state-ref ()
+(define-ast-node state-ref ()
   ((scope :reader state-ref-scope :initarg :scope :initform :global)
    (role :reader state-ref-role :initarg :role :initform nil)
    (key :reader state-ref-key :initarg :key :initform nil)))
@@ -149,41 +202,31 @@ positional arguments. Examples:
           (values (state-ref scope (first arguments))
                   (rest arguments))))))))
 
-(defclass condition-eq ()
+(define-ast-node condition-eq ()
   ((left :reader condition-left :initarg :left :initform nil)
-   (right :reader condition-right :initarg :right :initform nil)))
+   (right :reader condition-right :initarg :right :initform nil))
+  (:constructor condition-eq (left right) :left left :right right))
 
-(defun condition-eq (left right)
-  (make-instance 'condition-eq :left left :right right))
+(define-ast-node condition-not ()
+  ((condition :reader condition-child :initarg :condition :initform nil))
+  (:constructor condition-not (condition) :condition condition))
 
-(defclass condition-not ()
-  ((condition :reader condition-child :initarg :condition :initform nil)))
+(define-ast-node condition-and ()
+  ((conditions :reader conditions :initarg :conditions :initform nil))
+  (:constructor condition-and (&rest conditions) :conditions conditions))
 
-(defun condition-not (condition)
-  (make-instance 'condition-not :condition condition))
+(define-ast-node condition-or ()
+  ((conditions :reader conditions :initarg :conditions :initform nil))
+  (:constructor condition-or (&rest conditions) :conditions conditions))
 
-(defclass condition-and ()
-  ((conditions :reader conditions :initarg :conditions :initform nil)))
+(define-ast-node sequence (effect-node)
+  ((effects :reader sequence-effects :initarg :effects :initform nil))
+  (:constructor sequence (&rest effects) :effects effects))
 
-(defun condition-and (&rest conditions)
-  (make-instance 'condition-and :conditions conditions))
-
-(defclass condition-or ()
-  ((conditions :reader conditions :initarg :conditions :initform nil)))
-
-(defun condition-or (&rest conditions)
-  (make-instance 'condition-or :conditions conditions))
-
-(defclass sequence (effect-node)
-  ((effects :reader sequence-effects :initarg :effects :initform nil)))
-
-(defun sequence (&rest effects)
-  (make-instance 'sequence :effects effects))
-
-(defclass state-effect (effect-node)
+(define-ast-node state-effect (effect-node)
   ((target :reader effect-target :initarg :target :initform nil)))
 
-(defclass state-set (state-effect)
+(define-ast-node state-set (state-effect)
   ((value :reader effect-value :initarg :value :initform nil)))
 
 (defun state-set (target &rest arguments)
@@ -191,7 +234,7 @@ positional arguments. Examples:
     (destructuring-bind (value) rest
       (make-instance 'state-set :target reference :value value))))
 
-(defclass state-clear (state-effect)
+(define-ast-node state-clear (state-effect)
   ())
 
 (defun state-clear (target &rest arguments)
@@ -200,7 +243,7 @@ positional arguments. Examples:
       (error "STATE-CLEAR does not take a value."))
     (make-instance 'state-clear :target reference)))
 
-(defclass state-inc (state-effect)
+(define-ast-node state-inc (state-effect)
   ((amount :reader effect-amount :initarg :amount :initform 1)))
 
 (defun state-inc (target &rest arguments)
@@ -208,7 +251,7 @@ positional arguments. Examples:
     (destructuring-bind (&optional (amount 1)) rest
       (make-instance 'state-inc :target reference :amount amount))))
 
-(defclass state-dec (state-effect)
+(define-ast-node state-dec (state-effect)
   ((amount :reader effect-amount :initarg :amount :initform 1)))
 
 (defun state-dec (target &rest arguments)
@@ -216,7 +259,7 @@ positional arguments. Examples:
     (destructuring-bind (&optional (amount 1)) rest
       (make-instance 'state-dec :target reference :amount amount))))
 
-(defclass state-toggle (state-effect)
+(define-ast-node state-toggle (state-effect)
   ())
 
 (defun state-toggle (target &rest arguments)
@@ -237,13 +280,11 @@ positional arguments. Examples:
 (defun toggle (target &rest arguments)
   (apply #'state-toggle target arguments))
 
-(defclass say (effect-node)
-  ((text :reader say-text :initarg :text :initform nil)))
+(define-ast-node say (effect-node)
+  ((text :reader say-text :initarg :text :initform nil))
+  (:constructor say (text) :text text))
 
-(defun say (text)
-  (make-instance 'say :text text))
-
-(defclass conditional-effect (effect-node)
+(define-ast-node conditional-effect (effect-node)
   ((condition :reader conditional-effect-condition
               :initarg :condition
               :initform nil)
@@ -260,14 +301,14 @@ positional arguments. Examples:
                  :then (or then-effects (sequence))
                  :else (or else-effects (sequence))))
 
-(defclass choice ()
+(define-ast-node choice ()
   ((label :accessor label :initarg :label :initform nil)
    (target :accessor target :initarg :target :initform nil)
    (id :reader choice-id :initarg :id :initform nil)
    (condition :reader choice-condition :initarg :condition :initform nil)
    (once :reader choice-once-p :initarg :once :initform nil)))
 
-(defclass choices ()
+(define-ast-node choices ()
   ((options :accessor options :initarg :options :initform nil)))
 
 (defun make-option (label target &key id condition once)
@@ -293,7 +334,7 @@ positional arguments. Examples:
                                           `(option ,label ,target ,@args)))
                                       options))))
 
-(defclass entity ()
+(define-ast-node entity ()
   ((name :reader name :initarg :name :initform nil)
    (id :reader entity-id :initarg :id :initform nil)
    (state-declarations :reader state-declarations
@@ -304,7 +345,9 @@ positional arguments. Examples:
    (refs :reader entity-refs :initarg :refs :initform nil)
    (resolved-refs :reader resolved-refs
                   :initform (make-hash-table :test 'eql))
-   (entities :accessor entities :initarg :entities :initform nil)))
+   (entities :accessor entities :initarg :entities :initform nil))
+  (:id (thing) (entity-id thing))
+  (:children (thing) (entities thing)))
 
 (defmacro entity (name &body body)
   (let ((id nil)
@@ -326,10 +369,13 @@ positional arguments. Examples:
                     :refs ',refs
                     :entities (list ,@forms))))
 
-(defclass branch ()
+(define-ast-node branch ()
   ((condition :reader branch-condition :initarg :condition :initform nil)
    (then-entities :reader branch-then-entities :initarg :then :initform nil)
-   (else-entities :reader branch-else-entities :initarg :else :initform nil)))
+   (else-entities :reader branch-else-entities :initarg :else :initform nil))
+  (:children (thing)
+    (append (branch-then-entities thing)
+            (branch-else-entities thing))))
 
 (defmacro branch (condition &key then else)
   `(make-instance 'branch
@@ -345,7 +391,7 @@ positional arguments. Examples:
   `(branch (condition-not ,condition)
            :then ,entities))
 
-(defclass action ()
+(define-ast-node action ()
   ((label :accessor label :initarg :label :initform nil)
    (effects :reader effects :initarg :effects :initform nil)
    (owner :accessor action-owner :initarg :owner :initform nil)))
@@ -355,13 +401,11 @@ positional arguments. Examples:
                   :label ,label
                   :effects (sequence ,@effects)))
 
-(defclass refresh (control-node)
-  ())
+(define-ast-node refresh (control-node)
+  ()
+  (:constructor refresh ()))
 
-(defun refresh ()
-  (make-instance 'refresh))
-
-(defclass placement ()
+(define-ast-node placement ()
   ((thing :reader placed-thing :initarg :thing :initform nil)
    (description :reader placement-description :initarg :description :initform nil)
    (interaction-label :reader interaction-label
@@ -369,28 +413,25 @@ positional arguments. Examples:
                       :initform nil)
    (interaction-target :reader interaction-target
                        :initarg :interaction-target
-                       :initform nil)))
+                       :initform nil))
+  (:constructor placed (thing &key description interaction-label interaction-target)
+   :thing thing
+   :description description
+   :interaction-label interaction-label
+   :interaction-target interaction-target))
 
-(defun placed (thing &key description interaction-label interaction-target)
-  (make-instance 'placement
-                 :thing thing
-                 :description description
-                 :interaction-label interaction-label
-                 :interaction-target interaction-target))
-
-(defclass item ()
+(define-ast-node item ()
   ((name :reader name :initarg :name :initform nil)
-   (description :reader description :initarg :description :initform nil)))
+   (description :reader description :initarg :description :initform nil))
+  (:constructor item (name &key description) :name name :description description))
 
-(defun item (name &key description)
-  (make-instance 'item :name name :description description))
-
-(defclass container ()
+(define-ast-node container ()
   ((name :reader name :initarg :name :initform nil)
    (description :reader description :initarg :description :initform nil)
    (open-choice :reader open-choice :initarg :open-choice :initform nil)
    (close-choice :reader close-choice :initarg :close-choice :initform nil)
-   (contents :accessor contents :initarg :contents :initform nil)))
+   (contents :accessor contents :initarg :contents :initform nil))
+  (:children (thing) (contents thing)))
 
 (defmacro container (name &key description open-choice contents close-choice)
   `(make-instance 'container
@@ -400,52 +441,18 @@ positional arguments. Examples:
                   :contents (list ,@contents)
                   :close-choice ,close-choice))
 
-(defclass container-view ()
-  ((container :reader viewed-container :initarg :container :initform nil)))
+(define-ast-node container-view ()
+  ((container :reader viewed-container :initarg :container :initform nil))
+  (:constructor container-view (container) :container container))
 
-(defun container-view (container)
-  (make-instance 'container-view :container container))
-
-(defclass p ()
+(define-ast-node p ()
   ((text :reader text :initarg :text :initform nil))
-  (:documentation "A paragraph of descriptive text."))
+  (:constructor p (text) :text text)
+  (:class-option (:documentation "A paragraph of descriptive text.")))
 
-(defun p (text)
-  (make-instance 'p :text text))
-
-(defclass quit (control-node)
-  ())
-
-(defun quit ()
-  (make-instance 'quit))
-
-(defgeneric node-id (thing)
-  (:documentation "Return the scene-local id for THING, or NIL."))
-
-(defgeneric node-children (thing)
-  (:documentation "Return child AST nodes that participate in scene indexing."))
-
-(defmethod node-id ((thing t))
-  nil)
-
-(defmethod node-id ((thing entity))
-  (entity-id thing))
-
-(defmethod node-children ((thing t))
-  nil)
-
-(defmethod node-children ((thing room))
-  (entities thing))
-
-(defmethod node-children ((thing entity))
-  (entities thing))
-
-(defmethod node-children ((thing branch))
-  (append (branch-then-entities thing)
-          (branch-else-entities thing)))
-
-(defmethod node-children ((thing container))
-  (contents thing))
+(define-ast-node quit (control-node)
+  ()
+  (:constructor quit ()))
 
 (defun walk-node-tree (thing function)
   (funcall function thing)
