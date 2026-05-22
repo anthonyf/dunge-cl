@@ -21,6 +21,15 @@
 (defgeneric collect-choices (thing)
   (:documentation "Collect choice objects contributed by an AST node."))
 
+(defgeneric evaluate-expression (thing)
+  (:documentation "Evaluate a Dunge expression AST node."))
+
+(defgeneric evaluate-condition (thing)
+  (:documentation "Evaluate a Dunge condition AST node."))
+
+(defgeneric execute-effect (thing)
+  (:documentation "Execute a Dunge effect/control AST node."))
+
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defclass fall-through ()
     ()))
@@ -123,8 +132,14 @@
 	  (evaluate (target (nth (1- index) options)))
 	  (quit)))))
 
+(defmethod evaluate ((effect effect-node))
+  (execute-effect effect))
+
 (defmethod collect-choices ((choices choices))
   (options choices))
+
+(defmethod collect-choices ((choice choice))
+  (list choice))
 
 (defmethod describe-entity ((entity entity))
   (let ((*self* entity))
@@ -210,57 +225,50 @@
 		    (interaction-target placement)))
       nil))
 
-(defun split-reference-path (symbol)
-  (let ((name (string-downcase (symbol-name symbol)))
-	(start 0)
-	(parts nil))
-    (loop for dot = (position #\. name :start start)
-	  do (push (subseq name start dot) parts)
-	  while dot
-	  do (setf start (1+ dot)))
-    (nreverse parts)))
-
-(defun state-path-symbol-p (thing)
-  (and (symbolp thing)
-       (find #\. (symbol-name thing))))
+(defun resolve-state-reference (reference)
+  (ecase (state-ref-scope reference)
+    (:self
+     (unless *self*
+       (error "Cannot resolve SELF state without a current entity."))
+     (values (local-state *self*)
+	     (normalize-state-key (state-ref-key reference))))
+    (:global
+     (unless *game*
+       (error "Cannot resolve GLOBAL state without a current game."))
+     (values (game-global-state *game*)
+	     (normalize-state-key (state-ref-key reference))))
+    (:ref
+     (unless *self*
+       (error "Cannot resolve REF state without a current entity."))
+     (let* ((role-key (normalize-state-key (state-ref-role reference)))
+	    (target (gethash role-key (resolved-refs *self*))))
+       (unless target
+	 (error "Entity ~S has no declared ref named ~S."
+		(or (entity-id *self*) (name *self*))
+		(state-ref-role reference)))
+       (values (local-state target)
+	       (normalize-state-key (state-ref-key reference)))))))
 
 (defun resolve-state-path (path)
-  (let ((parts (split-reference-path path)))
-    (destructuring-bind (scope &rest rest) parts
-      (cond
-	((string= scope "self")
-	 (unless *self*
-	   (error "Cannot resolve ~S without a current entity." path))
-	 (unless (= (length rest) 1)
-	   (error "State path ~S must look like self.name." path))
-	 (values (local-state *self*) (first rest)))
-	((string= scope "global")
-	 (unless *game*
-	   (error "Cannot resolve ~S without a current game." path))
-	 (unless (= (length rest) 1)
-	   (error "State path ~S must look like global.name." path))
-	 (values (game-global-state *game*) (first rest)))
-	((string= scope "ref")
-	 (unless *self*
-	   (error "Cannot resolve ~S without a current entity." path))
-	 (unless (= (length rest) 2)
-	   (error "State path ~S must look like ref.name.state." path))
-	 (let ((target (gethash (first rest) (resolved-refs *self*))))
-	   (unless target
-	     (error "Entity ~S has no declared ref named ~S."
-		    (or (entity-id *self*) (name *self*))
-		    (first rest)))
-	   (values (local-state target) (second rest))))
-	(t
-	 (error "Unknown state path scope ~S in ~S." scope path))))))
+  (resolve-state-reference (state-ref-from-path path)))
 
-(defun state-path-value (path)
-  (multiple-value-bind (table key) (resolve-state-path path)
+(defun state-reference-value (reference)
+  (multiple-value-bind (table key) (resolve-state-reference reference)
     (gethash key table)))
 
-(defun set-state-path-value (path value)
-  (multiple-value-bind (table key) (resolve-state-path path)
+(defun set-state-reference-value (reference value)
+  (multiple-value-bind (table key) (resolve-state-reference reference)
     (setf (gethash key table) value)))
+
+(defun clear-state-reference-value (reference)
+  (multiple-value-bind (table key) (resolve-state-reference reference)
+    (remhash key table)))
+
+(defun state-path-value (path)
+  (state-reference-value (state-ref-from-path path)))
+
+(defun set-state-path-value (path value)
+  (set-state-reference-value (state-ref-from-path path) value))
 
 (defun toggled-value (value)
   (cond
@@ -270,98 +278,117 @@
     ((null value) t)
     (t (error "Cannot toggle value ~S." value))))
 
-(defun evaluate-expression (expression)
-  (if (state-path-symbol-p expression)
-      (state-path-value expression)
-      expression))
+(defmethod evaluate-expression ((expression t))
+  expression)
 
-(defun operator-name (operator)
-  (unless (symbolp operator)
-    (error "DSL operator must be a symbol, got ~S." operator))
-  (string-downcase (symbol-name operator)))
+(defmethod evaluate-expression ((reference state-ref))
+  (state-reference-value reference))
 
-(defun evaluate-condition (condition)
-  (cond
-    ((atom condition)
-     (not (null (evaluate-expression condition))))
-    (t
-     (let ((operator (operator-name (first condition)))
-	   (arguments (rest condition)))
-       (cond
-	 ((member operator '("=" "is" "eq") :test #'string=)
-	  (destructuring-bind (left right) arguments
-	    (equal (evaluate-expression left)
-		   (evaluate-expression right))))
-	 ((string= operator "not")
-	  (destructuring-bind (argument) arguments
-	    (not (evaluate-condition argument))))
-	 ((string= operator "and")
-	  (every #'evaluate-condition arguments))
-	 ((string= operator "or")
-	  (some #'evaluate-condition arguments))
-	 (t
-	  (error "Unknown condition operator ~S." (first condition))))))))
+(defmethod evaluate-condition ((condition t))
+  (not (null (evaluate-expression condition))))
 
-(defun effect-operator-p (thing)
-  (and (symbolp thing)
-       (member (operator-name thing)
-	       '("say" "set" "toggle" "if" "goto" "gosub" "back" "quit")
-	       :test #'string=)))
+(defmethod evaluate-condition ((condition condition-eq))
+  (equal (evaluate-expression (condition-left condition))
+	 (evaluate-expression (condition-right condition))))
 
-(defun normalize-effect-list (branch)
-  (cond
-    ((null branch) nil)
-    ((and (consp branch)
-	  (effect-operator-p (first branch)))
-     (list branch))
-    (t branch)))
+(defmethod evaluate-condition ((condition condition-not))
+  (not (evaluate-condition (condition-child condition))))
 
-(defun evaluate-effects (effects)
-  (dolist (effect effects)
-    (let ((result (evaluate-effect effect)))
+(defmethod evaluate-condition ((condition condition-and))
+  (every #'evaluate-condition (conditions condition)))
+
+(defmethod evaluate-condition ((condition condition-or))
+  (some #'evaluate-condition (conditions condition)))
+
+(defmethod execute-effect ((effect sequence))
+  (dolist (child (sequence-effects effect))
+    (let ((result (execute-effect child)))
       (when (control-result-p result)
 	(return result)))))
 
-(defun evaluate-effect (effect)
-  (unless (consp effect)
-    (error "Effect must be a list, got ~S." effect))
-  (let ((operator (operator-name (first effect)))
-	(arguments (rest effect)))
-    (cond
-      ((string= operator "say")
-       (destructuring-bind (text) arguments
-	 (format *output* "~A~%" (evaluate-expression text))))
-      ((string= operator "set")
-       (destructuring-bind (path value) arguments
-	 (unless (state-path-symbol-p path)
-	   (error "SET target must be a state path, got ~S." path))
-	 (set-state-path-value path (evaluate-expression value))
-	 nil))
-      ((string= operator "toggle")
-       (destructuring-bind (path) arguments
-	 (unless (state-path-symbol-p path)
-	   (error "TOGGLE target must be a state path, got ~S." path))
-	 (set-state-path-value path
-			       (toggled-value (state-path-value path)))))
-      ((string= operator "if")
-       (destructuring-bind (condition then-branch &optional else-branch) arguments
-	 (evaluate-effects
-	  (normalize-effect-list
-	   (if (evaluate-condition condition)
-	       then-branch
-	       else-branch)))))
-      ((string= operator "goto")
-       (destructuring-bind (room-name) arguments
-	 (goto (evaluate-expression room-name))))
-      ((string= operator "gosub")
-       (destructuring-bind (room-name) arguments
-	 (gosub (evaluate-expression room-name))))
-      ((string= operator "back")
-       (back))
-      ((string= operator "quit")
-       (quit))
-      (t
-       (error "Unknown effect operator ~S." (first effect))))))
+(defmethod execute-effect ((effect state-set))
+  (set-state-reference-value (effect-target effect)
+			     (evaluate-expression (effect-value effect)))
+  nil)
+
+(defmethod execute-effect ((effect state-clear))
+  (clear-state-reference-value (effect-target effect))
+  nil)
+
+(defun numeric-state-value (reference)
+  (let ((value (or (state-reference-value reference) 0)))
+    (unless (numberp value)
+      (error "Cannot increment non-numeric state value ~S." value))
+    value))
+
+(defmethod execute-effect ((effect state-inc))
+  (set-state-reference-value
+   (effect-target effect)
+   (+ (numeric-state-value (effect-target effect))
+      (evaluate-expression (effect-amount effect))))
+  nil)
+
+(defmethod execute-effect ((effect state-dec))
+  (set-state-reference-value
+   (effect-target effect)
+   (- (numeric-state-value (effect-target effect))
+      (evaluate-expression (effect-amount effect))))
+  nil)
+
+(defmethod execute-effect ((effect state-toggle))
+  (set-state-reference-value
+   (effect-target effect)
+   (toggled-value (state-reference-value (effect-target effect))))
+  nil)
+
+(defmethod execute-effect ((effect say))
+  (format *output* "~A~%" (evaluate-expression (say-text effect)))
+  nil)
+
+(defmethod execute-effect ((effect conditional-effect))
+  (execute-effect
+   (if (evaluate-condition (conditional-effect-condition effect))
+       (conditional-effect-then effect)
+       (conditional-effect-else effect))))
+
+(defun normalize-effects-for-execution (effects)
+  (cond
+    ((or (typep effects 'effect-node)
+	 (typep effects 'goto)
+	 (typep effects 'gosub)
+	 (typep effects 'enter)
+	 (typep effects 'back)
+	 (typep effects 'quit)
+	 (typep effects 'refresh))
+     effects)
+    ((listp effects)
+     (effect-sequence-from-branch effects))
+    (t
+     effects)))
+
+(defun evaluate-effects (effects)
+  (execute-effect (normalize-effects-for-execution effects)))
+
+(defmethod execute-effect ((effect goto))
+  (goto (evaluate-expression (room-name effect))))
+
+(defmethod execute-effect ((effect gosub))
+  (gosub (evaluate-expression (room-name effect))))
+
+(defmethod execute-effect ((effect enter))
+  effect)
+
+(defmethod execute-effect ((effect back))
+  effect)
+
+(defmethod execute-effect ((effect quit))
+  effect)
+
+(defmethod execute-effect ((effect refresh))
+  effect)
+
+(defmethod execute-effect ((effect t))
+  (error "Cannot execute ~S as an effect." effect))
 
 ;;; Control nodes evaluate to the result object consumed by the game loop.
 (defmethod evaluate ((goto goto))

@@ -60,6 +60,210 @@
 (defun back ()
   (make-instance 'back))
 
+(defun operator-name (operator)
+  (unless (symbolp operator)
+    (error "DSL operator must be a symbol, got ~S." operator))
+  (string-downcase (symbol-name operator)))
+
+(defun split-reference-path (symbol)
+  (let ((name (string-downcase (symbol-name symbol)))
+	(start 0)
+	(parts nil))
+    (loop for dot = (position #\. name :start start)
+	  do (push (subseq name start dot) parts)
+	  while dot
+	  do (setf start (1+ dot)))
+    (nreverse parts)))
+
+(defun state-path-symbol-p (thing)
+  (and (symbolp thing)
+       (find #\. (symbol-name thing))))
+
+(defun normalize-state-scope (scope)
+  (let ((name (etypecase scope
+		(symbol (string-downcase (symbol-name scope)))
+		(string (string-downcase scope)))))
+    (cond
+      ((string= name "self") :self)
+      ((string= name "global") :global)
+      ((string= name "ref") :ref)
+      (t (error "Unknown state scope ~S." scope)))))
+
+(defclass state-ref ()
+  ((scope :reader state-ref-scope :initarg :scope :initform :global)
+   (role :reader state-ref-role :initarg :role :initform nil)
+   (key :reader state-ref-key :initarg :key :initform nil)))
+
+(defun state-ref (scope key &optional state-key)
+  (let ((normalized-scope (normalize-state-scope scope)))
+    (cond
+      ((eq normalized-scope :ref)
+       (unless state-key
+	 (error "REF state references must include a role and key."))
+       (make-instance 'state-ref
+		      :scope normalized-scope
+		      :role key
+		      :key state-key))
+      (state-key
+       (error "~S state references take only one key." normalized-scope))
+      (t
+       (make-instance 'state-ref
+		      :scope normalized-scope
+		      :key key)))))
+
+(defun state-ref-from-path (path)
+  (let ((parts (split-reference-path path)))
+    (destructuring-bind (scope &rest rest) parts
+      (cond
+	((string= scope "self")
+	 (unless (= (length rest) 1)
+	   (error "State path ~S must look like self.name." path))
+	 (state-ref :self (first rest)))
+	((string= scope "global")
+	 (unless (= (length rest) 1)
+	   (error "State path ~S must look like global.name." path))
+	 (state-ref :global (first rest)))
+	((string= scope "ref")
+	 (unless (= (length rest) 2)
+	   (error "State path ~S must look like ref.name.state." path))
+	 (state-ref :ref (first rest) (second rest)))
+	(t
+	 (error "Unknown state path scope ~S in ~S." scope path))))))
+
+(defun state-reference-from-arguments (target arguments)
+  (cond
+    ((typep target 'state-ref)
+     (values target arguments))
+    ((state-path-symbol-p target)
+     (values (state-ref-from-path target) arguments))
+    (t
+     (let ((scope (normalize-state-scope target)))
+       (case scope
+	 (:ref
+	  (unless (>= (length arguments) 2)
+	    (error "REF state references need a role and key."))
+	  (values (state-ref :ref (first arguments) (second arguments))
+		  (cddr arguments)))
+	 (otherwise
+	  (unless arguments
+	    (error "~S state references need a key." scope))
+	  (values (state-ref scope (first arguments))
+		  (rest arguments))))))))
+
+(defclass condition-eq ()
+  ((left :reader condition-left :initarg :left :initform nil)
+   (right :reader condition-right :initarg :right :initform nil)))
+
+(defun condition-eq (left right)
+  (make-instance 'condition-eq :left left :right right))
+
+(defclass condition-not ()
+  ((condition :reader condition-child :initarg :condition :initform nil)))
+
+(defun condition-not (condition)
+  (make-instance 'condition-not :condition condition))
+
+(defclass condition-and ()
+  ((conditions :reader conditions :initarg :conditions :initform nil)))
+
+(defun condition-and (&rest conditions)
+  (make-instance 'condition-and :conditions conditions))
+
+(defclass condition-or ()
+  ((conditions :reader conditions :initarg :conditions :initform nil)))
+
+(defun condition-or (&rest conditions)
+  (make-instance 'condition-or :conditions conditions))
+
+(defclass effect-node ()
+  ())
+
+(defclass sequence (effect-node)
+  ((effects :reader sequence-effects :initarg :effects :initform nil)))
+
+(defun sequence (&rest effects)
+  (make-instance 'sequence :effects effects))
+
+(defclass state-effect (effect-node)
+  ((target :reader effect-target :initarg :target :initform nil)))
+
+(defclass state-set (state-effect)
+  ((value :reader effect-value :initarg :value :initform nil)))
+
+(defun state-set (target &rest arguments)
+  (multiple-value-bind (reference rest) (state-reference-from-arguments target arguments)
+    (destructuring-bind (value) rest
+      (make-instance 'state-set :target reference :value value))))
+
+(defclass state-clear (state-effect)
+  ())
+
+(defun state-clear (target &rest arguments)
+  (multiple-value-bind (reference rest) (state-reference-from-arguments target arguments)
+    (when rest
+      (error "STATE-CLEAR does not take a value."))
+    (make-instance 'state-clear :target reference)))
+
+(defclass state-inc (state-effect)
+  ((amount :reader effect-amount :initarg :amount :initform 1)))
+
+(defun state-inc (target &rest arguments)
+  (multiple-value-bind (reference rest) (state-reference-from-arguments target arguments)
+    (destructuring-bind (&optional (amount 1)) rest
+      (make-instance 'state-inc :target reference :amount amount))))
+
+(defclass state-dec (state-effect)
+  ((amount :reader effect-amount :initarg :amount :initform 1)))
+
+(defun state-dec (target &rest arguments)
+  (multiple-value-bind (reference rest) (state-reference-from-arguments target arguments)
+    (destructuring-bind (&optional (amount 1)) rest
+      (make-instance 'state-dec :target reference :amount amount))))
+
+(defclass state-toggle (state-effect)
+  ())
+
+(defun state-toggle (target &rest arguments)
+  (multiple-value-bind (reference rest) (state-reference-from-arguments target arguments)
+    (when rest
+      (error "STATE-TOGGLE does not take a value."))
+    (make-instance 'state-toggle :target reference)))
+
+(defun have? (key)
+  (state-ref :global key))
+
+(defun gain (key)
+  (state-set :global key t))
+
+(defun lose (key)
+  (state-clear :global key))
+
+(defun toggle (target &rest arguments)
+  (apply #'state-toggle target arguments))
+
+(defclass say (effect-node)
+  ((text :reader say-text :initarg :text :initform nil)))
+
+(defun say (text)
+  (make-instance 'say :text text))
+
+(defclass conditional-effect (effect-node)
+  ((condition :reader conditional-effect-condition
+	      :initarg :condition
+	      :initform nil)
+   (then-effects :reader conditional-effect-then
+		 :initarg :then
+		 :initform nil)
+   (else-effects :reader conditional-effect-else
+		 :initarg :else
+		 :initform nil)))
+
+(defun conditional-effect (condition then-effects &optional else-effects)
+  (make-instance 'conditional-effect
+		 :condition condition
+		 :then then-effects
+		 :else else-effects))
+
 (defclass choice ()
   ((label :accessor label :initarg :label :initform nil)
    (target :accessor target :initarg :target :initform nil)))
@@ -117,7 +321,7 @@
 
 (defmacro shown-when (condition &body entities)
   `(make-instance 'conditional
-		  :condition ',condition
+		  :condition (condition-form ',condition)
 		  :entities (list ,@entities)))
 
 (defclass action ()
@@ -127,7 +331,7 @@
 (defmacro action (label &body effects)
   `(make-instance 'action
 		  :label ,label
-		  :effects ',effects))
+		  :effects (effect-sequence-from-forms ',effects)))
 
 (defclass action-invocation ()
   ((owner :reader action-owner :initarg :owner :initform nil)
@@ -226,6 +430,134 @@
 
 (defmethod node-children ((thing container))
   (contents thing))
+
+(defun effect-operator-p (thing)
+  (and (symbolp thing)
+       (member (operator-name thing)
+	       '("say" "set" "clear" "gain" "lose" "inc" "dec" "toggle"
+		 "if" "goto" "gosub" "back" "quit" "refresh" "sequence")
+	       :test #'string=)))
+
+(defun expression-form (form)
+  (cond
+    ((typep form 'state-ref)
+     form)
+    ((state-path-symbol-p form)
+     (state-ref-from-path form))
+    ((and (consp form)
+	  (string= (operator-name (first form)) "state-ref"))
+     (apply #'state-ref (rest form)))
+    (t form)))
+
+(defun condition-form (form)
+  (cond
+    ((typep form 'state-ref)
+     form)
+    ((atom form)
+     (expression-form form))
+    (t
+     (let ((operator (operator-name (first form)))
+	   (arguments (rest form)))
+       (cond
+	 ((member operator '("=" "is" "eq") :test #'string=)
+	  (destructuring-bind (left right) arguments
+	    (condition-eq (expression-form left)
+			  (expression-form right))))
+	 ((string= operator "not")
+	  (destructuring-bind (argument) arguments
+	    (condition-not (condition-form argument))))
+	 ((string= operator "and")
+	  (apply #'condition-and (mapcar #'condition-form arguments)))
+	 ((string= operator "or")
+	  (apply #'condition-or (mapcar #'condition-form arguments)))
+	 ((string= operator "have?")
+	  (destructuring-bind (key) arguments
+	    (have? key)))
+	 ((string= operator "state-ref")
+	  (apply #'state-ref arguments))
+	 (t
+	  (error "Unknown condition operator ~S." (first form))))))))
+
+(defun effect-forms-from-branch (branch)
+  (cond
+    ((null branch)
+     nil)
+    ((and (consp branch)
+	  (effect-operator-p (first branch)))
+     (list (effect-form branch)))
+    (t
+     (mapcar #'effect-form branch))))
+
+(defun effect-sequence-from-forms (forms)
+  (apply #'sequence (mapcar #'effect-form forms)))
+
+(defun effect-sequence-from-branch (branch)
+  (apply #'sequence (effect-forms-from-branch branch)))
+
+(defun effect-form (form)
+  (cond
+    ((or (typep form 'effect-node)
+	 (typep form 'goto)
+	 (typep form 'gosub)
+	 (typep form 'enter)
+	 (typep form 'back)
+	 (typep form 'quit)
+	 (typep form 'refresh))
+     form)
+    ((not (consp form))
+     (error "Effect must be a list, got ~S." form))
+    (t
+     (let ((operator (operator-name (first form)))
+	   (arguments (rest form)))
+       (cond
+	 ((string= operator "say")
+	  (destructuring-bind (text) arguments
+	    (say (expression-form text))))
+	 ((string= operator "set")
+	  (destructuring-bind (path value) arguments
+	    (state-set (expression-form path)
+		       (expression-form value))))
+	 ((string= operator "clear")
+	  (destructuring-bind (path) arguments
+	    (state-clear (expression-form path))))
+	 ((string= operator "gain")
+	  (destructuring-bind (key) arguments
+	    (gain key)))
+	 ((string= operator "lose")
+	  (destructuring-bind (key) arguments
+	    (lose key)))
+	 ((string= operator "inc")
+	  (destructuring-bind (path &optional (amount 1)) arguments
+	    (state-inc (expression-form path)
+		       (expression-form amount))))
+	 ((string= operator "dec")
+	  (destructuring-bind (path &optional (amount 1)) arguments
+	    (state-dec (expression-form path)
+		       (expression-form amount))))
+	 ((string= operator "toggle")
+	  (destructuring-bind (path) arguments
+	    (state-toggle (expression-form path))))
+	 ((string= operator "if")
+	  (destructuring-bind (condition then-branch &optional else-branch) arguments
+	    (conditional-effect (condition-form condition)
+				(effect-sequence-from-branch then-branch)
+				(effect-sequence-from-branch else-branch))))
+	 ((string= operator "goto")
+	  (destructuring-bind (room-name) arguments
+	    (goto (expression-form room-name))))
+	 ((string= operator "gosub")
+	  (destructuring-bind (room-name) arguments
+	    (gosub (expression-form room-name))))
+	 ((string= operator "back")
+	  (back))
+	 ((string= operator "quit")
+	  (quit))
+	 ((string= operator "refresh")
+	  (refresh))
+	 ((string= operator "sequence")
+	  (effect-sequence-from-forms arguments))
+	 (t
+	  (error "Unknown effect operator ~S." (first form))))))))
 
 (defun normalize-state-key (name)
   (etypecase name
