@@ -8,12 +8,14 @@
    #:*input*
    #:*output*
    #:action
+   #:action-owner
    #:back
    #:branch
    #:choice
    #:choice-condition
    #:choice-id
    #:choice-once-p
+   #:choices
    #:close-choice
    #:condition-and
    #:condition-eq
@@ -50,6 +52,8 @@
    #:lose
    #:make-option
    #:name
+   #:node-children
+   #:node-id
    #:open-choice
    #:option
    #:options
@@ -80,6 +84,7 @@
    #:toggle
    #:validate-game
    #:validate-node
+   #:walk-node-tree
    #:viewed-container))
 
 (uiop:define-package #:dunge-user

@@ -15,7 +15,13 @@
   self)
 
 (defgeneric evaluate (thing &optional context)
-  (:documentation "Evaluate a Dunge CLOS AST node in CONTEXT."))
+  (:documentation "Evaluate a Dunge CLOS AST node in CONTEXT.
+
+When THING is a game, returns one of: a QUIT instance when the player chose to
+quit or input closed; a BACK instance when the player backed past the top of the
+return stack; or a ROOM or CONTAINER-VIEW instance when play fell through with no
+choices and an empty return stack. Control node identity is preserved, so callers
+can TYPEP the result against QUIT, BACK, and related classes."))
 
 (defgeneric describe-entity (thing &optional context)
   (:documentation "Describe an AST node as part of a room in CONTEXT."))
@@ -54,15 +60,17 @@
       (format *output* "Choose 1-~D.~%" count))))
 
 (defun runtime-context-for-scene (context scene)
+  (check-type context runtime-context)
   (make-runtime-context
-   :game (and context (runtime-context-game context))
+   :game (runtime-context-game context)
    :scene scene
    :self nil))
 
 (defun runtime-context-for-self (context self)
+  (check-type context runtime-context)
   (make-runtime-context
-   :game (and context (runtime-context-game context))
-   :scene (and context (runtime-context-scene context))
+   :game (runtime-context-game context)
+   :scene (runtime-context-scene context)
    :self self))
 
 (defun describe-children (children context)
@@ -117,7 +125,7 @@
         (return-from evaluate result)))
     (let ((collected-options (collect-options-from (entities room) room-context)))
       (if collected-options
-          (evaluate (make-instance 'choices :options collected-options) room-context)
+          (evaluate (apply #'choices collected-options) room-context)
           (fall-through)))))
 
 (defmethod describe-entity ((thing t) &optional context)
@@ -180,8 +188,12 @@
             (evaluate (target option) context))
           (quit)))))
 
+;;; Effects can be reached as a choice target through EVALUATE, or inside a
+;;; sequence through EXECUTE-EFFECT directly. This bridge keeps both paths
+;;; equivalent while preserving CLOS dispatch over choice target unions.
 (defmethod evaluate ((effect effect-node) &optional context)
-  (execute-effect effect context))
+  (or (execute-effect effect context)
+      (refresh)))
 
 (defmethod collect-choices ((choices choices) &optional context)
   (loop for choice in (options choices)
@@ -259,7 +271,7 @@
           (append collected-options
                   (list (option (or (close-choice container) "Back")
                                 (back)))))
-    (evaluate (make-instance 'choices :options collected-options) context)))
+    (evaluate (apply #'choices collected-options) context)))
 
 (defmethod describe-entity ((placement placement) &optional context)
   (declare (ignore context))
@@ -274,13 +286,41 @@
                     (interaction-target placement)))
       nil))
 
+(defun entity-state-name (entity)
+  (or (entity-id entity) (name entity)))
+
+(defun declared-state-keys (entity)
+  (loop for declaration in (state-declarations entity)
+        collect (destructuring-bind (key value) declaration
+                  (declare (ignore value))
+                  (state-key key))))
+
+(defun declared-state-initial-value (entity key)
+  (dolist (declaration (state-declarations entity))
+    (destructuring-bind (declared-key value) declaration
+      (when (eql (state-key declared-key) key)
+        (return value)))))
+
+(defun ensure-declared-state-key (entity key)
+  (let ((state-key (state-key key))
+        (declared-keys (declared-state-keys entity)))
+    (unless (member state-key declared-keys :test #'eql)
+      (error "Entity ~S has no declared state key ~S. Declared keys: ~S."
+             (entity-state-name entity)
+             state-key
+             declared-keys))
+    state-key))
+
 (defun resolve-state-reference (reference context)
   (ecase (state-ref-scope reference)
     (:self
      (unless (and context (runtime-context-self context))
        (error "Cannot resolve SELF state without a current entity."))
-     (values (local-state (runtime-context-self context))
-             (state-key (state-ref-key reference))))
+     (let* ((self (runtime-context-self context))
+            (key (ensure-declared-state-key self (state-ref-key reference))))
+       (values (local-state self)
+               key
+               self)))
     (:global
      (unless (and context (runtime-context-game context))
        (error "Cannot resolve GLOBAL state without a current game."))
@@ -296,8 +336,10 @@
          (error "Entity ~S has no declared ref named ~S."
                 (or (entity-id self) (name self))
                 (state-ref-role reference)))
-       (values (local-state target)
-               (state-key (state-ref-key reference)))))))
+       (let ((key (ensure-declared-state-key target (state-ref-key reference))))
+         (values (local-state target)
+                 key
+                 target))))))
 
 (defun state-reference-value (reference context)
   (multiple-value-bind (table key) (resolve-state-reference reference context)
@@ -311,13 +353,42 @@
   (multiple-value-bind (table key) (resolve-state-reference reference context)
     (remhash key table)))
 
-(defun toggled-value (value)
+(defun toggled-value (value on-value off-value)
+  (cond
+    ((eql value on-value) off-value)
+    ((eql value off-value) on-value)
+    (t (error "Cannot toggle value ~S." value))))
+
+(defun declared-toggle-pair (entity key)
+  (let ((initial-value (declared-state-initial-value entity key)))
+    (cond
+      ((or (eq initial-value t)
+           (null initial-value))
+       (values t nil t))
+      ((member initial-value '(:on :off) :test #'eq)
+       (values :on :off t))
+      (t
+       (values nil nil nil)))))
+
+(defun global-toggled-value (value)
   (cond
     ((eq value :on) :off)
     ((eq value :off) :on)
     ((eq value t) nil)
     ((null value) t)
     (t (error "Cannot toggle value ~S." value))))
+
+(defun toggle-state-reference-value (reference context)
+  (multiple-value-bind (table key entity) (resolve-state-reference reference context)
+    (setf (gethash key table)
+          (if entity
+              (multiple-value-bind (on-value off-value toggle-pair-p)
+                  (declared-toggle-pair entity key)
+                (let ((current-value (gethash key table)))
+                  (unless toggle-pair-p
+                    (error "Cannot toggle value ~S." current-value))
+                  (toggled-value current-value on-value off-value)))
+              (global-toggled-value (gethash key table))))))
 
 (defmethod evaluate-expression ((expression t) &optional context)
   (declare (ignore context))
@@ -385,10 +456,7 @@
   nil)
 
 (defmethod execute-effect ((effect state-toggle) &optional context)
-  (set-state-reference-value
-   (effect-target effect)
-   (toggled-value (state-reference-value (effect-target effect) context))
-   context)
+  (toggle-state-reference-value (effect-target effect) context)
   nil)
 
 (defmethod execute-effect ((effect say) &optional context)
@@ -404,13 +472,8 @@
    context))
 
 (defun evaluate-effects (effects context)
-  (cond
-    ((null effects)
-     nil)
-    ((listp effects)
-     (error "Effect lists are not executable; use (sequence ...) instead."))
-    (t
-     (execute-effect effects context))))
+  (when effects
+    (execute-effect effects context)))
 
 (defmethod execute-effect ((effect goto) &optional context)
   (goto (evaluate-expression (room-name effect) context)))
@@ -443,26 +506,6 @@
   (error "Cannot execute ~S as an effect." effect))
 
 ;;; Control nodes evaluate to the result object consumed by the game loop.
-(defmethod evaluate ((goto goto) &optional context)
+(defmethod evaluate ((node control-node) &optional context)
   (declare (ignore context))
-  goto)
-
-(defmethod evaluate ((gosub gosub) &optional context)
-  (declare (ignore context))
-  gosub)
-
-(defmethod evaluate ((enter enter) &optional context)
-  (declare (ignore context))
-  enter)
-
-(defmethod evaluate ((back back) &optional context)
-  (declare (ignore context))
-  back)
-
-(defmethod evaluate ((quit quit) &optional context)
-  (declare (ignore context))
-  quit)
-
-(defmethod evaluate ((refresh refresh) &optional context)
-  (declare (ignore context))
-  refresh)
+  node)

@@ -9,7 +9,13 @@
   (:documentation "Return child AST nodes that participate in scene indexing."))
 
 (defmacro define-ast-node (name superclasses slots &body options)
-  "Define an AST node class and its local constructor/traversal boilerplate."
+  "Define an AST node class and its local constructor/traversal boilerplate.
+
+Use this for nodes whose constructor is essentially (MAKE-INSTANCE CLASS
+:SLOT1 ARG1 :SLOT2 ARG2 ...). If the constructor needs to massage arguments,
+default parameter expressions, or build composite slot values, omit the
+:CONSTRUCTOR option and define the constructor as a separate DEFUN. The class
+still benefits from DEFINE-AST-NODE for slots, NODE-ID, and NODE-CHILDREN."
   (labels ((method-option-form (option generic-function)
              (destructuring-bind (keyword lambda-list &body body) option
                (declare (ignore keyword))
@@ -21,7 +27,7 @@
                         lambda-list))
                `(defmethod ,generic-function ((,(first lambda-list) ,name))
                   ,@body))))
-    (let (constructor id children class-options)
+    (let (constructor id children)
       (dolist (option options)
         (unless (consp option)
           (error "Malformed DEFINE-AST-NODE option ~S." option))
@@ -38,16 +44,13 @@
            (when children
              (error "Duplicate DEFINE-AST-NODE :CHILDREN option for ~S." name))
            (setf children option))
-          (:class-option
-           (setf class-options (append class-options (rest option))))
           (otherwise
            (error "Unknown DEFINE-AST-NODE option ~S for ~S."
                   (first option)
                   name))))
       `(progn
          (defclass ,name ,superclasses
-           ,slots
-           ,@class-options)
+           ,slots)
          ,@(when constructor
              (destructuring-bind (keyword function lambda-list &rest initargs)
                  constructor
@@ -295,11 +298,15 @@ positional arguments. Examples:
                  :initarg :else
                  :initform (sequence))))
 
-(defun conditional-effect (condition then-effects &optional (else-effects (sequence)))
-  (make-instance 'conditional-effect
-                 :condition condition
-                 :then (or then-effects (sequence))
-                 :else (or else-effects (sequence))))
+(defun conditional-effect (condition then-effects
+                           &optional (else-effects nil else-effects-p))
+  (apply #'make-instance
+         'conditional-effect
+         :condition condition
+         (append (when then-effects
+                   (list :then then-effects))
+                 (when else-effects-p
+                   (list :else else-effects)))))
 
 (define-ast-node choice ()
   ((label :accessor label :initarg :label :initform nil)
@@ -326,13 +333,14 @@ positional arguments. Examples:
                 :condition ,when
                 :once ,once))
 
+(defun choices (&rest options)
+  (make-instance 'choices :options options))
+
 (defmacro choice (&body options)
-  `(make-instance 'choices
-                  :options (list
-                            ,@(mapcar (lambda (option)
-                                        (destructuring-bind (label target &rest args) option
-                                          `(option ,label ,target ,@args)))
-                                      options))))
+  `(choices ,@(mapcar (lambda (option)
+                        (destructuring-bind (label target &rest args) option
+                          `(option ,label ,target ,@args)))
+                      options)))
 
 (define-ast-node entity ()
   ((name :reader name :initarg :name :initform nil)
@@ -362,6 +370,10 @@ positional arguments. Examples:
                (:refs (setf refs (pop forms)))
                (otherwise
                 (error "Unknown entity option ~S." key))))
+    (let ((stray-keyword (find-if #'keywordp forms)))
+      (when stray-keyword
+        (error "Entity keyword options (:id, :state, :refs) must appear before body forms; got stray ~S."
+               stray-keyword)))
     `(make-instance 'entity
                     :name ,name
                     :id ,id
@@ -447,8 +459,7 @@ positional arguments. Examples:
 
 (define-ast-node p ()
   ((text :reader text :initarg :text :initform nil))
-  (:constructor p (text) :text text)
-  (:class-option (:documentation "A paragraph of descriptive text.")))
+  (:constructor p (text) :text text))
 
 (define-ast-node quit (control-node)
   ()
@@ -567,6 +578,42 @@ positional arguments. Examples:
                                  (label choice))
                (setf (gethash key *validation-choice-ids*) choice))))))))
 
+(defun condition-literal-p (thing)
+  (or (stringp thing)
+      (keywordp thing)
+      (numberp thing)
+      (eq thing t)
+      (null thing)))
+
+(defun validate-condition-operand (thing game context)
+  (cond
+    ((typep thing 'state-ref)
+     (validate-node thing game context))
+    ((condition-literal-p thing)
+     nil)
+    (t
+     (validation-error "Condition operands must be a state-ref or literal; got ~S."
+                       thing))))
+
+(defun validate-condition (condition game context)
+  (cond
+    ((typep condition 'condition-eq)
+     (validate-condition-operand (condition-left condition) game context)
+     (validate-condition-operand (condition-right condition) game context))
+    ((typep condition 'condition-not)
+     (validate-condition (condition-child condition) game context))
+    ((typep condition 'condition-and)
+     (dolist (child (conditions condition))
+       (validate-condition child game context)))
+    ((typep condition 'condition-or)
+     (dolist (child (conditions condition))
+       (validate-condition child game context)))
+    ((typep condition 'state-ref)
+     (validate-node condition game context))
+    (t
+     (validation-error "Condition must be a condition-* or state-ref node; got ~S."
+                       condition))))
+
 (defun validate-game (game)
   (let ((*validation-errors* nil)
         (*validation-choice-ids* (make-hash-table :test 'eql)))
@@ -594,7 +641,7 @@ positional arguments. Examples:
   (validate-node-list (entities thing) game thing))
 
 (defmethod validate-node ((thing branch) game context)
-  (validate-node (branch-condition thing) game context)
+  (validate-condition (branch-condition thing) game context)
   (validate-node-list (branch-then-entities thing) game context)
   (validate-node-list (branch-else-entities thing) game context))
 
@@ -604,7 +651,7 @@ positional arguments. Examples:
 (defmethod validate-node ((thing choice) game context)
   (validate-choice-id thing)
   (when (choice-condition thing)
-    (validate-node (choice-condition thing) game context))
+    (validate-condition (choice-condition thing) game context))
   (validate-node (target thing) game context))
 
 (defun validate-effect-tree (effects game context)
@@ -635,17 +682,16 @@ positional arguments. Examples:
     (validate-node (interaction-target thing) game context)))
 
 (defmethod validate-node ((thing condition-eq) game context)
-  (validate-node (condition-left thing) game context)
-  (validate-node (condition-right thing) game context))
+  (validate-condition thing game context))
 
 (defmethod validate-node ((thing condition-not) game context)
-  (validate-node (condition-child thing) game context))
+  (validate-condition thing game context))
 
 (defmethod validate-node ((thing condition-and) game context)
-  (validate-node-list (conditions thing) game context))
+  (validate-condition thing game context))
 
 (defmethod validate-node ((thing condition-or) game context)
-  (validate-node-list (conditions thing) game context))
+  (validate-condition thing game context))
 
 (defmethod validate-node ((thing state-ref) game context)
   (declare (ignore game context))
@@ -695,7 +741,7 @@ positional arguments. Examples:
   (validate-node (say-text thing) game context))
 
 (defmethod validate-node ((thing conditional-effect) game context)
-  (validate-node (conditional-effect-condition thing) game context)
+  (validate-condition (conditional-effect-condition thing) game context)
   (validate-effect-tree (conditional-effect-then thing) game context)
   (validate-effect-tree (conditional-effect-else thing) game context))
 

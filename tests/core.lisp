@@ -57,6 +57,14 @@
           (*output* output))
       (funcall function))))
 
+(defun error-message-from (thunk)
+  (handler-case
+      (progn
+        (funcall thunk)
+        nil)
+    (error (condition)
+      (princ-to-string condition))))
+
 (test substring-count-rejects-empty-needle
   (signals error
     (substring-count "" "anything")))
@@ -67,12 +75,12 @@
          (visited nil))
     (is (typep root 'sample-ast-node))
     (is (equal "root" (sample-ast-node-id root)))
-    (is (equal "root" (dunge::node-id root)))
-    (is (equal (list leaf) (dunge::node-children root)))
-    (dunge::walk-node-tree
+    (is (equal "root" (node-id root)))
+    (is (equal (list leaf) (node-children root)))
+    (walk-node-tree
      root
      (lambda (node)
-       (push (dunge::node-id node) visited)))
+       (push (node-id node) visited)))
     (is (equal '("root" "leaf") (nreverse visited)))))
 
 (test define-ast-node-rejects-unknown-options
@@ -81,6 +89,14 @@
      '(define-ast-node invalid-sample-ast-node ()
        ()
        (:unknown-option t)))))
+
+(test entity-keyword-options-must-precede-body
+  (signals error
+    (macroexpand-1
+     '(entity "panel"
+       :state ((:switch :off))
+       (p "A panel waits.")
+       :id "panel"))))
 
 (test refactored-nodes-expose-generated-traversal-methods
   (let* ((door (entity "door" :id "door"))
@@ -93,11 +109,11 @@
          (container-node (container "box"
                            :contents ((item "key")
                                       (item "coin")))))
-    (is (equal (list room) (dunge::node-children game-node)))
-    (is (equal (list door panel) (dunge::node-children room)))
-    (is (equal "door" (dunge::node-id door)))
-    (is (= 2 (length (dunge::node-children branch-node))))
-    (is (= 2 (length (dunge::node-children container-node))))))
+    (is (equal (list room) (node-children game-node)))
+    (is (equal (list door panel) (node-children room)))
+    (is (equal "door" (node-id door)))
+    (is (= 2 (length (node-children branch-node))))
+    (is (= 2 (length (node-children container-node))))))
 
 (test state-effects-update-global-self-and-refs
   (multiple-value-bind (game door panel) (build-state-fixture)
@@ -126,6 +142,49 @@
 
       (execute-effect (state-clear :self :switch) context)
       (is (not (state-value (state-ref :self :switch) context))))))
+
+(test declared-entity-state-is-strict
+  (multiple-value-bind (game door panel) (build-state-fixture)
+    (let ((context (test-context game :self panel)))
+      (is (contains-substring-p
+           "has no declared state key :UNDECLARED-KEY"
+           (error-message-from
+            (lambda ()
+              (execute-effect (toggle :self :undeclared-key) context)))))
+      (signals error
+        (execute-effect (state-set :self :undeclared-key 42) context))
+      (signals error
+        (state-value (state-ref :self :undeclared-key) context))
+      (signals error
+        (state-value (state-ref :ref :door :switch) context))
+
+      (execute-effect (state-set :self :switch t) context)
+      (signals error
+        (execute-effect (toggle :self :switch) context))
+
+      (let ((door-context (test-context game :self door)))
+        (execute-effect (state-set :self :open :on) door-context)
+        (signals error
+          (execute-effect (toggle :self :open) door-context))))))
+
+(test malformed-conditions-fail-validation
+  (signals error
+    (game (room "start"
+            (branch 42
+              :then ((p "bad"))))))
+  (signals error
+    (game (room "start"
+            (option "Bad" (quit)
+             :when 42))))
+  (signals error
+    (game (room "start"
+            (branch (condition-eq (condition-eq t t) t)
+              :then ((p "bad"))))))
+  (signals error
+    (game (room "start"
+            (action "Bad conditional"
+              (conditional-effect 42
+                                  (gain :x)))))))
 
 (test condition-operators-read-state
   (multiple-value-bind (game door panel) (build-state-fixture)
@@ -180,6 +239,25 @@
       (dunge::mark-choice-taken take-recipe context)
       (is (not (dunge::choice-visible-p take-recipe context))))))
 
+(test bare-effect-choice-target-refreshes
+  (let* ((game (game
+                (room "room"
+                  (choice
+                    ("Set flag" (gain :flag))
+                    ("Quit" (quit))))))
+         (result (let ((*input* (make-string-input-stream (format nil "1~%2~%")))
+                       (*output* (make-string-output-stream)))
+                   (evaluate game))))
+    (is (typep result 'quit))
+    (is (state-value (state-ref :global :flag) (test-context game)))))
+
+(test action-with-nil-effects-is-a-no-op-refresh
+  (let* ((panel (entity "panel"
+                  (make-instance 'action :label "Wait")))
+         (game (game (room "room" panel)))
+         (action-node (first (entities panel))))
+    (is (typep (evaluate action-node (test-context game)) 'dunge::refresh))))
+
 (test actions-store-and-use-entity-owners
   (let* ((panel (entity "panel"
                   :state ((:switch :off))
@@ -188,7 +266,7 @@
          (game (game (room "room" panel)))
          (action-node (first (entities panel)))
          (context (test-context game)))
-    (is (eq panel (dunge::action-owner action-node)))
+    (is (eq panel (action-owner action-node)))
     (let ((choice (first (collect-choices action-node context))))
       (is (eq action-node (target choice)))
       (evaluate (target choice) context)
@@ -198,13 +276,13 @@
 (test nested-actions-keep-containing-entity-owner
   (let* ((panel (entity "panel"
                   :state ((:switch :off))
-                  (branch t
+                  (branch (condition-eq t t)
                     :then ((action "Flip"
                              (state-set :self :switch :on))))))
          (game (game (room "room" panel)))
          (choice (first (collect-choices panel (test-context game))))
          (action-node (target choice)))
-    (is (eq panel (dunge::action-owner action-node)))
+    (is (eq panel (action-owner action-node)))
     (evaluate action-node (test-context game))
     (is (eq :on (state-value (state-ref :self :switch)
                              (test-context game :self panel))))))
@@ -215,7 +293,7 @@
                     (gain :x))))
          (unprepared-game (make-instance 'game
                                          :rooms (list (room "room" panel)))))
-    (is (null (dunge::action-owner (first (entities panel)))))
+    (is (null (action-owner (first (entities panel)))))
     (is (eq unprepared-game (validate-game unprepared-game)))))
 
 (test validator-catches-authoring-errors
@@ -239,7 +317,7 @@
     (game (room "start"
             (entity "panel"
               (action "Bad list effect"
-                (conditional-effect t
+                (conditional-effect (condition-eq t t)
                                     (list (gain :x))))))))
   (signals error
     (game (room "start"
@@ -306,12 +384,12 @@
   (signals error
     (execute-effect (list (gain :x))))
   (is (null (execute-effect
-             (conditional-effect nil
+             (conditional-effect (condition-eq nil t)
                                  (gain :x)
                                  nil))))
   (is (null (execute-effect
              (make-instance 'conditional-effect
-                            :condition nil
+                            :condition (condition-eq nil t)
                             :then (gain :x)
                             :else nil)))))
 
