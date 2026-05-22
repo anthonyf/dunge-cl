@@ -9,7 +9,11 @@
    #:*output*
    #:action
    #:back
+   #:branch
    #:choice
+   #:choice-condition
+   #:choice-id
+   #:choice-once-p
    #:close-choice
    #:condition-and
    #:condition-eq
@@ -56,6 +60,7 @@
    #:say
    #:sequence
    #:shown-when
+   #:shown-unless
    #:state-clear
    #:state-dec
    #:state-inc
@@ -65,6 +70,8 @@
    #:target
    #:text
    #:toggle
+   #:validate-game
+   #:validate-node
    #:viewed-container))
 
 (uiop:define-package #:dunge-user

@@ -116,6 +116,29 @@
   (loop for thing in things
 	append (copy-list (collect-choices thing))))
 
+(defun choice-state-key (choice)
+  (let ((id (choice-id choice)))
+    (unless id
+      (error "Once-only choice ~S must declare :ID." (label choice)))
+    (normalize-id-key id)))
+
+(defun choice-taken-p (choice)
+  (and (choice-once-p choice)
+       *game*
+       (gethash (choice-state-key choice) (game-taken-choices *game*))))
+
+(defun choice-visible-p (choice)
+  (and (or (null (choice-condition choice))
+	   (evaluate-condition (choice-condition choice)))
+       (not (choice-taken-p choice))))
+
+(defun mark-choice-taken (choice)
+  (when (choice-once-p choice)
+    (unless *game*
+      (error "Cannot mark once-only choice ~S without a current game."
+	     (label choice)))
+    (setf (gethash (choice-state-key choice) (game-taken-choices *game*)) t)))
+
 (defmethod evaluate ((paragraph p))
   (format *output* "~A~%" (text paragraph)))
 
@@ -123,23 +146,26 @@
   (evaluate paragraph))
 
 (defmethod evaluate ((choices choices))
-  (let ((options (options choices)))
+  (let ((options (remove-if-not #'choice-visible-p (options choices))))
     (loop for option in options
 	  for index from 1
 	  do (format *output* "~D. ~A~%" index (label option)))
     (let ((index (and options (read-choice-index (length options)))))
       (if index
-	  (evaluate (target (nth (1- index) options)))
+	  (let ((option (nth (1- index) options)))
+	    (mark-choice-taken option)
+	    (evaluate (target option)))
 	  (quit)))))
 
 (defmethod evaluate ((effect effect-node))
   (execute-effect effect))
 
 (defmethod collect-choices ((choices choices))
-  (options choices))
+  (remove-if-not #'choice-visible-p (options choices)))
 
 (defmethod collect-choices ((choice choice))
-  (list choice))
+  (when (choice-visible-p choice)
+    (list choice)))
 
 (defmethod describe-entity ((entity entity))
   (let ((*self* entity))
@@ -168,6 +194,23 @@
 (defmethod collect-choices ((conditional conditional))
   (when (evaluate-condition (conditional-condition conditional))
     (collect-options-from (entities conditional))))
+
+(defun active-branch-entities (branch)
+  (if (evaluate-condition (branch-condition branch))
+      (branch-then-entities branch)
+      (branch-else-entities branch)))
+
+(defmethod describe-entity ((branch branch))
+  (dolist (child (active-branch-entities branch))
+    (let ((result (if (control-result-p child)
+		      child
+		      (describe-entity child))))
+      (when (control-result-p result)
+	(return-from describe-entity result))))
+  nil)
+
+(defmethod collect-choices ((branch branch))
+  (collect-options-from (active-branch-entities branch)))
 
 (defmethod describe-entity ((action action))
   nil)

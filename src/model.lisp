@@ -6,6 +6,8 @@
   ((rooms :reader game-rooms :initarg :rooms :initform nil)
    (global-state :reader game-global-state
 		 :initform (make-hash-table :test 'equal))
+   (taken-choices :reader game-taken-choices
+		  :initform (make-hash-table :test 'equal))
    (player :accessor game-player :initarg :player :initform nil)
    (room-index :reader room-index :initform (make-hash-table :test 'equal))
    (start :accessor game-start :initarg :start :initform nil)))
@@ -25,6 +27,7 @@
 (defun game (&rest rooms)
   (let ((game (make-instance 'game :rooms rooms)))
     (prepare-game game)
+    (validate-game game)
     game))
 
 (defclass room ()
@@ -266,20 +269,58 @@
 
 (defclass choice ()
   ((label :accessor label :initarg :label :initform nil)
-   (target :accessor target :initarg :target :initform nil)))
+   (target :accessor target :initarg :target :initform nil)
+   (id :reader choice-id :initarg :id :initform nil)
+   (condition :reader choice-condition :initarg :condition :initform nil)
+   (once :reader choice-once-p :initarg :once :initform nil)))
 
 (defclass choices ()
   ((options :accessor options :initarg :options :initform nil)))
 
-(defun option (label target)
-  (make-instance 'choice :label label :target target))
+(defun make-option (label target &key id condition once)
+  (make-instance 'choice
+		 :label label
+		 :target target
+		 :id id
+		 :condition condition
+		 :once once))
+
+(defmacro option (label target &rest options)
+  (let ((id nil)
+	(id-p nil)
+	(condition nil)
+	(condition-p nil)
+	(once nil)
+	(once-p nil))
+    (loop while options
+	  for key = (pop options)
+	  do (case key
+	       (:id
+		(setf id (pop options)
+		      id-p t))
+	       (:when
+		(setf condition (pop options)
+		      condition-p t))
+	       (:once
+		(setf once (pop options)
+		      once-p t))
+	       (otherwise
+		(error "Unknown option keyword ~S." key))))
+    `(make-option ,label
+		  ,target
+		  ,@(when id-p
+		      `(:id ,id))
+		  ,@(when condition-p
+		      `(:condition (condition-form ',condition)))
+		  ,@(when once-p
+		      `(:once ,once)))))
 
 (defmacro choice (&body options)
   `(make-instance 'choices
 		  :options (list
 			    ,@(mapcar (lambda (option)
-					(destructuring-bind (label target) option
-					  `(option ,label ,target)))
+					(destructuring-bind (label target &rest args) option
+					  `(option ,label ,target ,@args)))
 				      options))))
 
 (defclass entity ()
@@ -319,10 +360,24 @@
   ((condition :reader conditional-condition :initarg :condition :initform nil)
    (entities :accessor entities :initarg :entities :initform nil)))
 
-(defmacro shown-when (condition &body entities)
-  `(make-instance 'conditional
+(defclass branch ()
+  ((condition :reader branch-condition :initarg :condition :initform nil)
+   (then-entities :reader branch-then-entities :initarg :then :initform nil)
+   (else-entities :reader branch-else-entities :initarg :else :initform nil)))
+
+(defmacro branch (condition &key then else)
+  `(make-instance 'branch
 		  :condition (condition-form ',condition)
-		  :entities (list ,@entities)))
+		  :then (list ,@then)
+		  :else (list ,@else)))
+
+(defmacro shown-when (condition &body entities)
+  `(branch ,condition
+	   :then ,entities))
+
+(defmacro shown-unless (condition &body entities)
+  `(branch (not ,condition)
+	   :then ,entities))
 
 (defclass action ()
   ((label :accessor label :initarg :label :initform nil)
@@ -427,6 +482,10 @@
 
 (defmethod node-children ((thing conditional))
   (entities thing))
+
+(defmethod node-children ((thing branch))
+  (append (branch-then-entities thing)
+	  (branch-else-entities thing)))
 
 (defmethod node-children ((thing container))
   (contents thing))
@@ -619,6 +678,178 @@
 
 (defun prepare-game (game)
   (clrhash (game-global-state game))
+  (clrhash (game-taken-choices game))
   (dolist (room (game-rooms game))
     (prepare-room-scene room))
   game)
+
+(defvar *validation-errors* nil)
+(defvar *validation-choice-ids* nil)
+
+(defgeneric validate-node (thing game context)
+  (:documentation "Validate a Dunge AST node in GAME and CONTEXT."))
+
+(defun validation-error (format-control &rest format-arguments)
+  (push (apply #'format nil format-control format-arguments)
+	*validation-errors*))
+
+(defun static-room-name-p (thing)
+  (stringp thing))
+
+(defun validate-room-target (node game room-name)
+  (when (static-room-name-p room-name)
+    (multiple-value-bind (room present-p) (gethash room-name (room-index game))
+      (declare (ignore room))
+      (unless present-p
+	(validation-error "~A targets missing room ~S."
+			  (class-name (class-of node))
+			  room-name)))))
+
+(defun validate-choice-id (choice)
+  (let ((id (choice-id choice)))
+    (cond
+      ((and (choice-once-p choice)
+	    (null id))
+       (validation-error "Once-only choice ~S must declare :ID."
+			 (label choice)))
+      (id
+       (let ((key (normalize-id-key id)))
+	 (multiple-value-bind (existing present-p) (gethash key *validation-choice-ids*)
+	   (when present-p
+	     (validation-error "Duplicate choice id ~S on choices ~S and ~S."
+			       id
+			       (label existing)
+			       (label choice))))
+	 (setf (gethash key *validation-choice-ids*) choice))))))
+
+(defun validate-game (game)
+  (let ((*validation-errors* nil)
+	(*validation-choice-ids* (make-hash-table :test 'equal)))
+    (dolist (room (game-rooms game))
+      (validate-node room game room))
+    (when *validation-errors*
+      (error "Game validation failed:~%~{  - ~A~%~}"
+	     (nreverse *validation-errors*))))
+  game)
+
+(defmethod validate-node ((thing t) game context)
+  (declare (ignore thing game context))
+  nil)
+
+(defmethod validate-node ((thing room) game context)
+  (declare (ignore context))
+  (dolist (child (entities thing))
+    (validate-node child game thing)))
+
+(defmethod validate-node ((thing entity) game context)
+  (dolist (child (entities thing))
+    (validate-node child game context)))
+
+(defmethod validate-node ((thing conditional) game context)
+  (validate-node (conditional-condition thing) game context)
+  (dolist (child (entities thing))
+    (validate-node child game context)))
+
+(defmethod validate-node ((thing branch) game context)
+  (validate-node (branch-condition thing) game context)
+  (dolist (child (branch-then-entities thing))
+    (validate-node child game context))
+  (dolist (child (branch-else-entities thing))
+    (validate-node child game context)))
+
+(defmethod validate-node ((thing choices) game context)
+  (dolist (choice (options thing))
+    (validate-node choice game context)))
+
+(defmethod validate-node ((thing choice) game context)
+  (validate-choice-id thing)
+  (when (choice-condition thing)
+    (validate-node (choice-condition thing) game context))
+  (validate-node (target thing) game context))
+
+(defun validate-effect-tree (effects game context)
+  (validate-node
+   (if (listp effects)
+       (effect-sequence-from-branch effects)
+       effects)
+   game
+   context))
+
+(defmethod validate-node ((thing action) game context)
+  (validate-effect-tree (effects thing) game context))
+
+(defmethod validate-node ((thing container) game context)
+  (dolist (child (contents thing))
+    (validate-node child game context)))
+
+(defmethod validate-node ((thing placement) game context)
+  (when (interaction-target thing)
+    (validate-node (interaction-target thing) game context)))
+
+(defmethod validate-node ((thing condition-eq) game context)
+  (validate-node (condition-left thing) game context)
+  (validate-node (condition-right thing) game context))
+
+(defmethod validate-node ((thing condition-not) game context)
+  (validate-node (condition-child thing) game context))
+
+(defmethod validate-node ((thing condition-and) game context)
+  (dolist (condition (conditions thing))
+    (validate-node condition game context)))
+
+(defmethod validate-node ((thing condition-or) game context)
+  (dolist (condition (conditions thing))
+    (validate-node condition game context)))
+
+(defmethod validate-node ((thing state-ref) game context)
+  (declare (ignore game context))
+  (case (state-ref-scope thing)
+    (:ref
+     (unless (state-ref-role thing)
+       (validation-error "REF state reference for ~S is missing a role."
+			 (state-ref-key thing)))
+     (unless (state-ref-key thing)
+       (validation-error "REF state reference for ~S is missing a key."
+			 (state-ref-role thing))))
+    ((:self :global)
+     (unless (state-ref-key thing)
+       (validation-error "~S state reference is missing a key."
+			 (state-ref-scope thing))))
+    (otherwise
+     (validation-error "Unknown state scope ~S."
+		       (state-ref-scope thing)))))
+
+(defmethod validate-node ((thing sequence) game context)
+  (dolist (effect (sequence-effects thing))
+    (validate-node effect game context)))
+
+(defmethod validate-node ((thing state-effect) game context)
+  (validate-node (effect-target thing) game context))
+
+(defmethod validate-node ((thing state-set) game context)
+  (call-next-method)
+  (validate-node (effect-value thing) game context))
+
+(defmethod validate-node ((thing state-inc) game context)
+  (call-next-method)
+  (validate-node (effect-amount thing) game context))
+
+(defmethod validate-node ((thing state-dec) game context)
+  (call-next-method)
+  (validate-node (effect-amount thing) game context))
+
+(defmethod validate-node ((thing say) game context)
+  (validate-node (say-text thing) game context))
+
+(defmethod validate-node ((thing conditional-effect) game context)
+  (validate-node (conditional-effect-condition thing) game context)
+  (validate-effect-tree (conditional-effect-then thing) game context)
+  (validate-effect-tree (conditional-effect-else thing) game context))
+
+(defmethod validate-node ((thing goto) game context)
+  (declare (ignore context))
+  (validate-room-target thing game (room-name thing)))
+
+(defmethod validate-node ((thing gosub) game context)
+  (declare (ignore context))
+  (validate-room-target thing game (room-name thing)))
