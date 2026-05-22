@@ -146,7 +146,7 @@
   (let ((id (choice-id choice)))
     (unless id
       (error "Once-only choice ~S must declare :ID." (label choice)))
-    (normalize-id-key id)))
+    (choice-id-key id)))
 
 (defun choice-taken-p (choice context)
   (and (choice-once-p choice)
@@ -288,16 +288,16 @@
      (unless (and context (runtime-context-self context))
        (error "Cannot resolve SELF state without a current entity."))
      (values (local-state (runtime-context-self context))
-	     (normalize-state-key (state-ref-key reference))))
+	     (state-key (state-ref-key reference))))
     (:global
      (unless (and context (runtime-context-game context))
        (error "Cannot resolve GLOBAL state without a current game."))
      (values (game-global-state (runtime-context-game context))
-	     (normalize-state-key (state-ref-key reference))))
+	     (state-key (state-ref-key reference))))
     (:ref
      (unless (and context (runtime-context-self context))
        (error "Cannot resolve REF state without a current entity."))
-     (let* ((role-key (normalize-state-key (state-ref-role reference)))
+     (let* ((role-key (ref-role-key (state-ref-role reference)))
 	    (self (runtime-context-self context))
 	    (target (gethash role-key (resolved-refs self))))
        (unless target
@@ -305,7 +305,7 @@
 		(or (entity-id self) (name self))
 		(state-ref-role reference)))
        (values (local-state target)
-	       (normalize-state-key (state-ref-key reference)))))))
+	       (state-key (state-ref-key reference)))))))
 
 (defun state-reference-value (reference context)
   (multiple-value-bind (table key) (resolve-state-reference reference context)
