@@ -3,7 +3,7 @@
   (:use #:cl)
   (:mix #:trivia)
   (:shadow #:room
-	   #:sequence)
+           #:sequence)
   (:export
    #:*input*
    #:*output*
@@ -84,5 +84,5 @@
 (uiop:define-package #:dunge-user
   (:use #:cl #:dunge)
   (:shadowing-import-from #:dunge
-			  #:room
-			  #:sequence))
+                          #:room
+                          #:sequence))

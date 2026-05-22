@@ -5,9 +5,9 @@
 (defclass game ()
   ((rooms :reader game-rooms :initarg :rooms :initform nil)
    (global-state :reader game-global-state
-		 :initform (make-hash-table :test 'eql))
+                 :initform (make-hash-table :test 'eql))
    (taken-choices :reader game-taken-choices
-		  :initform (make-hash-table :test 'eql))
+                  :initform (make-hash-table :test 'eql))
    (player :accessor game-player :initarg :player :initform nil)
    (room-index :reader room-index :initform (make-hash-table :test 'equal))
    (start :accessor game-start :initarg :start :initform nil)))
@@ -20,7 +20,7 @@
     (setf (gethash (name room) (room-index game)) room))
   (unless (game-start game)
     (setf (game-start game) (and (game-rooms game)
-				 (name (first (game-rooms game)))))))
+                                 (name (first (game-rooms game)))))))
 
 (defun game (&rest rooms)
   (let ((game (make-instance 'game :rooms rooms)))
@@ -31,7 +31,7 @@
 (defclass room ()
   ((name :reader name :initarg :name :initform nil)
    (scene-index :reader scene-index
-		:initform (make-hash-table :test 'equal))
+                :initform (make-hash-table :test 'equal))
    (entities :accessor entities :initform nil :initarg :entities)))
 
 (defun room (name &rest entities)
@@ -78,7 +78,7 @@
     ((:self :global :ref) scope)
     (otherwise
      (error "State scope must be one of :SELF, :GLOBAL, or :REF; got ~S."
-	    scope))))
+            scope))))
 
 (defun state-key (key)
   (unless (keywordp key)
@@ -110,17 +110,17 @@
     (cond
       ((eq scope-key :ref)
        (unless ref-state-key-p
-	 (error "REF state references must include a role and key."))
+         (error "REF state references must include a role and key."))
        (make-instance 'state-ref
-		      :scope scope-key
-		      :role (ref-role-key key)
-		      :key (state-key ref-state-key)))
+                      :scope scope-key
+                      :role (ref-role-key key)
+                      :key (state-key ref-state-key)))
       (ref-state-key-p
        (error "~S state references take only one key." scope-key))
       (t
        (make-instance 'state-ref
-		      :scope scope-key
-		      :key (state-key key))))))
+                      :scope scope-key
+                      :key (state-key key))))))
 
 (defun state-reference-from-arguments (target arguments)
   "Parse state mutation constructor arguments.
@@ -138,16 +138,16 @@ positional arguments. Examples:
     (t
      (let ((scope (state-scope-key target)))
        (case scope
-	 (:ref
-	  (unless (>= (length arguments) 2)
-	    (error "REF state references need a role and key."))
-	  (values (state-ref :ref (first arguments) (second arguments))
-		  (cddr arguments)))
-	 (otherwise
-	  (unless arguments
-	    (error "~S state references need a key." scope))
-	  (values (state-ref scope (first arguments))
-		  (rest arguments))))))))
+         (:ref
+          (unless (>= (length arguments) 2)
+            (error "REF state references need a role and key."))
+          (values (state-ref :ref (first arguments) (second arguments))
+                  (cddr arguments)))
+         (otherwise
+          (unless arguments
+            (error "~S state references need a key." scope))
+          (values (state-ref scope (first arguments))
+                  (rest arguments))))))))
 
 (defclass condition-eq ()
   ((left :reader condition-left :initarg :left :initform nil)
@@ -245,20 +245,20 @@ positional arguments. Examples:
 
 (defclass conditional-effect (effect-node)
   ((condition :reader conditional-effect-condition
-	      :initarg :condition
-	      :initform nil)
+              :initarg :condition
+              :initform nil)
    (then-effects :reader conditional-effect-then
-		 :initarg :then
-		 :initform (sequence))
+                 :initarg :then
+                 :initform (sequence))
    (else-effects :reader conditional-effect-else
-		 :initarg :else
-		 :initform (sequence))))
+                 :initarg :else
+                 :initform (sequence))))
 
 (defun conditional-effect (condition then-effects &optional (else-effects (sequence)))
   (make-instance 'conditional-effect
-		 :condition condition
-		 :then (or then-effects (sequence))
-		 :else (or else-effects (sequence))))
+                 :condition condition
+                 :then (or then-effects (sequence))
+                 :else (or else-effects (sequence))))
 
 (defclass choice ()
   ((label :accessor label :initarg :label :initform nil)
@@ -272,59 +272,59 @@ positional arguments. Examples:
 
 (defun make-option (label target &key id condition once)
   (make-instance 'choice
-		 :label label
-		 :target target
-		 :id (and id (choice-id-key id))
-		 :condition condition
-		 :once once))
+                 :label label
+                 :target target
+                 :id (and id (choice-id-key id))
+                 :condition condition
+                 :once once))
 
 (defmacro option (label target &key id when once)
   `(make-option ,label
-		,target
-		:id ,id
-		:condition ,when
-		:once ,once))
+                ,target
+                :id ,id
+                :condition ,when
+                :once ,once))
 
 (defmacro choice (&body options)
   `(make-instance 'choices
-		  :options (list
-			    ,@(mapcar (lambda (option)
-					(destructuring-bind (label target &rest args) option
-					  `(option ,label ,target ,@args)))
-				      options))))
+                  :options (list
+                            ,@(mapcar (lambda (option)
+                                        (destructuring-bind (label target &rest args) option
+                                          `(option ,label ,target ,@args)))
+                                      options))))
 
 (defclass entity ()
   ((name :reader name :initarg :name :initform nil)
    (id :reader entity-id :initarg :id :initform nil)
    (state-declarations :reader state-declarations
-		       :initarg :state
-		       :initform nil)
+                       :initarg :state
+                       :initform nil)
    (local-state :reader local-state
-		:initform (make-hash-table :test 'eql))
+                :initform (make-hash-table :test 'eql))
    (refs :reader entity-refs :initarg :refs :initform nil)
    (resolved-refs :reader resolved-refs
-		  :initform (make-hash-table :test 'eql))
+                  :initform (make-hash-table :test 'eql))
    (entities :accessor entities :initarg :entities :initform nil)))
 
 (defmacro entity (name &body body)
   (let ((id nil)
-	(state nil)
-	(refs nil)
-	(forms body))
+        (state nil)
+        (refs nil)
+        (forms body))
     (loop while (and forms (keywordp (first forms)))
-	  for key = (pop forms)
-	  do (case key
-	       (:id (setf id (pop forms)))
-	       (:state (setf state (pop forms)))
-	       (:refs (setf refs (pop forms)))
-	       (otherwise
-		(error "Unknown entity option ~S." key))))
+          for key = (pop forms)
+          do (case key
+               (:id (setf id (pop forms)))
+               (:state (setf state (pop forms)))
+               (:refs (setf refs (pop forms)))
+               (otherwise
+                (error "Unknown entity option ~S." key))))
     `(make-instance 'entity
-		    :name ,name
-		    :id ,id
-		    :state ',state
-		    :refs ',refs
-		    :entities (list ,@forms))))
+                    :name ,name
+                    :id ,id
+                    :state ',state
+                    :refs ',refs
+                    :entities (list ,@forms))))
 
 (defclass branch ()
   ((condition :reader branch-condition :initarg :condition :initform nil)
@@ -333,17 +333,17 @@ positional arguments. Examples:
 
 (defmacro branch (condition &key then else)
   `(make-instance 'branch
-		  :condition ,condition
-		  :then (list ,@then)
-		  :else (list ,@else)))
+                  :condition ,condition
+                  :then (list ,@then)
+                  :else (list ,@else)))
 
 (defmacro shown-when (condition &body entities)
   `(branch ,condition
-	   :then ,entities))
+           :then ,entities))
 
 (defmacro shown-unless (condition &body entities)
   `(branch (condition-not ,condition)
-	   :then ,entities))
+           :then ,entities))
 
 (defclass action ()
   ((label :accessor label :initarg :label :initform nil)
@@ -352,8 +352,8 @@ positional arguments. Examples:
 
 (defmacro action (label &body effects)
   `(make-instance 'action
-		  :label ,label
-		  :effects (sequence ,@effects)))
+                  :label ,label
+                  :effects (sequence ,@effects)))
 
 (defclass refresh (control-node)
   ())
@@ -365,18 +365,18 @@ positional arguments. Examples:
   ((thing :reader placed-thing :initarg :thing :initform nil)
    (description :reader placement-description :initarg :description :initform nil)
    (interaction-label :reader interaction-label
-		      :initarg :interaction-label
-		      :initform nil)
+                      :initarg :interaction-label
+                      :initform nil)
    (interaction-target :reader interaction-target
-		       :initarg :interaction-target
-		       :initform nil)))
+                       :initarg :interaction-target
+                       :initform nil)))
 
 (defun placed (thing &key description interaction-label interaction-target)
   (make-instance 'placement
-		 :thing thing
-		 :description description
-		 :interaction-label interaction-label
-		 :interaction-target interaction-target))
+                 :thing thing
+                 :description description
+                 :interaction-label interaction-label
+                 :interaction-target interaction-target))
 
 (defclass item ()
   ((name :reader name :initarg :name :initform nil)
@@ -394,11 +394,11 @@ positional arguments. Examples:
 
 (defmacro container (name &key description open-choice contents close-choice)
   `(make-instance 'container
-		  :name ,name
-		  :description ,description
-		  :open-choice ,open-choice
-		  :contents (list ,@contents)
-		  :close-choice ,close-choice))
+                  :name ,name
+                  :description ,description
+                  :open-choice ,open-choice
+                  :contents (list ,@contents)
+                  :close-choice ,close-choice))
 
 (defclass container-view ()
   ((container :reader viewed-container :initarg :container :initform nil)))
@@ -442,48 +442,56 @@ positional arguments. Examples:
 
 (defmethod node-children ((thing branch))
   (append (branch-then-entities thing)
-	  (branch-else-entities thing)))
+          (branch-else-entities thing)))
 
 (defmethod node-children ((thing container))
   (contents thing))
 
-(defun reset-local-state (thing)
-  (when (typep thing 'entity)
-    (clrhash (local-state thing))
-    (dolist (declaration (state-declarations thing))
-      (destructuring-bind (name value) declaration
-	(setf (gethash (state-key name) (local-state thing))
-	      value))))
+(defun walk-node-tree (thing function)
+  (funcall function thing)
   (dolist (child (node-children thing))
-    (reset-local-state child)))
+    (walk-node-tree child function)))
+
+(defun reset-local-state (thing)
+  (walk-node-tree
+   thing
+   (lambda (node)
+     (when (typep node 'entity)
+       (clrhash (local-state node))
+       (dolist (declaration (state-declarations node))
+         (destructuring-bind (name value) declaration
+           (setf (gethash (state-key name) (local-state node))
+                 value)))))))
 
 (defun index-scene-node (scene thing)
-  (let ((id (node-id thing)))
-    (when id
-      (let ((key (scene-id-key id)))
-	(when (nth-value 1 (gethash key (scene-index scene)))
-	  (error "Duplicate scene id ~S in room ~S." id (name scene)))
-	(setf (gethash key (scene-index scene)) thing))))
-  (dolist (child (node-children thing))
-    (index-scene-node scene child)))
+  (walk-node-tree
+   thing
+   (lambda (node)
+     (let ((id (node-id node)))
+       (when id
+         (let ((key (scene-id-key id)))
+           (when (nth-value 1 (gethash key (scene-index scene)))
+             (error "Duplicate scene id ~S in room ~S." id (name scene)))
+           (setf (gethash key (scene-index scene)) node)))))))
 
 (defun resolve-node-refs (scene thing)
-  (when (typep thing 'entity)
-    (clrhash (resolved-refs thing))
-    (dolist (ref (entity-refs thing))
-      (destructuring-bind (role target-id) ref
-	(let* ((role-key (ref-role-key role))
-	       (target-key (scene-id-key target-id))
-	       (target (gethash target-key (scene-index scene))))
-	  (unless target
-	    (error "Entity ~S in room ~S has ref ~S to missing id ~S."
-		   (or (entity-id thing) (name thing))
-		   (name scene)
-		   role
-		   target-id))
-	  (setf (gethash role-key (resolved-refs thing)) target)))))
-  (dolist (child (node-children thing))
-    (resolve-node-refs scene child)))
+  (walk-node-tree
+   thing
+   (lambda (node)
+     (when (typep node 'entity)
+       (clrhash (resolved-refs node))
+       (dolist (ref (entity-refs node))
+         (destructuring-bind (role target-id) ref
+           (let* ((role-key (ref-role-key role))
+                  (target-key (scene-id-key target-id))
+                  (target (gethash target-key (scene-index scene))))
+             (unless target
+               (error "Entity ~S in room ~S has ref ~S to missing id ~S."
+                      (or (entity-id node) (name node))
+                      (name scene)
+                      role
+                      target-id))
+             (setf (gethash role-key (resolved-refs node)) target))))))))
 
 (defun assign-action-owners (thing owner)
   (cond
@@ -521,7 +529,7 @@ positional arguments. Examples:
 
 (defun validation-error (format-control &rest format-arguments)
   (push (apply #'format nil format-control format-arguments)
-	*validation-errors*))
+        *validation-errors*))
 
 (defun static-room-name-p (thing)
   (stringp thing))
@@ -530,62 +538,61 @@ positional arguments. Examples:
   (when (static-room-name-p room-name)
     (unless (nth-value 1 (gethash room-name (room-index game)))
       (validation-error "~A targets missing room ~S."
-			(class-name (class-of node))
-			room-name))))
+                        (class-name (class-of node))
+                        room-name))))
 
 (defun validate-choice-id (choice)
   (let ((id (choice-id choice)))
     (cond
       ((and (choice-once-p choice)
-	    (null id))
+            (null id))
        (validation-error "Once-only choice ~S must declare :ID."
-			 (label choice)))
+                         (label choice)))
       ((and id (not (keywordp id)))
        (validation-error "Choice id must be a keyword; got ~S." id))
       (id
        (let ((key (choice-id-key id)))
-	 (multiple-value-bind (existing present-p) (gethash key *validation-choice-ids*)
-	   (if present-p
-	       (validation-error "Duplicate choice id ~S on choices ~S and ~S."
-				 id
-				 (label existing)
-				 (label choice))
-	       (setf (gethash key *validation-choice-ids*) choice))))))))
+         (multiple-value-bind (existing present-p) (gethash key *validation-choice-ids*)
+           (if present-p
+               (validation-error "Duplicate choice id ~S on choices ~S and ~S."
+                                 id
+                                 (label existing)
+                                 (label choice))
+               (setf (gethash key *validation-choice-ids*) choice))))))))
 
 (defun validate-game (game)
   (let ((*validation-errors* nil)
-	(*validation-choice-ids* (make-hash-table :test 'eql)))
+        (*validation-choice-ids* (make-hash-table :test 'eql)))
     (dolist (room (game-rooms game))
       (validate-node room game room))
     (when *validation-errors*
       (error "Game validation failed:~%~{  - ~A~%~}"
-	     (nreverse *validation-errors*))))
+             (nreverse *validation-errors*))))
   game)
 
 (defmethod validate-node ((thing t) game context)
   (declare (ignore thing game context))
   nil)
 
+(defun validate-node-list (nodes game context)
+  (dolist (node nodes)
+    (validate-node node game context)))
+
 (defmethod validate-node ((thing room) game context)
   (declare (ignore context))
-  (dolist (child (entities thing))
-    (validate-node child game thing)))
+  (validate-node-list (entities thing) game thing))
 
 (defmethod validate-node ((thing entity) game context)
   (declare (ignore context))
-  (dolist (child (entities thing))
-    (validate-node child game thing)))
+  (validate-node-list (entities thing) game thing))
 
 (defmethod validate-node ((thing branch) game context)
   (validate-node (branch-condition thing) game context)
-  (dolist (child (branch-then-entities thing))
-    (validate-node child game context))
-  (dolist (child (branch-else-entities thing))
-    (validate-node child game context)))
+  (validate-node-list (branch-then-entities thing) game context)
+  (validate-node-list (branch-else-entities thing) game context))
 
 (defmethod validate-node ((thing choices) game context)
-  (dolist (choice (options thing))
-    (validate-node choice game context)))
+  (validate-node-list (options thing) game context))
 
 (defmethod validate-node ((thing choice) game context)
   (validate-choice-id thing)
@@ -604,14 +611,17 @@ positional arguments. Examples:
     (t
      (validation-error "Expected an effect node, got ~S." effects))))
 
+(defun validate-effect-list (effects game context)
+  (dolist (effect effects)
+    (validate-effect-tree effect game context)))
+
 (defmethod validate-node ((thing action) game context)
   (unless (typep context 'entity)
     (validation-error "Action ~S must be inside an entity." (label thing)))
   (validate-effect-tree (effects thing) game context))
 
 (defmethod validate-node ((thing container) game context)
-  (dolist (child (contents thing))
-    (validate-node child game context)))
+  (validate-node-list (contents thing) game context))
 
 (defmethod validate-node ((thing placement) game context)
   (when (interaction-target thing)
@@ -625,12 +635,10 @@ positional arguments. Examples:
   (validate-node (condition-child thing) game context))
 
 (defmethod validate-node ((thing condition-and) game context)
-  (dolist (condition (conditions thing))
-    (validate-node condition game context)))
+  (validate-node-list (conditions thing) game context))
 
 (defmethod validate-node ((thing condition-or) game context)
-  (dolist (condition (conditions thing))
-    (validate-node condition game context)))
+  (validate-node-list (conditions thing) game context))
 
 (defmethod validate-node ((thing state-ref) game context)
   (declare (ignore game context))
@@ -638,29 +646,28 @@ positional arguments. Examples:
     (:ref
      (unless (state-ref-role thing)
        (validation-error "REF state reference with key ~S is missing a role."
-			 (state-ref-key thing)))
+                         (state-ref-key thing)))
      (when (and (state-ref-role thing)
-		(not (keywordp (state-ref-role thing))))
+                (not (keywordp (state-ref-role thing))))
        (validation-error "REF state reference role must be a keyword; got ~S."
-			 (state-ref-role thing)))
+                         (state-ref-role thing)))
      (unless (state-ref-key thing)
        (validation-error "REF state reference with role ~S is missing a key."
-			 (state-ref-role thing))))
+                         (state-ref-role thing))))
     ((:self :global)
      (unless (state-ref-key thing)
        (validation-error "~S state reference is missing a key."
-			 (state-ref-scope thing))))
+                         (state-ref-scope thing))))
     (otherwise
      (validation-error "Unknown state scope ~S."
-		       (state-ref-scope thing))))
+                       (state-ref-scope thing))))
   (when (and (state-ref-key thing)
-	     (not (keywordp (state-ref-key thing))))
+             (not (keywordp (state-ref-key thing))))
     (validation-error "State reference key must be a keyword; got ~S."
-		      (state-ref-key thing))))
+                      (state-ref-key thing))))
 
 (defmethod validate-node ((thing sequence) game context)
-  (dolist (effect (sequence-effects thing))
-    (validate-effect-tree effect game context)))
+  (validate-effect-list (sequence-effects thing) game context))
 
 (defmethod validate-node ((thing state-effect) game context)
   (validate-node (effect-target thing) game context))

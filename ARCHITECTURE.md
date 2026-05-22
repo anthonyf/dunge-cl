@@ -33,10 +33,10 @@ bindings. A small state record is enough for the next slice:
 
 ```lisp
 (defstruct dunge-state
-	current-room
-	return-stack
-	(globals (make-hash-table :test 'eql))
-	(taken-choices (make-hash-table :test 'eql)))
+        current-room
+        return-stack
+        (globals (make-hash-table :test 'eql))
+        (taken-choices (make-hash-table :test 'eql)))
 ```
 
 Global state is the first-class primitive for flags, counters, and simple
@@ -58,9 +58,9 @@ Suggested primitive AST constructors:
 Convenience constructors can build those primitives:
 
 ```lisp
-(have? :recipe)		; => state-ref
-(gain :recipe)		; => state-set true
-(lose :recipe)		; => state-clear
+(have? :recipe)         ; => state-ref
+(gain :recipe)          ; => state-set true
+(lose :recipe)          ; => state-clear
 ```
 
 The important part is that `have?`, `gain`, and `lose` are not special runtime
@@ -82,8 +82,8 @@ else branch without repeating the condition:
 
 ```lisp
 (branch (have? :recipe)
-	:then ((option "Cook stew" (goto "victory")))
-	:else ((p "You'd cook, but you don't know what.")))
+        :then ((option "Cook stew" (goto "victory")))
+        :else ((p "You'd cook, but you don't know what.")))
 ```
 
 This avoids shadowing Common Lisp `if`, and it does not need a separate
@@ -93,15 +93,20 @@ paragraph-level `progn`: each branch already owns a list of AST nodes.
 
 ```lisp
 (shown-when condition body...)
-	; branch with only :then
+        ; branch with only :then
 
 (shown-unless condition body...)
-	; branch with (condition-not condition) and only :then
+        ; branch with (condition-not condition) and only :then
 ```
 
 The branch node should be handled by the same generic passes as other nodes.
 During rendering/choice collection, it evaluates its condition and visits
 either the then children or the else children.
+
+Structural passes that need to visit every authored node should go through
+`node-children` and `walk-node-tree` instead of open-coding recursive descent.
+Context-sensitive passes, such as action-owner assignment and validation, can
+still thread their own context while relying on the same child-access protocol.
 
 ## Effects And Sequences
 
@@ -110,8 +115,8 @@ therefore be allowed to be a single control node or a sequence node:
 
 ```lisp
 (sequence
-	(gain :recipe)
-	(back))
+        (gain :recipe)
+        (back))
 ```
 
 `sequence` is an effect/control AST node, not Lisp `progn`. It executes its
@@ -124,32 +129,32 @@ The north-star kitchen example becomes:
 
 ```lisp
 (game
-	(room "kitchen"
-		(p "It's a kitchen. A pot sits on the stove.")
+        (room "kitchen"
+                (p "It's a kitchen. A pot sits on the stove.")
 
-		(branch (have? :recipe)
-			:then ((option "Cook stew" (goto "victory")))
-			:else ((p "You'd cook, but you don't know what.")))
+                (branch (have? :recipe)
+                        :then ((option "Cook stew" (goto "victory")))
+                        :else ((p "You'd cook, but you don't know what.")))
 
-		(choice
-			("Search the cupboard" (gosub "cupboard"))
-			("Leave" (goto "hallway"))))
+                (choice
+                        ("Search the cupboard" (gosub "cupboard"))
+                        ("Leave" (goto "hallway"))))
 
-	(room "cupboard"
-		(p "Old shelves, dust.")
-		(option "Take the recipe card"
-			(sequence
-				(gain :recipe)
-				(back))
-			:once t
-			:id :take-recipe))
+        (room "cupboard"
+                (p "Old shelves, dust.")
+                (option "Take the recipe card"
+                        (sequence
+                                (gain :recipe)
+                                (back))
+                        :once t
+                        :id :take-recipe))
 
-	(room "hallway"
-		(p "A hallway."))
+        (room "hallway"
+                (p "A hallway."))
 
-	(room "victory"
-		(p "You cooked. You win.")
-		(option "Quit" (quit))))
+        (room "victory"
+                (p "You cooked. You win.")
+                (option "Quit" (quit))))
 ```
 
 ## Choices
@@ -162,12 +167,12 @@ Choice visibility and persistence should be data:
 
 ```lisp
 (option "Take the recipe card"
-		(sequence
-			(gain :recipe)
-			(back))
-		:when (condition-not (have? :recipe))
-		:once t
-		:id :take-recipe)
+                (sequence
+                        (gain :recipe)
+                        (back))
+                :when (condition-not (have? :recipe))
+                :once t
+                :id :take-recipe)
 ```
 
 Default choices are sticky. A once-only choice is hidden after it is selected.
