@@ -15,10 +15,8 @@
 (defmethod initialize-instance :after ((game game) &key)
   (clrhash (room-index game))
   (dolist (room (game-rooms game))
-    (multiple-value-bind (existing-room present-p) (gethash (name room) (room-index game))
-      (declare (ignore existing-room))
-      (when present-p
-	(error "Duplicate room named ~S." (name room))))
+    (when (nth-value 1 (gethash (name room) (room-index game)))
+      (error "Duplicate room named ~S." (name room)))
     (setf (gethash (name room) (room-index game)) room))
   (unless (game-start game)
     (setf (game-start game) (and (game-rooms game)
@@ -39,48 +37,35 @@
 (defun room (name &rest entities)
   (make-instance 'room :name name :entities entities))
 
-(defclass goto ()
+(defclass effect-node ()
+  ())
+
+(defclass control-node (effect-node)
+  ())
+
+(defclass goto (control-node)
   ((room-name :reader room-name :initarg :room-name :initform nil)))
 
 (defun goto (room-name)
   (make-instance 'goto :room-name room-name))
 
-(defclass gosub ()
+(defclass gosub (control-node)
   ((room-name :reader room-name :initarg :room-name :initform nil)))
 
 (defun gosub (room-name)
   (make-instance 'gosub :room-name room-name))
 
-(defclass enter ()
+(defclass enter (control-node)
   ((target :reader enter-target :initarg :target :initform nil)))
 
 (defun enter (target)
   (make-instance 'enter :target target))
 
-(defclass back ()
+(defclass back (control-node)
   ())
 
 (defun back ()
   (make-instance 'back))
-
-(defun operator-name (operator)
-  (unless (symbolp operator)
-    (error "DSL operator must be a symbol, got ~S." operator))
-  (string-downcase (symbol-name operator)))
-
-(defun split-reference-path (symbol)
-  (let ((name (string-downcase (symbol-name symbol)))
-	(start 0)
-	(parts nil))
-    (loop for dot = (position #\. name :start start)
-	  do (push (subseq name start dot) parts)
-	  while dot
-	  do (setf start (1+ dot)))
-    (nreverse parts)))
-
-(defun state-path-symbol-p (thing)
-  (and (symbolp thing)
-       (find #\. (symbol-name thing))))
 
 (defun normalize-state-scope (scope)
   (let ((name (etypecase scope
@@ -114,31 +99,19 @@
 		      :scope normalized-scope
 		      :key key)))))
 
-(defun state-ref-from-path (path)
-  (let ((parts (split-reference-path path)))
-    (destructuring-bind (scope &rest rest) parts
-      (cond
-	((string= scope "self")
-	 (unless (= (length rest) 1)
-	   (error "State path ~S must look like self.name." path))
-	 (state-ref :self (first rest)))
-	((string= scope "global")
-	 (unless (= (length rest) 1)
-	   (error "State path ~S must look like global.name." path))
-	 (state-ref :global (first rest)))
-	((string= scope "ref")
-	 (unless (= (length rest) 2)
-	   (error "State path ~S must look like ref.name.state." path))
-	 (state-ref :ref (first rest) (second rest)))
-	(t
-	 (error "Unknown state path scope ~S in ~S." scope path))))))
-
 (defun state-reference-from-arguments (target arguments)
+  "Parse state mutation constructor arguments.
+
+TARGET may be an existing STATE-REF, or a scope designator followed by
+positional arguments. Examples:
+
+  (state-set (state-ref :self :switch) :on)
+  (state-set :global :recipe t)
+  (state-toggle :self :switch)
+  (state-set :ref :door :open t)"
   (cond
     ((typep target 'state-ref)
      (values target arguments))
-    ((state-path-symbol-p target)
-     (values (state-ref-from-path target) arguments))
     (t
      (let ((scope (normalize-state-scope target)))
        (case scope
@@ -177,9 +150,6 @@
 
 (defun condition-or (&rest conditions)
   (make-instance 'condition-or :conditions conditions))
-
-(defclass effect-node ()
-  ())
 
 (defclass sequence (effect-node)
   ((effects :reader sequence-effects :initarg :effects :initform nil)))
@@ -261,7 +231,7 @@
 		 :initarg :else
 		 :initform nil)))
 
-(defun conditional-effect (condition then-effects &optional else-effects)
+(defun conditional-effect (condition then-effects &optional (else-effects (sequence)))
   (make-instance 'conditional-effect
 		 :condition condition
 		 :then then-effects
@@ -285,35 +255,12 @@
 		 :condition condition
 		 :once once))
 
-(defmacro option (label target &rest options)
-  (let ((id nil)
-	(id-p nil)
-	(condition nil)
-	(condition-p nil)
-	(once nil)
-	(once-p nil))
-    (loop while options
-	  for key = (pop options)
-	  do (case key
-	       (:id
-		(setf id (pop options)
-		      id-p t))
-	       (:when
-		(setf condition (pop options)
-		      condition-p t))
-	       (:once
-		(setf once (pop options)
-		      once-p t))
-	       (otherwise
-		(error "Unknown option keyword ~S." key))))
-    `(make-option ,label
-		  ,target
-		  ,@(when id-p
-		      `(:id ,id))
-		  ,@(when condition-p
-		      `(:condition (condition-form ',condition)))
-		  ,@(when once-p
-		      `(:once ,once)))))
+(defmacro option (label target &key id when once)
+  `(make-option ,label
+		,target
+		:id ,id
+		:condition ,when
+		:once ,once))
 
 (defmacro choice (&body options)
   `(make-instance 'choices
@@ -356,10 +303,6 @@
 		    :refs ',refs
 		    :entities (list ,@forms))))
 
-(defclass conditional ()
-  ((condition :reader conditional-condition :initarg :condition :initform nil)
-   (entities :accessor entities :initarg :entities :initform nil)))
-
 (defclass branch ()
   ((condition :reader branch-condition :initarg :condition :initform nil)
    (then-entities :reader branch-then-entities :initarg :then :initform nil)
@@ -367,7 +310,7 @@
 
 (defmacro branch (condition &key then else)
   `(make-instance 'branch
-		  :condition (condition-form ',condition)
+		  :condition ,condition
 		  :then (list ,@then)
 		  :else (list ,@else)))
 
@@ -376,7 +319,7 @@
 	   :then ,entities))
 
 (defmacro shown-unless (condition &body entities)
-  `(branch (not ,condition)
+  `(branch (condition-not ,condition)
 	   :then ,entities))
 
 (defclass action ()
@@ -386,7 +329,7 @@
 (defmacro action (label &body effects)
   `(make-instance 'action
 		  :label ,label
-		  :effects (effect-sequence-from-forms ',effects)))
+		  :effects (sequence ,@effects)))
 
 (defclass action-invocation ()
   ((owner :reader action-owner :initarg :owner :initform nil)
@@ -395,7 +338,7 @@
 (defun action-invocation (owner action)
   (make-instance 'action-invocation :owner owner :action action))
 
-(defclass refresh ()
+(defclass refresh (control-node)
   ())
 
 (defun refresh ()
@@ -453,7 +396,7 @@
 (defun p (text)
   (make-instance 'p :text text))
 
-(defclass quit ()
+(defclass quit (control-node)
   ())
 
 (defun quit ()
@@ -480,143 +423,12 @@
 (defmethod node-children ((thing entity))
   (entities thing))
 
-(defmethod node-children ((thing conditional))
-  (entities thing))
-
 (defmethod node-children ((thing branch))
   (append (branch-then-entities thing)
 	  (branch-else-entities thing)))
 
 (defmethod node-children ((thing container))
   (contents thing))
-
-(defun effect-operator-p (thing)
-  (and (symbolp thing)
-       (member (operator-name thing)
-	       '("say" "set" "clear" "gain" "lose" "inc" "dec" "toggle"
-		 "if" "goto" "gosub" "back" "quit" "refresh" "sequence")
-	       :test #'string=)))
-
-(defun expression-form (form)
-  (cond
-    ((typep form 'state-ref)
-     form)
-    ((state-path-symbol-p form)
-     (state-ref-from-path form))
-    ((and (consp form)
-	  (string= (operator-name (first form)) "state-ref"))
-     (apply #'state-ref (rest form)))
-    (t form)))
-
-(defun condition-form (form)
-  (cond
-    ((typep form 'state-ref)
-     form)
-    ((atom form)
-     (expression-form form))
-    (t
-     (let ((operator (operator-name (first form)))
-	   (arguments (rest form)))
-       (cond
-	 ((member operator '("=" "is" "eq") :test #'string=)
-	  (destructuring-bind (left right) arguments
-	    (condition-eq (expression-form left)
-			  (expression-form right))))
-	 ((string= operator "not")
-	  (destructuring-bind (argument) arguments
-	    (condition-not (condition-form argument))))
-	 ((string= operator "and")
-	  (apply #'condition-and (mapcar #'condition-form arguments)))
-	 ((string= operator "or")
-	  (apply #'condition-or (mapcar #'condition-form arguments)))
-	 ((string= operator "have?")
-	  (destructuring-bind (key) arguments
-	    (have? key)))
-	 ((string= operator "state-ref")
-	  (apply #'state-ref arguments))
-	 (t
-	  (error "Unknown condition operator ~S." (first form))))))))
-
-(defun effect-forms-from-branch (branch)
-  (cond
-    ((null branch)
-     nil)
-    ((and (consp branch)
-	  (effect-operator-p (first branch)))
-     (list (effect-form branch)))
-    (t
-     (mapcar #'effect-form branch))))
-
-(defun effect-sequence-from-forms (forms)
-  (apply #'sequence (mapcar #'effect-form forms)))
-
-(defun effect-sequence-from-branch (branch)
-  (apply #'sequence (effect-forms-from-branch branch)))
-
-(defun effect-form (form)
-  (cond
-    ((or (typep form 'effect-node)
-	 (typep form 'goto)
-	 (typep form 'gosub)
-	 (typep form 'enter)
-	 (typep form 'back)
-	 (typep form 'quit)
-	 (typep form 'refresh))
-     form)
-    ((not (consp form))
-     (error "Effect must be a list, got ~S." form))
-    (t
-     (let ((operator (operator-name (first form)))
-	   (arguments (rest form)))
-       (cond
-	 ((string= operator "say")
-	  (destructuring-bind (text) arguments
-	    (say (expression-form text))))
-	 ((string= operator "set")
-	  (destructuring-bind (path value) arguments
-	    (state-set (expression-form path)
-		       (expression-form value))))
-	 ((string= operator "clear")
-	  (destructuring-bind (path) arguments
-	    (state-clear (expression-form path))))
-	 ((string= operator "gain")
-	  (destructuring-bind (key) arguments
-	    (gain key)))
-	 ((string= operator "lose")
-	  (destructuring-bind (key) arguments
-	    (lose key)))
-	 ((string= operator "inc")
-	  (destructuring-bind (path &optional (amount 1)) arguments
-	    (state-inc (expression-form path)
-		       (expression-form amount))))
-	 ((string= operator "dec")
-	  (destructuring-bind (path &optional (amount 1)) arguments
-	    (state-dec (expression-form path)
-		       (expression-form amount))))
-	 ((string= operator "toggle")
-	  (destructuring-bind (path) arguments
-	    (state-toggle (expression-form path))))
-	 ((string= operator "if")
-	  (destructuring-bind (condition then-branch &optional else-branch) arguments
-	    (conditional-effect (condition-form condition)
-				(effect-sequence-from-branch then-branch)
-				(effect-sequence-from-branch else-branch))))
-	 ((string= operator "goto")
-	  (destructuring-bind (room-name) arguments
-	    (goto (expression-form room-name))))
-	 ((string= operator "gosub")
-	  (destructuring-bind (room-name) arguments
-	    (gosub (expression-form room-name))))
-	 ((string= operator "back")
-	  (back))
-	 ((string= operator "quit")
-	  (quit))
-	 ((string= operator "refresh")
-	  (refresh))
-	 ((string= operator "sequence")
-	  (effect-sequence-from-forms arguments))
-	 (t
-	  (error "Unknown effect operator ~S." (first form))))))))
 
 (defun normalize-state-key (name)
   (etypecase name
@@ -642,10 +454,8 @@
   (let ((id (node-id thing)))
     (when id
       (let ((key (normalize-id-key id)))
-	(multiple-value-bind (existing present-p) (gethash key (scene-index scene))
-	  (declare (ignore existing))
-	  (when present-p
-	    (error "Duplicate scene id ~S in room ~S." id (name scene))))
+	(when (nth-value 1 (gethash key (scene-index scene)))
+	  (error "Duplicate scene id ~S in room ~S." id (name scene)))
 	(setf (gethash key (scene-index scene)) thing))))
   (dolist (child (node-children thing))
     (index-scene-node scene child)))
@@ -745,11 +555,6 @@
   (dolist (child (entities thing))
     (validate-node child game context)))
 
-(defmethod validate-node ((thing conditional) game context)
-  (validate-node (conditional-condition thing) game context)
-  (dolist (child (entities thing))
-    (validate-node child game context)))
-
 (defmethod validate-node ((thing branch) game context)
   (validate-node (branch-condition thing) game context)
   (dolist (child (branch-then-entities thing))
@@ -768,12 +573,7 @@
   (validate-node (target thing) game context))
 
 (defun validate-effect-tree (effects game context)
-  (validate-node
-   (if (listp effects)
-       (effect-sequence-from-branch effects)
-       effects)
-   game
-   context))
+  (validate-node effects game context))
 
 (defmethod validate-node ((thing action) game context)
   (validate-effect-tree (effects thing) game context))

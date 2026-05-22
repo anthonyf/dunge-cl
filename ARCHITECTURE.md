@@ -10,6 +10,11 @@ Dunge stories are data ASTs. The Common Lisp DSL may provide convenient
 constructors and macros, but those forms must build inspectable AST objects.
 They must not embed arbitrary Lisp code, closures, or runtime thunks.
 
+Authoring forms evaluate ordinary constructor calls. Dunge does not maintain a
+quoted-form walker where symbols like `(say "hi")` are reinterpreted by a
+separate mini-language. If an author wants a helper, they should write a Common
+Lisp function or macro that returns AST objects.
+
 This keeps the same story usable by multiple passes:
 
 - a console interpreter;
@@ -61,6 +66,10 @@ Convenience constructors can build those primitives:
 The important part is that `have?`, `gain`, and `lose` are not special runtime
 Lisp calls. They are authoring helpers that produce AST data.
 
+Entity `:state` and `:refs` declarations are literal data. They are quoted by
+the `entity` macro intentionally so initial scene state is deterministic and
+can be prepared without evaluating arbitrary author code.
+
 ## Conditional Content
 
 `branch` is the conditional content primitive. It gives paired conditions an
@@ -82,7 +91,7 @@ paragraph-level `progn`: each branch already owns a list of AST nodes.
 	; branch with only :then
 
 (shown-unless condition body...)
-	; branch with (not condition) and only :then
+	; branch with (condition-not condition) and only :then
 ```
 
 The branch node should be handled by the same generic passes as other nodes.
@@ -148,12 +157,12 @@ Choice visibility and persistence should be data:
 
 ```lisp
 (option "Take the recipe card"
-	(sequence
-		(gain :recipe)
-		(back))
-	:when (not (have? :recipe))
-	:once t
-	:id :take-recipe)
+		(sequence
+			(gain :recipe)
+			(back))
+		:when (condition-not (have? :recipe))
+		:once t
+		:id :take-recipe)
 ```
 
 Default choices are sticky. A once-only choice is hidden after it is selected.
@@ -208,7 +217,7 @@ It should catch authoring errors before play:
 
 - missing `goto` and `gosub` room targets when statically known;
 - malformed conditions and effects;
-- unknown state scopes or operators;
+- unknown state scopes;
 - once-only choices without stable IDs;
 - duplicate room names and duplicate scene IDs;
 - unresolved entity refs.

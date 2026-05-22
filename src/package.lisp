@@ -19,6 +19,7 @@
    #:condition-eq
    #:condition-not
    #:condition-or
+   #:conditional-effect
    #:collect-choices
    #:container
    #:container-view

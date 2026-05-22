@@ -30,6 +30,8 @@
 (defgeneric execute-effect (thing)
   (:documentation "Execute a Dunge effect/control AST node."))
 
+;;; FALL-THROUGH is defined in this file and matched by TRIVIA below, so the
+;;; class must exist while the EVALUATE method is compiled.
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defclass fall-through ()
     ()))
@@ -38,9 +40,8 @@
   (make-instance 'fall-through))
 
 (defun control-result-p (thing)
-  (match thing
-    ((or (goto) (gosub) (enter) (back) (quit) (refresh) (fall-through)) t)
-    (_ nil)))
+  (or (typep thing 'control-node)
+      (typep thing 'fall-through)))
 
 (defun find-room (game room-name)
   (multiple-value-bind (room present-p) (gethash room-name (room-index game))
@@ -152,7 +153,7 @@
 	  do (format *output* "~D. ~A~%" index (label option)))
     (let ((index (and options (read-choice-index (length options)))))
       (if index
-	  (let ((option (nth (1- index) options)))
+	  (let ((option (elt options (1- index))))
 	    (mark-choice-taken option)
 	    (evaluate (target option)))
 	  (quit)))))
@@ -180,20 +181,6 @@
 (defmethod collect-choices ((entity entity))
   (let ((*self* entity))
     (collect-options-from (entities entity))))
-
-(defmethod describe-entity ((conditional conditional))
-  (when (evaluate-condition (conditional-condition conditional))
-    (dolist (child (entities conditional))
-      (let ((result (if (control-result-p child)
-			child
-			(describe-entity child))))
-	(when (control-result-p result)
-	  (return-from describe-entity result)))))
-  nil)
-
-(defmethod collect-choices ((conditional conditional))
-  (when (evaluate-condition (conditional-condition conditional))
-    (collect-options-from (entities conditional))))
 
 (defun active-branch-entities (branch)
   (if (evaluate-condition (branch-condition branch))
@@ -292,9 +279,6 @@
        (values (local-state target)
 	       (normalize-state-key (state-ref-key reference)))))))
 
-(defun resolve-state-path (path)
-  (resolve-state-reference (state-ref-from-path path)))
-
 (defun state-reference-value (reference)
   (multiple-value-bind (table key) (resolve-state-reference reference)
     (gethash key table)))
@@ -306,12 +290,6 @@
 (defun clear-state-reference-value (reference)
   (multiple-value-bind (table key) (resolve-state-reference reference)
     (remhash key table)))
-
-(defun state-path-value (path)
-  (state-reference-value (state-ref-from-path path)))
-
-(defun set-state-path-value (path value)
-  (set-state-reference-value (state-ref-from-path path) value))
 
 (defun toggled-value (value)
   (cond
@@ -394,23 +372,8 @@
        (conditional-effect-then effect)
        (conditional-effect-else effect))))
 
-(defun normalize-effects-for-execution (effects)
-  (cond
-    ((or (typep effects 'effect-node)
-	 (typep effects 'goto)
-	 (typep effects 'gosub)
-	 (typep effects 'enter)
-	 (typep effects 'back)
-	 (typep effects 'quit)
-	 (typep effects 'refresh))
-     effects)
-    ((listp effects)
-     (effect-sequence-from-branch effects))
-    (t
-     effects)))
-
 (defun evaluate-effects (effects)
-  (execute-effect (normalize-effects-for-execution effects)))
+  (execute-effect effects))
 
 (defmethod execute-effect ((effect goto))
   (goto (evaluate-expression (room-name effect))))
