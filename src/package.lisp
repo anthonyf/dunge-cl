@@ -59,6 +59,11 @@
    #:quit
    #:room
    #:room-name
+   #:make-runtime-context
+   #:runtime-context
+   #:runtime-context-game
+   #:runtime-context-scene
+   #:runtime-context-self
    #:say
    #:sequence
    #:shown-when

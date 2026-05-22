@@ -15,8 +15,14 @@
 	 (game (game (room "room" door panel))))
     (values game door panel)))
 
-(defun state-value (reference)
-  (dunge::state-reference-value reference))
+(defun test-context (game &key scene self)
+  (make-runtime-context
+   :game game
+   :scene scene
+   :self self))
+
+(defun state-value (reference context)
+  (dunge::state-reference-value reference context))
 
 (defun contains-substring-p (needle haystack)
   (not (null (search needle haystack :test #'char=))))
@@ -29,48 +35,50 @@
 
 (test state-effects-update-global-self-and-refs
   (multiple-value-bind (game door panel) (build-state-fixture)
-    (let ((dunge::*game* game)
-	  (dunge::*self* panel))
-      (execute-effect (gain :recipe))
-      (is (eq t (state-value (state-ref :global :recipe))))
+    (let ((context (test-context game :self panel)))
+      (execute-effect (gain :recipe) context)
+      (is (eq t (state-value (state-ref :global :recipe) context)))
 
-      (execute-effect (lose :recipe))
-      (is (not (state-value (state-ref :global :recipe))))
+      (execute-effect (lose :recipe) context)
+      (is (not (state-value (state-ref :global :recipe) context)))
 
-      (execute-effect (state-set :self :switch :on))
-      (is (eq :on (state-value (state-ref :self :switch))))
+      (execute-effect (state-set :self :switch :on) context)
+      (is (eq :on (state-value (state-ref :self :switch) context)))
 
-      (execute-effect (toggle :self :switch))
-      (is (eq :off (state-value (state-ref :self :switch))))
+      (execute-effect (toggle :self :switch) context)
+      (is (eq :off (state-value (state-ref :self :switch) context)))
 
-      (execute-effect (state-inc :self :count 3))
-      (is (= 3 (state-value (state-ref :self :count))))
+      (execute-effect (state-inc :self :count 3) context)
+      (is (= 3 (state-value (state-ref :self :count) context)))
 
-      (execute-effect (state-dec :self :count 1))
-      (is (= 2 (state-value (state-ref :self :count))))
+      (execute-effect (state-dec :self :count 1) context)
+      (is (= 2 (state-value (state-ref :self :count) context)))
 
-      (execute-effect (state-set :ref :door :open t))
-      (let ((dunge::*self* door))
-	(is (eq t (state-value (state-ref :self :open)))))
+      (execute-effect (state-set :ref :door :open t) context)
+      (let ((door-context (test-context game :self door)))
+	(is (eq t (state-value (state-ref :self :open) door-context))))
 
-      (execute-effect (state-clear :self :switch))
-      (is (not (state-value (state-ref :self :switch)))))))
+      (execute-effect (state-clear :self :switch) context)
+      (is (not (state-value (state-ref :self :switch) context))))))
 
 (test condition-operators-read-state
   (multiple-value-bind (game door panel) (build-state-fixture)
     (declare (ignore door))
-    (let ((dunge::*game* game)
-	  (dunge::*self* panel))
-      (execute-effect (gain :recipe))
-      (is (evaluate-condition (have? :recipe)))
-      (is (evaluate-condition (condition-eq (state-ref :self :switch) :off)))
-      (is (not (evaluate-condition (condition-not (have? :recipe)))))
+    (let ((context (test-context game :self panel)))
+      (execute-effect (gain :recipe) context)
+      (is (evaluate-condition (have? :recipe) context))
+      (is (evaluate-condition (condition-eq (state-ref :self :switch) :off)
+			      context))
+      (is (not (evaluate-condition (condition-not (have? :recipe))
+				   context)))
       (is (evaluate-condition
 	   (condition-and (have? :recipe)
-			  (condition-eq (state-ref :self :switch) :off))))
+			  (condition-eq (state-ref :self :switch) :off))
+	   context))
       (is (evaluate-condition
 	   (condition-or (condition-eq (state-ref :self :switch) :on)
-			 (condition-eq (state-ref :self :switch) :off)))))))
+			 (condition-eq (state-ref :self :switch) :off))
+	   context)))))
 
 (test branch-selects-active-children
   (let ((game (game (room "room")))
@@ -79,17 +87,14 @@
 		:else ((p "You are missing the recipe.")))))
     (let ((without-recipe
 	    (with-output-to-string (output)
-	      (let ((dunge::*game* game)
-		    (*output* output))
-		(describe-entity node)))))
+	      (let ((*output* output))
+		(describe-entity node (test-context game))))))
       (is (contains-substring-p "missing the recipe" without-recipe)))
-    (let ((dunge::*game* game))
-      (execute-effect (gain :recipe)))
+    (execute-effect (gain :recipe) (test-context game))
     (let ((with-recipe
 	    (with-output-to-string (output)
-	      (let ((dunge::*game* game)
-		    (*output* output))
-		(describe-entity node)))))
+	      (let ((*output* output))
+		(describe-entity node (test-context game))))))
       (is (contains-substring-p "know the recipe" with-recipe)))))
 
 (test once-and-conditional-choices
@@ -102,12 +107,12 @@
 		     :when (have? :recipe))))))
 	 (choice-node (first (entities (first (game-rooms game)))))
 	 (take-recipe (first (options choice-node))))
-    (let ((dunge::*game* game))
-      (is (not (dunge::choice-visible-p take-recipe)))
-      (execute-effect (gain :recipe))
-      (is (dunge::choice-visible-p take-recipe))
-      (dunge::mark-choice-taken take-recipe)
-      (is (not (dunge::choice-visible-p take-recipe))))))
+    (let ((context (test-context game)))
+      (is (not (dunge::choice-visible-p take-recipe context)))
+      (execute-effect (gain :recipe) context)
+      (is (dunge::choice-visible-p take-recipe context))
+      (dunge::mark-choice-taken take-recipe context)
+      (is (not (dunge::choice-visible-p take-recipe context))))))
 
 (test validator-catches-authoring-errors
   (signals error

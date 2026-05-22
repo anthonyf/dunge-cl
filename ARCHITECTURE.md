@@ -176,14 +176,20 @@ CLOS generic functions are the preferred way to implement interpreters and
 compilers over the AST. Each pass dispatches on node classes and slots rather
 than on embedded code.
 
-Likely generic functions:
+Runtime traversal context is explicit. The console runtime passes a
+`runtime-context` containing the current game, scene, and entity owner through
+evaluation, condition, choice, and effect methods. Dynamic bindings may still be
+useful for process-level I/O streams such as `*input*` and `*output*`, but story
+context should be passed as data.
+
+Current generic functions:
 
 ```lisp
-(defgeneric evaluate-node (node context))
-(defgeneric describe-entity (node context))
-(defgeneric collect-choices (node context))
-(defgeneric execute-effect (node context))
-(defgeneric evaluate-condition (node context))
+(defgeneric evaluate (node &optional context))
+(defgeneric describe-entity (node &optional context))
+(defgeneric collect-choices (node &optional context))
+(defgeneric execute-effect (node &optional context))
+(defgeneric evaluate-condition (node &optional context))
 (defgeneric validate-node (node game report))
 (defgeneric compile-node-to-js (node compiler))
 (defgeneric compile-effect-to-js (node compiler))
