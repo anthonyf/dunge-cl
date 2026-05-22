@@ -128,9 +128,9 @@
        (gethash (choice-state-key choice) (game-taken-choices *game*))))
 
 (defun choice-visible-p (choice)
-  (and (or (null (choice-condition choice))
-	   (evaluate-condition (choice-condition choice)))
-       (not (choice-taken-p choice))))
+  (and (not (choice-taken-p choice))
+       (or (null (choice-condition choice))
+	   (evaluate-condition (choice-condition choice)))))
 
 (defun mark-choice-taken (choice)
   (when (choice-once-p choice)

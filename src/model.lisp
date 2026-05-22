@@ -715,12 +715,12 @@
       (id
        (let ((key (normalize-id-key id)))
 	 (multiple-value-bind (existing present-p) (gethash key *validation-choice-ids*)
-	   (when present-p
-	     (validation-error "Duplicate choice id ~S on choices ~S and ~S."
-			       id
-			       (label existing)
-			       (label choice))))
-	 (setf (gethash key *validation-choice-ids*) choice))))))
+	   (if present-p
+	       (validation-error "Duplicate choice id ~S on choices ~S and ~S."
+				 id
+				 (label existing)
+				 (label choice))
+	       (setf (gethash key *validation-choice-ids*) choice))))))))
 
 (defun validate-game (game)
   (let ((*validation-errors* nil)
@@ -806,10 +806,10 @@
   (case (state-ref-scope thing)
     (:ref
      (unless (state-ref-role thing)
-       (validation-error "REF state reference for ~S is missing a role."
+       (validation-error "REF state reference with key ~S is missing a role."
 			 (state-ref-key thing)))
      (unless (state-ref-key thing)
-       (validation-error "REF state reference for ~S is missing a key."
+       (validation-error "REF state reference with role ~S is missing a key."
 			 (state-ref-role thing))))
     ((:self :global)
      (unless (state-ref-key thing)

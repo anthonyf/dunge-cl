@@ -46,6 +46,7 @@
    #:item
    #:label
    #:lose
+   #:make-option
    #:name
    #:open-choice
    #:option
