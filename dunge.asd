@@ -1,8 +1,7 @@
 (require 'asdf)
 
 (asdf:defsystem "dunge"
-  :depends-on (:trivia
-	       :alexandria)
+  :depends-on (:trivia)
   :serial t
   :description "A dungeon generation system"
   :components ((:module "src"
@@ -18,3 +17,14 @@
 		:components ((:file "package")
 			     (:file "basic")
 			     (:file "control-panel")))))
+
+(asdf:defsystem "dunge/tests"
+  :depends-on ("dunge/examples"
+	       :fiveam)
+  :serial t
+  :description "Tests for Dunge"
+  :components ((:module "tests"
+		:components ((:file "package")
+			     (:file "core"))))
+  :perform (test-op (op c)
+	     (uiop:symbol-call :fiveam :run! :dunge-tests)))

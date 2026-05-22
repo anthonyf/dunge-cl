@@ -1,5 +1,10 @@
 # Dunge - Game Design Document
 
+This is the long-term game design north star. The current Lisp codebase
+implements the interactive-fiction language layer described in
+`ARCHITECTURE.md`; Cairn-style character, combat, dungeon, oracle, and town
+systems below are aspirational until their roadmap phases land.
+
 ## Overview
 
 **Dunge** is a text-based dungeon crawler/adventure game built as a solo RPG experience. Players navigate procedurally generated dungeons through a choice-based interface, with behind-the-scenes dice rolls determining available options.

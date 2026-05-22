@@ -9,7 +9,7 @@
 	  (entity "secret door"
 	    :id "secret-door"
 	    :state ((open nil))
-	    (shown-when (= self.open t)
+	    (shown-when (condition-eq (state-ref :self :open) t)
 	      (p "A secret door stands open in the east wall.")
 	      (choice
 		("Enter the secret passage" (goto "hidden room")))))
@@ -19,18 +19,21 @@
 	    :state ((switch :off))
 	    :refs ((door "secret-door"))
 	    (p "A metal control panel is mounted beside the wall.")
-	    (shown-when (= self.switch :off)
+	    (shown-when (condition-eq (state-ref :self :switch) :off)
 	      (p "The switch is down."))
-	    (shown-when (= self.switch :on)
+	    (shown-when (condition-eq (state-ref :self :switch) :on)
 	      (p "The switch is up."))
 	    (action "Flip the switch"
-	      (toggle self.switch)
+	      (toggle :self :switch)
 	      (say "You flip the switch."))
 	    (action "Press the button"
-	      (if (= self.switch :on)
-		  ((set ref.door.open t)
-		   (say "Something heavy slides open nearby."))
-		  ((say "The button clicks, but nothing happens.")))))
+	      (conditional-effect
+	       (condition-eq (state-ref :self :switch) :on)
+	       (sequence
+		(state-set :ref :door :open t)
+		(say "Something heavy slides open nearby."))
+	       (sequence
+		(say "The button clicks, but nothing happens.")))))
 
 	  (choice
 	    ("Leave" (quit))))
