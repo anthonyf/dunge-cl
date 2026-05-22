@@ -1008,14 +1008,14 @@ The saveable state model should support:
       → hazard: difficult terrain, disease risk
 
    4. Chieftain's Cave [boss]
-	  → leads to: 2, 5
-	  → monster: goblin_chief + 1d2 guards
-	  → treasure: boss_loot_table
+          → leads to: 2, 5
+          → monster: goblin_chief + 1d2 guards
+          → treasure: boss_loot_table
 
    5. Hidden Shrine [secret, treasure]
-	  → leads to: 3 (hidden), 4 (hidden)
-	  → treasure: shrine_loot_table
-	  → special: ancient idol (relic?)
+          → leads to: 3 (hidden), 4 (hidden)
+          → treasure: shrine_loot_table
+          → special: ancient idol (relic?)
    ```
 
    **At Runtime:**
@@ -1049,13 +1049,13 @@ The saveable state model should support:
    **Town Flow:**
    ```
    Return from dungeon
-		 ↓
+                 ↓
    Town hub (choose location)
-		 ↓
+                 ↓
    Shop / Rest / Gather info
-		 ↓
+                 ↓
    Choose next dungeon
-		 ↓
+                 ↓
    Depart for adventure
    ```
 
