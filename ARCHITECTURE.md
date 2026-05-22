@@ -15,6 +15,13 @@ quoted-form walker where symbols like `(say "hi")` are reinterpreted by a
 separate mini-language. If an author wants a helper, they should write a Common
 Lisp function or macro that returns AST objects.
 
+Authoring macros are reserved for places where they materially improve the
+story surface. Forms such as `entity`, `branch`, `choice`, `option`, `action`,
+and `container` are syntactic sugar for AST construction: they splice body lists,
+quote literal declarations, or destructure option literals while still producing
+ordinary AST objects. Simple helpers should remain functions when they do not
+need that surface-level syntax.
+
 This keeps the same story usable by multiple passes:
 
 - a console interpreter;
@@ -74,6 +81,12 @@ State keys, state scopes, entity reference roles, and choice IDs are explicit
 keyword data. Dunge does not downcase symbols or strings into state keys. Room
 names and scene entity IDs are strings and are matched exactly, so state data
 and story object names keep separate, predictable representations.
+
+Entity-local and ref-scope state is strictly declared. Reading, writing,
+incrementing, clearing, or toggling a key that the target entity did not declare
+in `:state` is an error. This catches typos at runtime instead of silently
+creating phantom slots. Global state is currently unrestricted; this may tighten
+in a future revision.
 
 ## Conditional Content
 
