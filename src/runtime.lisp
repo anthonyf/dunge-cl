@@ -8,27 +8,29 @@
 
 (defvar *input* *standard-input*)
 (defvar *output* *standard-output*)
-(defvar *game* nil)
-(defvar *scene* nil)
-(defvar *self* nil)
 
-(defgeneric evaluate (thing)
-  (:documentation "Evaluate a Dunge CLOS AST node."))
+(defstruct runtime-context
+  game
+  scene
+  self)
 
-(defgeneric describe-entity (thing)
-  (:documentation "Describe an AST node as part of a room."))
+(defgeneric evaluate (thing &optional context)
+  (:documentation "Evaluate a Dunge CLOS AST node in CONTEXT."))
 
-(defgeneric collect-choices (thing)
-  (:documentation "Collect choice objects contributed by an AST node."))
+(defgeneric describe-entity (thing &optional context)
+  (:documentation "Describe an AST node as part of a room in CONTEXT."))
 
-(defgeneric evaluate-expression (thing)
-  (:documentation "Evaluate a Dunge expression AST node."))
+(defgeneric collect-choices (thing &optional context)
+  (:documentation "Collect choice objects contributed by an AST node in CONTEXT."))
 
-(defgeneric evaluate-condition (thing)
-  (:documentation "Evaluate a Dunge condition AST node."))
+(defgeneric evaluate-expression (thing &optional context)
+  (:documentation "Evaluate a Dunge expression AST node in CONTEXT."))
 
-(defgeneric execute-effect (thing)
-  (:documentation "Execute a Dunge effect/control AST node."))
+(defgeneric evaluate-condition (thing &optional context)
+  (:documentation "Evaluate a Dunge condition AST node in CONTEXT."))
+
+(defgeneric execute-effect (thing &optional context)
+  (:documentation "Execute a Dunge effect/control AST node in CONTEXT."))
 
 ;;; FALL-THROUGH is defined in this file and matched by TRIVIA below, so the
 ;;; class must exist while the EVALUATE method is compiled.
@@ -61,66 +63,84 @@
 	(return index))
       (format *output* "Choose 1-~D.~%" count))))
 
-(defun describe-children (children)
+(defun runtime-context-for-scene (context scene)
+  (make-runtime-context
+   :game (and context (runtime-context-game context))
+   :scene scene
+   :self nil))
+
+(defun runtime-context-for-self (context self)
+  (make-runtime-context
+   :game (and context (runtime-context-game context))
+   :scene (and context (runtime-context-scene context))
+   :self self))
+
+(defun describe-children (children context)
   (dolist (child children)
     (let ((result (if (control-result-p child)
 		      child
-		      (describe-entity child))))
+		      (describe-entity child context))))
       (when (control-result-p result)
 	(return result)))))
 
-(defmethod evaluate ((game game))
+(defmethod evaluate ((game game) &optional context)
+  (declare (ignore context))
   (unless (game-start game)
     (error "Cannot evaluate a game with no rooms."))
-  (let ((*game* game))
-    (loop with context = (find-room game (game-start game))
+  (let ((game-context (make-runtime-context :game game)))
+    (loop with location = (find-room game (game-start game))
 	  with return-stack = nil
-	  do (let ((result (evaluate context)))
+	  do (let* ((location-context
+		      (if (typep location 'room)
+			  (runtime-context-for-scene game-context location)
+			  game-context))
+		    (result (evaluate location location-context)))
 	       (match result
 		 ((quit)
 		  (return result))
 		 ((refresh)
 		  nil)
 		 ((goto (room-name room-name))
-		  (setf context (find-room game room-name)))
+		  (setf location (find-room game room-name)))
 		 ((gosub (room-name room-name))
-		  (push context return-stack)
-		  (setf context (find-room game room-name)))
+		  (push location return-stack)
+		  (setf location (find-room game room-name)))
 		 ((enter (target target))
-		  (push context return-stack)
-		  (setf context target))
+		  (push location return-stack)
+		  (setf location target))
 		 ((back)
 		  (if return-stack
-		      (setf context (pop return-stack))
+		      (setf location (pop return-stack))
 		      (return result)))
 		 ((fall-through)
 		  (if return-stack
-		      (setf context (pop return-stack))
-		      (return context)))
+		      (setf location (pop return-stack))
+		      (return location)))
 		 (_
 		  (return result)))))))
 
-(defmethod evaluate ((room room))
-  (let ((*scene* room)
-	(*self* nil))
+(defmethod evaluate ((room room) &optional context)
+  (let ((room-context (runtime-context-for-scene context room)))
     (format *output* "~&~A~%" (name room))
-    (let ((result (describe-children (entities room))))
+    (let ((result (describe-children (entities room) room-context)))
       (when result
 	(return-from evaluate result)))
-    (let ((collected-options (collect-options-from (entities room))))
+    (let ((collected-options (collect-options-from (entities room) room-context)))
       (if collected-options
-	  (evaluate (make-instance 'choices :options collected-options))
+	  (evaluate (make-instance 'choices :options collected-options) room-context)
 	  (fall-through)))))
 
-(defmethod describe-entity ((thing t))
+(defmethod describe-entity ((thing t) &optional context)
+  (declare (ignore context))
   nil)
 
-(defmethod collect-choices ((thing t))
+(defmethod collect-choices ((thing t) &optional context)
+  (declare (ignore context))
   nil)
 
-(defun collect-options-from (things)
+(defun collect-options-from (things context)
   (loop for thing in things
-	append (copy-list (collect-choices thing))))
+	append (copy-list (collect-choices thing context))))
 
 (defun choice-state-key (choice)
   (let ((id (choice-id choice)))
@@ -128,157 +148,175 @@
       (error "Once-only choice ~S must declare :ID." (label choice)))
     (normalize-id-key id)))
 
-(defun choice-taken-p (choice)
+(defun choice-taken-p (choice context)
   (and (choice-once-p choice)
-       *game*
-       (gethash (choice-state-key choice) (game-taken-choices *game*))))
+       context
+       (runtime-context-game context)
+       (gethash (choice-state-key choice)
+		(game-taken-choices (runtime-context-game context)))))
 
-(defun choice-visible-p (choice)
-  (and (not (choice-taken-p choice))
+(defun choice-visible-p (choice context)
+  (and (not (choice-taken-p choice context))
        (or (null (choice-condition choice))
-	   (evaluate-condition (choice-condition choice)))))
+	   (evaluate-condition (choice-condition choice) context))))
 
-(defun mark-choice-taken (choice)
+(defun mark-choice-taken (choice context)
   (when (choice-once-p choice)
-    (unless *game*
+    (unless (and context (runtime-context-game context))
       (error "Cannot mark once-only choice ~S without a current game."
 	     (label choice)))
-    (setf (gethash (choice-state-key choice) (game-taken-choices *game*)) t)))
+    (setf (gethash (choice-state-key choice)
+		   (game-taken-choices (runtime-context-game context)))
+	  t)))
 
-(defmethod evaluate ((paragraph p))
+(defmethod evaluate ((paragraph p) &optional context)
+  (declare (ignore context))
   (format *output* "~A~%" (text paragraph)))
 
-(defmethod describe-entity ((paragraph p))
-  (evaluate paragraph))
+(defmethod describe-entity ((paragraph p) &optional context)
+  (evaluate paragraph context))
 
-(defmethod evaluate ((choices choices))
-  (let ((options (remove-if-not #'choice-visible-p (options choices))))
+(defmethod evaluate ((choices choices) &optional context)
+  (let ((options (remove-if-not (lambda (choice)
+				  (choice-visible-p choice context))
+				(options choices))))
     (loop for option in options
 	  for index from 1
 	  do (format *output* "~D. ~A~%" index (label option)))
     (let ((index (and options (read-choice-index (length options)))))
       (if index
 	  (let ((option (elt options (1- index))))
-	    (mark-choice-taken option)
-	    (evaluate (target option)))
+	    (mark-choice-taken option context)
+	    (evaluate (target option) context))
 	  (quit)))))
 
-(defmethod evaluate ((effect effect-node))
-  (execute-effect effect))
+(defmethod evaluate ((effect effect-node) &optional context)
+  (execute-effect effect context))
 
-(defmethod collect-choices ((choices choices))
-  (remove-if-not #'choice-visible-p (options choices)))
+(defmethod collect-choices ((choices choices) &optional context)
+  (remove-if-not (lambda (choice)
+		   (choice-visible-p choice context))
+		 (options choices)))
 
-(defmethod collect-choices ((choice choice))
-  (when (choice-visible-p choice)
+(defmethod collect-choices ((choice choice) &optional context)
+  (when (choice-visible-p choice context)
     (list choice)))
 
-(defmethod describe-entity ((entity entity))
-  (let ((*self* entity))
-    (describe-children (entities entity))))
+(defmethod describe-entity ((entity entity) &optional context)
+  (describe-children (entities entity)
+		     (runtime-context-for-self context entity)))
 
-(defmethod collect-choices ((entity entity))
-  (let ((*self* entity))
-    (collect-options-from (entities entity))))
+(defmethod collect-choices ((entity entity) &optional context)
+  (collect-options-from (entities entity)
+			(runtime-context-for-self context entity)))
 
-(defun active-branch-entities (branch)
-  (if (evaluate-condition (branch-condition branch))
+(defun active-branch-entities (branch context)
+  (if (evaluate-condition (branch-condition branch) context)
       (branch-then-entities branch)
       (branch-else-entities branch)))
 
-(defmethod describe-entity ((branch branch))
-  (describe-children (active-branch-entities branch)))
+(defmethod describe-entity ((branch branch) &optional context)
+  (describe-children (active-branch-entities branch context) context))
 
-(defmethod collect-choices ((branch branch))
-  (collect-options-from (active-branch-entities branch)))
+(defmethod collect-choices ((branch branch) &optional context)
+  (collect-options-from (active-branch-entities branch context) context))
 
-(defmethod describe-entity ((action action))
+(defmethod describe-entity ((action action) &optional context)
+  (declare (ignore context))
   nil)
 
-(defmethod collect-choices ((action action))
-  (unless *self*
+(defmethod collect-choices ((action action) &optional context)
+  (unless (and context (runtime-context-self context))
     (error "Action ~S is not inside an entity." (label action)))
   (list (option (label action)
-		(action-invocation *self* action))))
+		(action-invocation (runtime-context-self context) action))))
 
-(defmethod evaluate ((invocation action-invocation))
-  (let ((*self* (action-owner invocation)))
-    (let ((result (evaluate-effects (effects (invoked-action invocation)))))
-      (or result (refresh)))))
+(defmethod evaluate ((invocation action-invocation) &optional context)
+  (let* ((action-context (runtime-context-for-self context
+						   (action-owner invocation)))
+	 (result (evaluate-effects (effects (invoked-action invocation))
+				   action-context)))
+    (or result (refresh))))
 
-(defmethod describe-entity ((item item))
+(defmethod describe-entity ((item item) &optional context)
+  (declare (ignore context))
   (format *output* "~A~%" (or (description item) (name item))))
 
-(defmethod describe-entity ((container container))
+(defmethod describe-entity ((container container) &optional context)
+  (declare (ignore context))
   (when (description container)
     (format *output* "~A~%" (description container))))
 
-(defmethod collect-choices ((container container))
+(defmethod collect-choices ((container container) &optional context)
+  (declare (ignore context))
   (when (open-choice container)
     (list (option (open-choice container)
 		  (enter (container-view container))))))
 
-(defmethod evaluate ((view container-view))
+(defmethod evaluate ((view container-view) &optional context)
   (let* ((container (viewed-container view))
 	 (collected-options nil))
     (format *output* "~&~A~%" (name container))
     (if (contents container)
-	(let ((result (describe-children (contents container))))
+	(let ((result (describe-children (contents container) context)))
 	  (when result
 	    (return-from evaluate result)))
 	(format *output* "There is nothing here.~%"))
-    (setf collected-options (collect-options-from (contents container)))
+    (setf collected-options (collect-options-from (contents container) context))
     (setf collected-options
 	  (append collected-options
 		  (list (option (or (close-choice container) "Back")
 				(back)))))
-    (evaluate (make-instance 'choices :options collected-options))))
+    (evaluate (make-instance 'choices :options collected-options) context)))
 
-(defmethod describe-entity ((placement placement))
+(defmethod describe-entity ((placement placement) &optional context)
+  (declare (ignore context))
   (when (placement-description placement)
     (format *output* "~A~%" (placement-description placement))))
 
-(defmethod collect-choices ((placement placement))
+(defmethod collect-choices ((placement placement) &optional context)
+  (declare (ignore context))
   (if (and (interaction-label placement)
 	   (interaction-target placement))
       (list (option (interaction-label placement)
 		    (interaction-target placement)))
       nil))
 
-(defun resolve-state-reference (reference)
+(defun resolve-state-reference (reference context)
   (ecase (state-ref-scope reference)
     (:self
-     (unless *self*
+     (unless (and context (runtime-context-self context))
        (error "Cannot resolve SELF state without a current entity."))
-     (values (local-state *self*)
+     (values (local-state (runtime-context-self context))
 	     (normalize-state-key (state-ref-key reference))))
     (:global
-     (unless *game*
+     (unless (and context (runtime-context-game context))
        (error "Cannot resolve GLOBAL state without a current game."))
-     (values (game-global-state *game*)
+     (values (game-global-state (runtime-context-game context))
 	     (normalize-state-key (state-ref-key reference))))
     (:ref
-     (unless *self*
+     (unless (and context (runtime-context-self context))
        (error "Cannot resolve REF state without a current entity."))
      (let* ((role-key (normalize-state-key (state-ref-role reference)))
-	    (target (gethash role-key (resolved-refs *self*))))
+	    (self (runtime-context-self context))
+	    (target (gethash role-key (resolved-refs self))))
        (unless target
 	 (error "Entity ~S has no declared ref named ~S."
-		(or (entity-id *self*) (name *self*))
+		(or (entity-id self) (name self))
 		(state-ref-role reference)))
        (values (local-state target)
 	       (normalize-state-key (state-ref-key reference)))))))
 
-(defun state-reference-value (reference)
-  (multiple-value-bind (table key) (resolve-state-reference reference)
+(defun state-reference-value (reference context)
+  (multiple-value-bind (table key) (resolve-state-reference reference context)
     (gethash key table)))
 
-(defun set-state-reference-value (reference value)
-  (multiple-value-bind (table key) (resolve-state-reference reference)
+(defun set-state-reference-value (reference value context)
+  (multiple-value-bind (table key) (resolve-state-reference reference context)
     (setf (gethash key table) value)))
 
-(defun clear-state-reference-value (reference)
-  (multiple-value-bind (table key) (resolve-state-reference reference)
+(defun clear-state-reference-value (reference context)
+  (multiple-value-bind (table key) (resolve-state-reference reference context)
     (remhash key table)))
 
 (defun toggled-value (value)
@@ -289,129 +327,150 @@
     ((null value) t)
     (t (error "Cannot toggle value ~S." value))))
 
-(defmethod evaluate-expression ((expression t))
+(defmethod evaluate-expression ((expression t) &optional context)
+  (declare (ignore context))
   expression)
 
-(defmethod evaluate-expression ((reference state-ref))
-  (state-reference-value reference))
+(defmethod evaluate-expression ((reference state-ref) &optional context)
+  (state-reference-value reference context))
 
-(defmethod evaluate-condition ((condition t))
-  (not (null (evaluate-expression condition))))
+(defmethod evaluate-condition ((condition t) &optional context)
+  (not (null (evaluate-expression condition context))))
 
-(defmethod evaluate-condition ((condition condition-eq))
-  (equal (evaluate-expression (condition-left condition))
-	 (evaluate-expression (condition-right condition))))
+(defmethod evaluate-condition ((condition condition-eq) &optional context)
+  (equal (evaluate-expression (condition-left condition) context)
+	 (evaluate-expression (condition-right condition) context)))
 
-(defmethod evaluate-condition ((condition condition-not))
-  (not (evaluate-condition (condition-child condition))))
+(defmethod evaluate-condition ((condition condition-not) &optional context)
+  (not (evaluate-condition (condition-child condition) context)))
 
-(defmethod evaluate-condition ((condition condition-and))
-  (every #'evaluate-condition (conditions condition)))
+(defmethod evaluate-condition ((condition condition-and) &optional context)
+  (every (lambda (condition)
+	   (evaluate-condition condition context))
+	 (conditions condition)))
 
-(defmethod evaluate-condition ((condition condition-or))
-  (some #'evaluate-condition (conditions condition)))
+(defmethod evaluate-condition ((condition condition-or) &optional context)
+  (some (lambda (condition)
+	  (evaluate-condition condition context))
+	(conditions condition)))
 
-(defmethod execute-effect ((effect sequence))
+(defmethod execute-effect ((effect sequence) &optional context)
   (dolist (child (sequence-effects effect))
-    (let ((result (execute-effect child)))
+    (let ((result (execute-effect child context)))
       (when (control-result-p result)
 	(return result)))))
 
-(defmethod execute-effect ((effect state-set))
+(defmethod execute-effect ((effect state-set) &optional context)
   (set-state-reference-value (effect-target effect)
-			     (evaluate-expression (effect-value effect)))
+			     (evaluate-expression (effect-value effect) context)
+			     context)
   nil)
 
-(defmethod execute-effect ((effect state-clear))
-  (clear-state-reference-value (effect-target effect))
+(defmethod execute-effect ((effect state-clear) &optional context)
+  (clear-state-reference-value (effect-target effect) context)
   nil)
 
-(defun numeric-state-value (reference)
-  (let ((value (or (state-reference-value reference) 0)))
+(defun numeric-state-value (reference context)
+  (let ((value (or (state-reference-value reference context) 0)))
     (unless (numberp value)
       (error "Cannot increment non-numeric state value ~S." value))
     value))
 
-(defmethod execute-effect ((effect state-inc))
+(defmethod execute-effect ((effect state-inc) &optional context)
   (set-state-reference-value
    (effect-target effect)
-   (+ (numeric-state-value (effect-target effect))
-      (evaluate-expression (effect-amount effect))))
+   (+ (numeric-state-value (effect-target effect) context)
+      (evaluate-expression (effect-amount effect) context))
+   context)
   nil)
 
-(defmethod execute-effect ((effect state-dec))
+(defmethod execute-effect ((effect state-dec) &optional context)
   (set-state-reference-value
    (effect-target effect)
-   (- (numeric-state-value (effect-target effect))
-      (evaluate-expression (effect-amount effect))))
+   (- (numeric-state-value (effect-target effect) context)
+      (evaluate-expression (effect-amount effect) context))
+   context)
   nil)
 
-(defmethod execute-effect ((effect state-toggle))
+(defmethod execute-effect ((effect state-toggle) &optional context)
   (set-state-reference-value
    (effect-target effect)
-   (toggled-value (state-reference-value (effect-target effect))))
+   (toggled-value (state-reference-value (effect-target effect) context))
+   context)
   nil)
 
-(defmethod execute-effect ((effect say))
-  (format *output* "~A~%" (evaluate-expression (say-text effect)))
+(defmethod execute-effect ((effect say) &optional context)
+  (format *output* "~A~%" (evaluate-expression (say-text effect) context))
   nil)
 
-(defmethod execute-effect ((effect conditional-effect))
+(defmethod execute-effect ((effect conditional-effect) &optional context)
   (execute-effect
-   (or (if (evaluate-condition (conditional-effect-condition effect))
+   (or (if (evaluate-condition (conditional-effect-condition effect) context)
 	   (conditional-effect-then effect)
 	   (conditional-effect-else effect))
-       (sequence))))
+       (sequence))
+   context))
 
-(defun evaluate-effects (effects)
+(defun evaluate-effects (effects context)
   (cond
     ((null effects)
      nil)
     ((listp effects)
      (error "Effect lists are not executable; use (sequence ...) instead."))
     (t
-     (execute-effect effects))))
+     (execute-effect effects context))))
 
-(defmethod execute-effect ((effect goto))
-  (goto (evaluate-expression (room-name effect))))
+(defmethod execute-effect ((effect goto) &optional context)
+  (goto (evaluate-expression (room-name effect) context)))
 
-(defmethod execute-effect ((effect gosub))
-  (gosub (evaluate-expression (room-name effect))))
+(defmethod execute-effect ((effect gosub) &optional context)
+  (gosub (evaluate-expression (room-name effect) context)))
 
-(defmethod execute-effect ((effect enter))
+(defmethod execute-effect ((effect enter) &optional context)
+  (declare (ignore context))
   effect)
 
-(defmethod execute-effect ((effect back))
+(defmethod execute-effect ((effect back) &optional context)
+  (declare (ignore context))
   effect)
 
-(defmethod execute-effect ((effect quit))
+(defmethod execute-effect ((effect quit) &optional context)
+  (declare (ignore context))
   effect)
 
-(defmethod execute-effect ((effect refresh))
+(defmethod execute-effect ((effect refresh) &optional context)
+  (declare (ignore context))
   effect)
 
-(defmethod execute-effect ((effects cons))
-  (declare (ignore effects))
+(defmethod execute-effect ((effects cons) &optional context)
+  (declare (ignore effects context))
   (error "Effect lists are not executable; use (sequence ...) instead."))
 
-(defmethod execute-effect ((effect t))
+(defmethod execute-effect ((effect t) &optional context)
+  (declare (ignore context))
   (error "Cannot execute ~S as an effect." effect))
 
 ;;; Control nodes evaluate to the result object consumed by the game loop.
-(defmethod evaluate ((goto goto))
+(defmethod evaluate ((goto goto) &optional context)
+  (declare (ignore context))
   goto)
 
-(defmethod evaluate ((gosub gosub))
+(defmethod evaluate ((gosub gosub) &optional context)
+  (declare (ignore context))
   gosub)
 
-(defmethod evaluate ((enter enter))
+(defmethod evaluate ((enter enter) &optional context)
+  (declare (ignore context))
   enter)
 
-(defmethod evaluate ((back back))
+(defmethod evaluate ((back back) &optional context)
+  (declare (ignore context))
   back)
 
-(defmethod evaluate ((quit quit))
+(defmethod evaluate ((quit quit) &optional context)
+  (declare (ignore context))
   quit)
 
-(defmethod evaluate ((refresh refresh))
+(defmethod evaluate ((refresh refresh) &optional context)
+  (declare (ignore context))
   refresh)
