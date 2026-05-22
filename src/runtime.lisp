@@ -21,7 +21,7 @@
   (:documentation "Describe an AST node as part of a room in CONTEXT."))
 
 (defgeneric collect-choices (thing &optional context)
-  (:documentation "Collect choice objects contributed by an AST node in CONTEXT."))
+  (:documentation "Collect a fresh list of choice objects contributed by an AST node in CONTEXT."))
 
 (defgeneric evaluate-expression (thing &optional context)
   (:documentation "Evaluate a Dunge expression AST node in CONTEXT."))
@@ -32,18 +32,8 @@
 (defgeneric execute-effect (thing &optional context)
   (:documentation "Execute a Dunge effect/control AST node in CONTEXT."))
 
-;;; FALL-THROUGH is defined in this file and matched by TRIVIA below, so the
-;;; class must exist while the EVALUATE method is compiled.
-(eval-when (:compile-toplevel :load-toplevel :execute)
-  (defclass fall-through ()
-    ()))
-
-(defun fall-through ()
-  (make-instance 'fall-through))
-
 (defun control-result-p (thing)
-  (or (typep thing 'control-node)
-      (typep thing 'fall-through)))
+  (typep thing 'control-node))
 
 (defun find-room (game room-name)
   (multiple-value-bind (room present-p) (gethash room-name (room-index game))
@@ -140,7 +130,7 @@
 
 (defun collect-options-from (things context)
   (loop for thing in things
-	append (copy-list (collect-choices thing context))))
+	append (collect-choices thing context)))
 
 (defun choice-state-key (choice)
   (let ((id (choice-id choice)))
@@ -194,9 +184,9 @@
   (execute-effect effect context))
 
 (defmethod collect-choices ((choices choices) &optional context)
-  (remove-if-not (lambda (choice)
-		   (choice-visible-p choice context))
-		 (options choices)))
+  (loop for choice in (options choices)
+	when (choice-visible-p choice context)
+	  collect choice))
 
 (defmethod collect-choices ((choice choice) &optional context)
   (when (choice-visible-p choice context)

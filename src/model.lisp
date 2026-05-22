@@ -43,6 +43,12 @@
 (defclass control-node (effect-node)
   ())
 
+(defclass fall-through (control-node)
+  ())
+
+(defun fall-through ()
+  (make-instance 'fall-through))
+
 (defclass goto (control-node)
   ((room-name :reader room-name :initarg :room-name :initform nil)))
 
@@ -515,12 +521,10 @@ positional arguments. Examples:
 
 (defun validate-room-target (node game room-name)
   (when (static-room-name-p room-name)
-    (multiple-value-bind (room present-p) (gethash room-name (room-index game))
-      (declare (ignore room))
-      (unless present-p
-	(validation-error "~A targets missing room ~S."
-			  (class-name (class-of node))
-			  room-name)))))
+    (unless (nth-value 1 (gethash room-name (room-index game)))
+      (validation-error "~A targets missing room ~S."
+			(class-name (class-of node))
+			room-name))))
 
 (defun validate-choice-id (choice)
   (let ((id (choice-id choice)))
