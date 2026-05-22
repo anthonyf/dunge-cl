@@ -175,6 +175,12 @@ The runtime records consumed choices in `taken-choices`, keyed by stable choice
 IDs. Validation should require explicit IDs for once-only choices, or generate
 stable IDs and make the policy clear.
 
+Entity actions are owned AST nodes, not runtime wrappers. Game preparation
+attaches each action to the entity that contains it, and choosing the action
+evaluates that action node directly with its stored owner as `:self`.
+Validation checks action nesting structurally, so it does not depend on the
+preparation pass having already populated the owner slot.
+
 ## CLOS Passes
 
 CLOS generic functions are the preferred way to implement interpreters and

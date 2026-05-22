@@ -216,16 +216,18 @@
   nil)
 
 (defmethod collect-choices ((action action) &optional context)
-  (unless (and context (runtime-context-self context))
+  (declare (ignore context))
+  (unless (action-owner action)
     (error "Action ~S is not inside an entity." (label action)))
   (list (option (label action)
-		(action-invocation (runtime-context-self context) action))))
+		action)))
 
-(defmethod evaluate ((invocation action-invocation) &optional context)
+(defmethod evaluate ((action action) &optional context)
+  (unless (action-owner action)
+    (error "Action ~S is not inside an entity." (label action)))
   (let* ((action-context (runtime-context-for-self context
-						   (action-owner invocation)))
-	 (result (evaluate-effects (effects (invoked-action invocation))
-				   action-context)))
+						   (action-owner action)))
+	 (result (evaluate-effects (effects action) action-context)))
     (or result (refresh))))
 
 (defmethod describe-entity ((item item) &optional context)
