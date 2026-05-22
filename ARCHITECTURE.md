@@ -35,8 +35,8 @@ bindings. A small state record is enough for the next slice:
 (defstruct dunge-state
 	current-room
 	return-stack
-	(globals (make-hash-table :test 'equal))
-	(taken-choices (make-hash-table :test 'equal)))
+	(globals (make-hash-table :test 'eql))
+	(taken-choices (make-hash-table :test 'eql)))
 ```
 
 Global state is the first-class primitive for flags, counters, and simple
@@ -69,6 +69,11 @@ Lisp calls. They are authoring helpers that produce AST data.
 Entity `:state` and `:refs` declarations are literal data. They are quoted by
 the `entity` macro intentionally so initial scene state is deterministic and
 can be prepared without evaluating arbitrary author code.
+
+State keys, state scopes, entity reference roles, and choice IDs are explicit
+keyword data. Dunge does not downcase symbols or strings into state keys. Room
+names and scene entity IDs are strings and are matched exactly, so state data
+and story object names keep separate, predictable representations.
 
 ## Conditional Content
 

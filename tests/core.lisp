@@ -6,12 +6,12 @@
 (defun build-state-fixture ()
   (let* ((door (entity "secret door"
 		 :id "door"
-		 :state ((open nil))))
+		 :state ((:open nil))))
 	 (panel (entity "panel"
 		  :id "panel"
-		  :state ((switch :off)
-			  (count 0))
-		  :refs ((door "door"))))
+		  :state ((:switch :off)
+			  (:count 0))
+		  :refs ((:door "door"))))
 	 (game (game (room "room" door panel))))
     (values game door panel)))
 
@@ -130,13 +130,45 @@
   (signals error
     (game (room "start"
 	    (entity "panel"
-	      :refs ((door "missing-door"))))))
+	      :refs ((:door "missing-door"))))))
   (signals error
     (game (room "start"
 	    (entity "panel"
 	      (action "Bad list effect"
 		(conditional-effect t
 				    (list (gain :x)))))))))
+
+(test deprecated-key-shapes-are-rejected
+  (signals error
+    (game (room "room"
+	    (entity "panel"
+	      :state ((switch :off))))))
+  (signals error
+    (game (room "room"
+	    (entity "door"
+	      :id "door")
+	    (entity "panel"
+	      :refs ((door "door"))))))
+  (signals error
+    (game (room "room"
+	    (entity "door"
+	      :id :door))))
+  (signals error
+    (game (room "room"
+	    (entity "door"
+	      :id "door")
+	    (entity "panel"
+	      :refs ((:door :door))))))
+  (signals error
+    (game (room "room"
+	    (choice
+	      ("Take" (quit)
+	       :id "take"
+	       :once t)))))
+  (signals error
+    (state-ref :self "switch"))
+  (signals error
+    (state-ref 'self :switch)))
 
 (test effect-lists-error-and-empty-else-branches-are-safe
   (signals error

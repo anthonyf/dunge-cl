@@ -5,9 +5,9 @@
 (defclass game ()
   ((rooms :reader game-rooms :initarg :rooms :initform nil)
    (global-state :reader game-global-state
-		 :initform (make-hash-table :test 'equal))
+		 :initform (make-hash-table :test 'eql))
    (taken-choices :reader game-taken-choices
-		  :initform (make-hash-table :test 'equal))
+		  :initform (make-hash-table :test 'eql))
    (player :accessor game-player :initarg :player :initform nil)
    (room-index :reader room-index :initform (make-hash-table :test 'equal))
    (start :accessor game-start :initarg :start :initform nil)))
@@ -67,37 +67,54 @@
 (defun back ()
   (make-instance 'back))
 
-(defun normalize-state-scope (scope)
-  (let ((name (etypecase scope
-		(symbol (string-downcase (symbol-name scope)))
-		(string (string-downcase scope)))))
-    (cond
-      ((string= name "self") :self)
-      ((string= name "global") :global)
-      ((string= name "ref") :ref)
-      (t (error "Unknown state scope ~S." scope)))))
+(defun state-scope-key (scope)
+  (case scope
+    ((:self :global :ref) scope)
+    (otherwise
+     (error "State scope must be one of :SELF, :GLOBAL, or :REF; got ~S."
+	    scope))))
+
+(defun state-key (key)
+  (unless (keywordp key)
+    (error "State keys must be keywords; got ~S." key))
+  key)
+
+(defun ref-role-key (role)
+  (unless (keywordp role)
+    (error "Reference roles must be keywords; got ~S." role))
+  role)
+
+(defun scene-id-key (id)
+  (unless (stringp id)
+    (error "Scene ids must be strings; got ~S." id))
+  id)
+
+(defun choice-id-key (id)
+  (unless (keywordp id)
+    (error "Choice ids must be keywords; got ~S." id))
+  id)
 
 (defclass state-ref ()
   ((scope :reader state-ref-scope :initarg :scope :initform :global)
    (role :reader state-ref-role :initarg :role :initform nil)
    (key :reader state-ref-key :initarg :key :initform nil)))
 
-(defun state-ref (scope key &optional state-key)
-  (let ((normalized-scope (normalize-state-scope scope)))
+(defun state-ref (scope key &optional (ref-state-key nil ref-state-key-p))
+  (let ((scope-key (state-scope-key scope)))
     (cond
-      ((eq normalized-scope :ref)
-       (unless state-key
+      ((eq scope-key :ref)
+       (unless ref-state-key-p
 	 (error "REF state references must include a role and key."))
        (make-instance 'state-ref
-		      :scope normalized-scope
-		      :role key
-		      :key state-key))
-      (state-key
-       (error "~S state references take only one key." normalized-scope))
+		      :scope scope-key
+		      :role (ref-role-key key)
+		      :key (state-key ref-state-key)))
+      (ref-state-key-p
+       (error "~S state references take only one key." scope-key))
       (t
        (make-instance 'state-ref
-		      :scope normalized-scope
-		      :key key)))))
+		      :scope scope-key
+		      :key (state-key key))))))
 
 (defun state-reference-from-arguments (target arguments)
   "Parse state mutation constructor arguments.
@@ -113,7 +130,7 @@ positional arguments. Examples:
     ((typep target 'state-ref)
      (values target arguments))
     (t
-     (let ((scope (normalize-state-scope target)))
+     (let ((scope (state-scope-key target)))
        (case scope
 	 (:ref
 	  (unless (>= (length arguments) 2)
@@ -251,7 +268,7 @@ positional arguments. Examples:
   (make-instance 'choice
 		 :label label
 		 :target target
-		 :id id
+		 :id (and id (choice-id-key id))
 		 :condition condition
 		 :once once))
 
@@ -277,10 +294,10 @@ positional arguments. Examples:
 		       :initarg :state
 		       :initform nil)
    (local-state :reader local-state
-		:initform (make-hash-table :test 'equal))
+		:initform (make-hash-table :test 'eql))
    (refs :reader entity-refs :initarg :refs :initform nil)
    (resolved-refs :reader resolved-refs
-		  :initform (make-hash-table :test 'equal))
+		  :initform (make-hash-table :test 'eql))
    (entities :accessor entities :initarg :entities :initform nil)))
 
 (defmacro entity (name &body body)
@@ -430,22 +447,12 @@ positional arguments. Examples:
 (defmethod node-children ((thing container))
   (contents thing))
 
-(defun normalize-state-key (name)
-  (etypecase name
-    (symbol (string-downcase (symbol-name name)))
-    (string (string-downcase name))))
-
-(defun normalize-id-key (id)
-  (etypecase id
-    (symbol (string-downcase (symbol-name id)))
-    (string (string-downcase id))))
-
 (defun reset-local-state (thing)
   (when (typep thing 'entity)
     (clrhash (local-state thing))
     (dolist (declaration (state-declarations thing))
       (destructuring-bind (name value) declaration
-	(setf (gethash (normalize-state-key name) (local-state thing))
+	(setf (gethash (state-key name) (local-state thing))
 	      value))))
   (dolist (child (node-children thing))
     (reset-local-state child)))
@@ -453,7 +460,7 @@ positional arguments. Examples:
 (defun index-scene-node (scene thing)
   (let ((id (node-id thing)))
     (when id
-      (let ((key (normalize-id-key id)))
+      (let ((key (scene-id-key id)))
 	(when (nth-value 1 (gethash key (scene-index scene)))
 	  (error "Duplicate scene id ~S in room ~S." id (name scene)))
 	(setf (gethash key (scene-index scene)) thing))))
@@ -465,8 +472,8 @@ positional arguments. Examples:
     (clrhash (resolved-refs thing))
     (dolist (ref (entity-refs thing))
       (destructuring-bind (role target-id) ref
-	(let* ((role-key (normalize-state-key role))
-	       (target-key (normalize-id-key target-id))
+	(let* ((role-key (ref-role-key role))
+	       (target-key (scene-id-key target-id))
 	       (target (gethash target-key (scene-index scene))))
 	  (unless target
 	    (error "Entity ~S in room ~S has ref ~S to missing id ~S."
@@ -522,8 +529,10 @@ positional arguments. Examples:
 	    (null id))
        (validation-error "Once-only choice ~S must declare :ID."
 			 (label choice)))
+      ((and id (not (keywordp id)))
+       (validation-error "Choice id must be a keyword; got ~S." id))
       (id
-       (let ((key (normalize-id-key id)))
+       (let ((key (choice-id-key id)))
 	 (multiple-value-bind (existing present-p) (gethash key *validation-choice-ids*)
 	   (if present-p
 	       (validation-error "Duplicate choice id ~S on choices ~S and ~S."
@@ -534,7 +543,7 @@ positional arguments. Examples:
 
 (defun validate-game (game)
   (let ((*validation-errors* nil)
-	(*validation-choice-ids* (make-hash-table :test 'equal)))
+	(*validation-choice-ids* (make-hash-table :test 'eql)))
     (dolist (room (game-rooms game))
       (validate-node room game room))
     (when *validation-errors*
@@ -616,6 +625,10 @@ positional arguments. Examples:
      (unless (state-ref-role thing)
        (validation-error "REF state reference with key ~S is missing a role."
 			 (state-ref-key thing)))
+     (when (and (state-ref-role thing)
+		(not (keywordp (state-ref-role thing))))
+       (validation-error "REF state reference role must be a keyword; got ~S."
+			 (state-ref-role thing)))
      (unless (state-ref-key thing)
        (validation-error "REF state reference with role ~S is missing a key."
 			 (state-ref-role thing))))
@@ -625,7 +638,11 @@ positional arguments. Examples:
 			 (state-ref-scope thing))))
     (otherwise
      (validation-error "Unknown state scope ~S."
-		       (state-ref-scope thing)))))
+		       (state-ref-scope thing))))
+  (when (and (state-ref-key thing)
+	     (not (keywordp (state-ref-key thing))))
+    (validation-error "State reference key must be a keyword; got ~S."
+		      (state-ref-key thing))))
 
 (defmethod validate-node ((thing sequence) game context)
   (dolist (effect (sequence-effects thing))

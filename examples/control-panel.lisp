@@ -8,7 +8,7 @@
 
 	  (entity "secret door"
 	    :id "secret-door"
-	    :state ((open nil))
+	    :state ((:open nil))
 	    (shown-when (condition-eq (state-ref :self :open) t)
 	      (p "A secret door stands open in the east wall.")
 	      (choice
@@ -16,8 +16,8 @@
 
 	  (entity "control panel"
 	    :id "panel"
-	    :state ((switch :off))
-	    :refs ((door "secret-door"))
+	    :state ((:switch :off))
+	    :refs ((:door "secret-door"))
 	    (p "A metal control panel is mounted beside the wall.")
 	    (shown-when (condition-eq (state-ref :self :switch) :off)
 	      (p "The switch is down."))
