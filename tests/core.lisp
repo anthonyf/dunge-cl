@@ -27,11 +27,30 @@
 (defun contains-substring-p (needle haystack)
   (not (null (search needle haystack :test #'char=))))
 
+(defun substring-count (needle haystack)
+  (when (string= needle "")
+    (error "Cannot count occurrences of an empty substring."))
+  (loop with start = 0
+	for position = (search needle haystack :start2 start :test #'char=)
+	while position
+	count 1
+	do (setf start (+ position (length needle)))))
+
+(defun run-game-with-input (game input)
+  (with-output-to-string (output)
+    (let ((*input* (make-string-input-stream input))
+	  (*output* output))
+      (evaluate game))))
+
 (defun run-example-with-input (function input)
   (with-output-to-string (output)
     (let ((*input* (make-string-input-stream input))
 	  (*output* output))
       (funcall function))))
+
+(test substring-count-rejects-empty-needle
+  (signals error
+    (substring-count "" "anything")))
 
 (test state-effects-update-global-self-and-refs
   (multiple-value-bind (game door panel) (build-state-fixture)
@@ -129,6 +148,20 @@
       (is (eq :on (state-value (state-ref :self :switch)
 			       (test-context game :self panel)))))))
 
+(test nested-actions-keep-containing-entity-owner
+  (let* ((panel (entity "panel"
+		  :state ((:switch :off))
+		  (branch t
+		    :then ((action "Flip"
+			     (state-set :self :switch :on))))))
+	 (game (game (room "room" panel)))
+	 (choice (first (collect-choices panel (test-context game))))
+	 (action-node (target choice)))
+    (is (eq panel (dunge::action-owner action-node)))
+    (evaluate action-node (test-context game))
+    (is (eq :on (state-value (state-ref :self :switch)
+			     (test-context game :self panel))))))
+
 (test action-validation-is-structural
   (let* ((panel (entity "panel"
 		  (action "Flip"
@@ -165,6 +198,30 @@
     (game (room "start"
 	    (action "Loose action"
 	      (gain :x))))))
+
+(test validator-catches-duplicate-ids-and-malformed-state-refs
+  (signals error
+    (game (room "start"
+	    (choice
+	      ("First" (quit)
+	       :id :same)
+	      ("Second" (quit)
+	       :id :same)))))
+  (signals error
+    (game (room "start"
+	    (entity "first"
+	      :id "same")
+	    (entity "second"
+	      :id "same"))))
+  (signals error
+    (game (room "start"
+	    (entity "panel"
+	      (action "Bad ref"
+		(make-instance 'state-set
+			       :target (make-instance 'state-ref
+						      :scope :global
+						      :key "recipe")
+			       :value t)))))))
 
 (test deprecated-key-shapes-are-rejected
   (signals error
@@ -210,6 +267,51 @@
 			    :condition nil
 			    :then (gain :x)
 			    :else nil)))))
+
+(test sequence-stops-after-first-control-result
+  (let* ((game (game (room "start")
+		     (room "next")))
+	 (context (test-context game))
+	 (result (execute-effect
+		  (sequence
+		    (gain :before-control)
+		    (goto "next")
+		    (gain :after-control))
+		  context)))
+    (is (typep result 'goto))
+    (is (equal "next" (room-name result)))
+    (is (state-value (state-ref :global :before-control) context))
+    (is (not (state-value (state-ref :global :after-control) context)))))
+
+(test once-choice-disappears-in-scripted-game
+  (let* ((game (game
+		(room "room"
+		  (choice
+		    ("Take key" (sequence
+				  (gain :key)
+				  (dunge::refresh))
+		     :id :take-key
+		     :once t)
+		    ("Leave" (quit))))))
+	 (output (run-game-with-input game (format nil "1~%1~%"))))
+    (is (= 1 (substring-count "Take key" output)))
+    (is (= 2 (substring-count "Leave" output)))))
+
+(test gosub-and-back-return-to-calling-room
+  (let* ((game
+	   (game
+	    (room "start"
+	      (p "The start chamber waits.")
+	      (choice
+		("Visit alcove" (gosub "alcove"))
+		("Leave" (quit))))
+	    (room "alcove"
+	      (p "The alcove hums.")
+	      (choice
+		("Back" (back))))))
+	 (output (run-game-with-input game (format nil "1~%1~%2~%"))))
+    (is (= 2 (substring-count "The start chamber waits." output)))
+    (is (= 1 (substring-count "The alcove hums." output)))))
 
 (test basic-example-scripted-transcript
   (let ((output (run-example-with-input #'dunge-examples:basic-example
