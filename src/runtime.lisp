@@ -192,7 +192,8 @@ can TYPEP the result against QUIT, BACK, and related classes."))
 ;;; sequence through EXECUTE-EFFECT directly. This bridge keeps both paths
 ;;; equivalent while preserving CLOS dispatch over choice target unions.
 (defmethod evaluate ((effect effect-node) &optional context)
-  (execute-effect effect context))
+  (or (execute-effect effect context)
+      (refresh)))
 
 (defmethod collect-choices ((choices choices) &optional context)
   (loop for choice in (options choices)
@@ -471,7 +472,8 @@ can TYPEP the result against QUIT, BACK, and related classes."))
    context))
 
 (defun evaluate-effects (effects context)
-  (execute-effect effects context))
+  (when effects
+    (execute-effect effects context)))
 
 (defmethod execute-effect ((effect goto) &optional context)
   (goto (evaluate-expression (room-name effect) context)))

@@ -239,6 +239,25 @@
       (dunge::mark-choice-taken take-recipe context)
       (is (not (dunge::choice-visible-p take-recipe context))))))
 
+(test bare-effect-choice-target-refreshes
+  (let* ((game (game
+                (room "room"
+                  (choice
+                    ("Set flag" (gain :flag))
+                    ("Quit" (quit))))))
+         (result (let ((*input* (make-string-input-stream (format nil "1~%2~%")))
+                       (*output* (make-string-output-stream)))
+                   (evaluate game))))
+    (is (typep result 'quit))
+    (is (state-value (state-ref :global :flag) (test-context game)))))
+
+(test action-with-nil-effects-is-a-no-op-refresh
+  (let* ((panel (entity "panel"
+                  (make-instance 'action :label "Wait")))
+         (game (game (room "room" panel)))
+         (action-node (first (entities panel))))
+    (is (typep (evaluate action-node (test-context game)) 'dunge::refresh))))
+
 (test actions-store-and-use-entity-owners
   (let* ((panel (entity "panel"
                   :state ((:switch :off))
