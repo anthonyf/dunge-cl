@@ -368,12 +368,19 @@
 
 (defmethod execute-effect ((effect conditional-effect))
   (execute-effect
-   (if (evaluate-condition (conditional-effect-condition effect))
-       (conditional-effect-then effect)
-       (conditional-effect-else effect))))
+   (or (if (evaluate-condition (conditional-effect-condition effect))
+	   (conditional-effect-then effect)
+	   (conditional-effect-else effect))
+       (sequence))))
 
 (defun evaluate-effects (effects)
-  (execute-effect effects))
+  (cond
+    ((null effects)
+     nil)
+    ((listp effects)
+     (error "Effect lists are not executable; use (sequence ...) instead."))
+    (t
+     (execute-effect effects))))
 
 (defmethod execute-effect ((effect goto))
   (goto (evaluate-expression (room-name effect))))
@@ -392,6 +399,10 @@
 
 (defmethod execute-effect ((effect refresh))
   effect)
+
+(defmethod execute-effect ((effects cons))
+  (declare (ignore effects))
+  (error "Effect lists are not executable; use (sequence ...) instead."))
 
 (defmethod execute-effect ((effect t))
   (error "Cannot execute ~S as an effect." effect))

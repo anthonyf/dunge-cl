@@ -226,16 +226,16 @@ positional arguments. Examples:
 	      :initform nil)
    (then-effects :reader conditional-effect-then
 		 :initarg :then
-		 :initform nil)
+		 :initform (sequence))
    (else-effects :reader conditional-effect-else
 		 :initarg :else
-		 :initform nil)))
+		 :initform (sequence))))
 
 (defun conditional-effect (condition then-effects &optional (else-effects (sequence)))
   (make-instance 'conditional-effect
 		 :condition condition
-		 :then then-effects
-		 :else else-effects))
+		 :then (or then-effects (sequence))
+		 :else (or else-effects (sequence))))
 
 (defclass choice ()
   ((label :accessor label :initarg :label :initform nil)
@@ -573,7 +573,15 @@ positional arguments. Examples:
   (validate-node (target thing) game context))
 
 (defun validate-effect-tree (effects game context)
-  (validate-node effects game context))
+  (cond
+    ((null effects)
+     nil)
+    ((listp effects)
+     (validation-error "Effect lists are not valid; wrap effects in (sequence ...)."))
+    ((typep effects 'effect-node)
+     (validate-node effects game context))
+    (t
+     (validation-error "Expected an effect node, got ~S." effects))))
 
 (defmethod validate-node ((thing action) game context)
   (validate-effect-tree (effects thing) game context))
@@ -621,7 +629,7 @@ positional arguments. Examples:
 
 (defmethod validate-node ((thing sequence) game context)
   (dolist (effect (sequence-effects thing))
-    (validate-node effect game context)))
+    (validate-effect-tree effect game context)))
 
 (defmethod validate-node ((thing state-effect) game context)
   (validate-node (effect-target thing) game context))

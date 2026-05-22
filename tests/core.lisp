@@ -125,7 +125,26 @@
   (signals error
     (game (room "start"
 	    (entity "panel"
-	      :refs ((door "missing-door")))))))
+	      :refs ((door "missing-door"))))))
+  (signals error
+    (game (room "start"
+	    (entity "panel"
+	      (action "Bad list effect"
+		(conditional-effect t
+				    (list (gain :x)))))))))
+
+(test effect-lists-error-and-empty-else-branches-are-safe
+  (signals error
+    (execute-effect (list (gain :x))))
+  (is (null (execute-effect
+	     (conditional-effect nil
+				 (gain :x)
+				 nil))))
+  (is (null (execute-effect
+	     (make-instance 'conditional-effect
+			    :condition nil
+			    :then (gain :x)
+			    :else nil)))))
 
 (test basic-example-scripted-transcript
   (let ((output (run-example-with-input #'dunge-examples:basic-example
