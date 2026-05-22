@@ -61,11 +61,10 @@ Convenience constructors can build those primitives:
 The important part is that `have?`, `gain`, and `lose` are not special runtime
 Lisp calls. They are authoring helpers that produce AST data.
 
-## Planned Conditional Content
+## Conditional Content
 
-The current implementation keeps `shown-when` as the conditional content node.
-The next content primitive should be `branch`, because paired conditions often
-need an else branch without repeating the condition:
+`branch` is the conditional content primitive. It gives paired conditions an
+else branch without repeating the condition:
 
 ```lisp
 (branch (have? :recipe)
@@ -76,8 +75,7 @@ need an else branch without repeating the condition:
 This avoids shadowing Common Lisp `if`, and it does not need a separate
 paragraph-level `progn`: each branch already owns a list of AST nodes.
 
-Once `branch` exists, `shown-when` can remain as compatibility/convenience
-sugar and `shown-unless` can be added as matching sugar:
+`shown-when` and `shown-unless` remain as compatibility/convenience sugar:
 
 ```lisp
 (shown-when condition body...)
