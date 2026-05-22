@@ -23,6 +23,7 @@
    #:collect-choices
    #:container
    #:container-view
+   #:define-ast-node
    #:contents
    #:describe-entity
    #:description

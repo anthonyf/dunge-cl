@@ -3,6 +3,15 @@
 (def-suite :dunge-tests)
 (in-suite :dunge-tests)
 
+(define-ast-node sample-ast-node ()
+  ((id :reader sample-ast-node-id :initarg :id :initform nil)
+   (children :reader sample-ast-node-children :initarg :children :initform nil))
+  (:constructor sample-ast-node (id &rest children)
+   :id id
+   :children children)
+  (:id (thing) (sample-ast-node-id thing))
+  (:children (thing) (sample-ast-node-children thing)))
+
 (defun build-state-fixture ()
   (let* ((door (entity "secret door"
                  :id "door"
@@ -51,6 +60,44 @@
 (test substring-count-rejects-empty-needle
   (signals error
     (substring-count "" "anything")))
+
+(test define-ast-node-generates-constructor-and-tree-methods
+  (let* ((leaf (sample-ast-node "leaf"))
+         (root (sample-ast-node "root" leaf))
+         (visited nil))
+    (is (typep root 'sample-ast-node))
+    (is (equal "root" (sample-ast-node-id root)))
+    (is (equal "root" (dunge::node-id root)))
+    (is (equal (list leaf) (dunge::node-children root)))
+    (dunge::walk-node-tree
+     root
+     (lambda (node)
+       (push (dunge::node-id node) visited)))
+    (is (equal '("root" "leaf") (nreverse visited)))))
+
+(test define-ast-node-rejects-unknown-options
+  (signals error
+    (macroexpand-1
+     '(define-ast-node invalid-sample-ast-node ()
+       ()
+       (:unknown-option t)))))
+
+(test refactored-nodes-expose-generated-traversal-methods
+  (let* ((door (entity "door" :id "door"))
+         (panel (entity "panel"))
+         (room (room "room" door panel))
+         (game-node (game room))
+         (branch-node (branch t
+                        :then ((p "then"))
+                        :else ((p "else"))))
+         (container-node (container "box"
+                           :contents ((item "key")
+                                      (item "coin")))))
+    (is (equal (list room) (dunge::node-children game-node)))
+    (is (equal (list door panel) (dunge::node-children room)))
+    (is (equal "door" (dunge::node-id door)))
+    (is (= 2 (length (dunge::node-children branch-node))))
+    (is (= 2 (length (dunge::node-children container-node))))))
 
 (test state-effects-update-global-self-and-refs
   (multiple-value-bind (game door panel) (build-state-fixture)
