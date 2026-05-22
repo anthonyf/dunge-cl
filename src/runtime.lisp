@@ -61,6 +61,14 @@
 	(return index))
       (format *output* "Choose 1-~D.~%" count))))
 
+(defun describe-children (children)
+  (dolist (child children)
+    (let ((result (if (control-result-p child)
+		      child
+		      (describe-entity child))))
+      (when (control-result-p result)
+	(return result)))))
+
 (defmethod evaluate ((game game))
   (unless (game-start game)
     (error "Cannot evaluate a game with no rooms."))
@@ -96,12 +104,9 @@
   (let ((*scene* room)
 	(*self* nil))
     (format *output* "~&~A~%" (name room))
-    (dolist (entity (entities room))
-      (let ((result (if (control-result-p entity)
-			entity
-			(describe-entity entity))))
-	(when (control-result-p result)
-	  (return-from evaluate result))))
+    (let ((result (describe-children (entities room))))
+      (when result
+	(return-from evaluate result)))
     (let ((collected-options (collect-options-from (entities room))))
       (if collected-options
 	  (evaluate (make-instance 'choices :options collected-options))
@@ -170,13 +175,7 @@
 
 (defmethod describe-entity ((entity entity))
   (let ((*self* entity))
-    (dolist (child (entities entity))
-      (let ((result (if (control-result-p child)
-			child
-			(describe-entity child))))
-	(when (control-result-p result)
-	  (return-from describe-entity result)))))
-  nil)
+    (describe-children (entities entity))))
 
 (defmethod collect-choices ((entity entity))
   (let ((*self* entity))
@@ -188,13 +187,7 @@
       (branch-else-entities branch)))
 
 (defmethod describe-entity ((branch branch))
-  (dolist (child (active-branch-entities branch))
-    (let ((result (if (control-result-p child)
-		      child
-		      (describe-entity child))))
-      (when (control-result-p result)
-	(return-from describe-entity result))))
-  nil)
+  (describe-children (active-branch-entities branch)))
 
 (defmethod collect-choices ((branch branch))
   (collect-options-from (active-branch-entities branch)))
@@ -230,12 +223,9 @@
 	 (collected-options nil))
     (format *output* "~&~A~%" (name container))
     (if (contents container)
-	(dolist (entity (contents container))
-	  (let ((result (if (control-result-p entity)
-			    entity
-			    (describe-entity entity))))
-	    (when (control-result-p result)
-	      (return-from evaluate result))))
+	(let ((result (describe-children (contents container))))
+	  (when result
+	    (return-from evaluate result)))
 	(format *output* "There is nothing here.~%"))
     (setf collected-options (collect-options-from (contents container)))
     (setf collected-options
