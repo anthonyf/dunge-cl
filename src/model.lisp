@@ -347,19 +347,13 @@ positional arguments. Examples:
 
 (defclass action ()
   ((label :accessor label :initarg :label :initform nil)
-   (effects :reader effects :initarg :effects :initform nil)))
+   (effects :reader effects :initarg :effects :initform nil)
+   (owner :accessor action-owner :initarg :owner :initform nil)))
 
 (defmacro action (label &body effects)
   `(make-instance 'action
 		  :label ,label
 		  :effects (sequence ,@effects)))
-
-(defclass action-invocation ()
-  ((owner :reader action-owner :initarg :owner :initform nil)
-   (action :reader invoked-action :initarg :action :initform nil)))
-
-(defun action-invocation (owner action)
-  (make-instance 'action-invocation :owner owner :action action))
 
 (defclass refresh (control-node)
   ())
@@ -491,13 +485,26 @@ positional arguments. Examples:
   (dolist (child (node-children thing))
     (resolve-node-refs scene child)))
 
+(defun assign-action-owners (thing owner)
+  (cond
+    ((typep thing 'entity)
+     (dolist (child (entities thing))
+       (assign-action-owners child thing)))
+    ((typep thing 'action)
+     (setf (action-owner thing) owner))
+    (t
+     (dolist (child (node-children thing))
+       (assign-action-owners child owner)))))
+
 (defun prepare-room-scene (room)
   (clrhash (scene-index room))
   (reset-local-state room)
   (dolist (entity (entities room))
     (index-scene-node room entity))
   (dolist (entity (entities room))
-    (resolve-node-refs room entity)))
+    (resolve-node-refs room entity))
+  (dolist (entity (entities room))
+    (assign-action-owners entity nil)))
 
 (defun prepare-game (game)
   (clrhash (game-global-state game))
@@ -565,8 +572,9 @@ positional arguments. Examples:
     (validate-node child game thing)))
 
 (defmethod validate-node ((thing entity) game context)
+  (declare (ignore context))
   (dolist (child (entities thing))
-    (validate-node child game context)))
+    (validate-node child game thing)))
 
 (defmethod validate-node ((thing branch) game context)
   (validate-node (branch-condition thing) game context)
@@ -597,6 +605,8 @@ positional arguments. Examples:
      (validation-error "Expected an effect node, got ~S." effects))))
 
 (defmethod validate-node ((thing action) game context)
+  (unless (typep context 'entity)
+    (validation-error "Action ~S must be inside an entity." (label thing)))
   (validate-effect-tree (effects thing) game context))
 
 (defmethod validate-node ((thing container) game context)

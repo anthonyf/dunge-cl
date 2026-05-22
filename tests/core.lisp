@@ -114,6 +114,30 @@
       (dunge::mark-choice-taken take-recipe context)
       (is (not (dunge::choice-visible-p take-recipe context))))))
 
+(test actions-store-and-use-entity-owners
+  (let* ((panel (entity "panel"
+		  :state ((:switch :off))
+		  (action "Flip"
+		    (state-set :self :switch :on))))
+	 (game (game (room "room" panel)))
+	 (action-node (first (entities panel)))
+	 (context (test-context game)))
+    (is (eq panel (dunge::action-owner action-node)))
+    (let ((choice (first (collect-choices action-node context))))
+      (is (eq action-node (target choice)))
+      (evaluate (target choice) context)
+      (is (eq :on (state-value (state-ref :self :switch)
+			       (test-context game :self panel)))))))
+
+(test action-validation-is-structural
+  (let* ((panel (entity "panel"
+		  (action "Flip"
+		    (gain :x))))
+	 (unprepared-game (make-instance 'game
+					 :rooms (list (room "room" panel)))))
+    (is (null (dunge::action-owner (first (entities panel)))))
+    (is (eq unprepared-game (validate-game unprepared-game)))))
+
 (test validator-catches-authoring-errors
   (signals error
     (game (room "start"
@@ -136,7 +160,11 @@
 	    (entity "panel"
 	      (action "Bad list effect"
 		(conditional-effect t
-				    (list (gain :x)))))))))
+				    (list (gain :x))))))))
+  (signals error
+    (game (room "start"
+	    (action "Loose action"
+	      (gain :x))))))
 
 (test deprecated-key-shapes-are-rejected
   (signals error
