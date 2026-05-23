@@ -153,6 +153,56 @@
        (error "custom readtable leaked")))
     (is (typep (load-dunge-string "(:p :text \"ok\")") 'p))))
 
+(test source-diagnostics-include-form-and-field-context
+  (let ((message
+          (error-message-from
+           (lambda ()
+             (load-dunge-string
+              "(:game :start \"start\" :rooms ((:room :id \"start\" :body ((:p :text 42)))))"
+              :source-name "diagnostics.dunge")))))
+    (is (contains-substring-p "Dunge source error in diagnostics.dunge"
+                              message))
+    (is (contains-substring-p
+         "while compiling :GAME -> field :ROOMS -> :ROOM -> field :BODY -> :P -> field :TEXT"
+         message))
+    (is (contains-substring-p "Expected a string, got 42" message))))
+
+(test source-diagnostics-include-referenced-room-file
+  (let* ((root (merge-pathnames
+                (format nil "dunge-source-diagnostics-test-~A/" (gensym))
+                (uiop:temporary-directory)))
+         (manifest (merge-pathnames "game.dunge" root))
+         (start-room (merge-pathnames "rooms/start.dunge" root)))
+    (unwind-protect
+         (progn
+           (write-test-file
+            start-room
+            "(:room :id \"start\" :body ((:choice :options ((:option :do (:quit))))))")
+           (write-test-file
+            manifest
+            "(:game :start \"start\" :rooms (\"rooms/start.dunge\"))")
+           (let ((message (error-message-from
+                           (lambda ()
+                             (load-dunge-file manifest)))))
+             (is (contains-substring-p
+                  (format nil "Dunge source error in ~A"
+                          (namestring (truename start-room)))
+                  message))
+             (is (contains-substring-p
+                  "while compiling :ROOM -> field :BODY -> :CHOICE -> field :OPTIONS -> :OPTION -> field :LABEL"
+                  message))
+             (is (contains-substring-p ":OPTION requires field :LABEL"
+                                       message))
+             (is (contains-substring-p
+                  (format nil "included from ~A"
+                          (namestring (truename manifest)))
+                  message))
+             (is (contains-substring-p
+                  "while compiling :GAME -> field :ROOMS"
+                  message))))
+      (when (probe-file root)
+        (uiop:delete-directory-tree root :validate t)))))
+
 (test game-manifest-loads-relative-room-files
   (let* ((root (merge-pathnames
                 (format nil "dunge-manifest-test-~A/" (gensym))
