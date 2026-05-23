@@ -136,6 +136,20 @@ This source compiles into internal `game`, `room`, `p`, `branch`, `choice`,
 `state-ref`, `state-set`, `goto`, and related CLOS objects. Authors do not call
 the private builders directly.
 
+A game can also keep rooms in separate files:
+
+```lisp
+(:game
+ :start "kitchen"
+ :rooms
+ ("rooms/kitchen.dunge"
+  "rooms/cupboard.dunge"))
+```
+
+Room paths are resolved relative to the `.dunge` file that contains them. Each
+referenced room file contains exactly one top-level `:room` form, which is read
+through the same safe source-schema path as inline room data.
+
 ## Internal AST
 
 The AST is a semantic layer, not a second authoring language. Runtime behavior

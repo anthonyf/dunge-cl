@@ -17,8 +17,16 @@
   :components ((:module "examples"
                 :components ((:file "package")
                              (:static-file "basic.dunge")
+                             (:module "basic-rooms"
+                              :pathname "basic"
+                              :components ((:static-file "entrance.dunge")
+                                           (:static-file "hallway.dunge")))
                              (:file "basic")
                              (:static-file "control-panel.dunge")
+                             (:module "control-panel-rooms"
+                              :pathname "control-panel"
+                              :components ((:static-file "hallway.dunge")
+                                           (:static-file "hidden-room.dunge")))
                              (:file "control-panel")))))
 
 (asdf:defsystem "dunge/tests"

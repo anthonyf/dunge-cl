@@ -1,0 +1,5 @@
+(:room
+ :id "hallway"
+ :title "Hallway"
+ :body
+ ((:p :text "You are on a long dark hallway.")))

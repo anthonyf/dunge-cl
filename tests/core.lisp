@@ -89,6 +89,14 @@
     (error (condition)
       (princ-to-string condition))))
 
+(defun write-test-file (path contents)
+  (ensure-directories-exist path)
+  (with-open-file (stream path
+                          :direction :output
+                          :if-exists :supersede
+                          :if-does-not-exist :create)
+    (write-string contents stream)))
+
 (test substring-count-rejects-empty-needle
   (signals error
     (substring-count "" "anything")))
@@ -138,6 +146,31 @@
        (declare (ignore stream char))
        (error "custom readtable leaked")))
     (is (typep (load-dunge-string "(:p :text \"ok\")") 'p))))
+
+(test game-manifest-loads-relative-room-files
+  (let* ((root (merge-pathnames
+                (format nil "dunge-manifest-test-~A/" (gensym))
+                (uiop:temporary-directory)))
+         (manifest (merge-pathnames "game.dunge" root))
+         (start-room (merge-pathnames "rooms/start.dunge" root))
+         (end-room (merge-pathnames "rooms/end.dunge" root)))
+    (unwind-protect
+         (progn
+           (write-test-file
+            start-room
+            "(:room :id \"start\" :title \"Start\" :body ((:p :text \"Start.\")))")
+           (write-test-file
+            end-room
+            "(:room :id \"end\" :title \"End\" :body ((:p :text \"End.\")))")
+           (write-test-file
+            manifest
+            "(:game :start \"start\" :rooms (\"rooms/start.dunge\" \"rooms/end.dunge\"))")
+           (let ((game (load-dunge-file manifest)))
+             (is (equal "start" (game-start game)))
+             (is (equal '("start" "end")
+                        (mapcar #'name (game-rooms game))))))
+      (when (probe-file root)
+        (uiop:delete-directory-tree root :validate t)))))
 
 (test source-schema-rejects-malformed-state-and-refs
   (is (contains-substring-p
