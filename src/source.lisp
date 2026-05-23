@@ -280,12 +280,21 @@
        (source-file-context resolved-path)))))
 
 (defun compile-dunge-room-source (value context)
-  (let ((node (if (stringp value)
-                  (load-dunge-file-with-context value context)
-                  (compile-dunge-source-form value context))))
-    (unless (typep node 'room)
-      (source-error "Expected a room source form, got ~S." value))
-    node))
+  (cond
+    ((stringp value)
+     (let ((node (load-dunge-file-with-context value context)))
+       (unless (typep node 'room)
+         (source-error "Expected a room source file, got ~S." value))
+       node))
+    ((consp value)
+     (let ((node (compile-dunge-source-form value context)))
+       (unless (typep node 'room)
+         (source-error "Expected a room source form, got ~S." value))
+       node))
+    (t
+     (source-error
+      "Room entries must be room source forms or string file paths; got ~S."
+      value))))
 
 (define-dunge-field-type :room-list (value context)
   (mapcar (lambda (form)

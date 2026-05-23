@@ -139,6 +139,12 @@
     (source-node '(:p :text 42)))
   (signals error
     (load-dunge-string "#.(error \"read eval leaked\")"))
+  (is (contains-substring-p
+       "Room entries must be room source forms or string file paths"
+       (error-message-from
+        (lambda ()
+          (load-dunge-string
+           "(:game :start \"start\" :rooms (#P\"rooms/start.dunge\"))")))))
   (let ((*readtable* (copy-readtable nil)))
     (set-macro-character
      #\(
