@@ -283,6 +283,7 @@
 
 (defun read-one-dunge-form (stream source-name)
   (let ((*read-eval* nil)
+        (*readtable* (copy-readtable nil))
         (eof '#:eof))
     (let ((form (read stream nil eof)))
       (when (eq form eof)

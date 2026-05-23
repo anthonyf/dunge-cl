@@ -501,7 +501,7 @@ can TYPEP the result against QUIT, BACK, and related classes."))
 
 (defmethod execute-effect ((effects cons) &optional context)
   (declare (ignore effects context))
-  (error "Effect lists are not executable; use (sequence ...) instead."))
+  (error "Effect lists are not executable; authored effects should use (:sequence :effects ...)."))
 
 (defmethod execute-effect ((effect t) &optional context)
   (declare (ignore context))

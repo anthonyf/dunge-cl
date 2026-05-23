@@ -130,7 +130,40 @@
   (signals error
     (source-node '(:p :text 42)))
   (signals error
-    (load-dunge-string "#.(error \"read eval leaked\")")))
+    (load-dunge-string "#.(error \"read eval leaked\")"))
+  (let ((*readtable* (copy-readtable nil)))
+    (set-macro-character
+     #\(
+     (lambda (stream char)
+       (declare (ignore stream char))
+       (error "custom readtable leaked")))
+    (is (typep (load-dunge-string "(:p :text \"ok\")") 'p))))
+
+(test source-schema-rejects-malformed-state-and-refs
+  (is (contains-substring-p
+       "State declaration must be"
+       (error-message-from
+        (lambda ()
+          (source-node
+           '(:entity :name "panel" :state (:open nil)))))))
+  (is (contains-substring-p
+       "State declaration must be"
+       (error-message-from
+        (lambda ()
+          (source-node
+           '(:entity :name "panel" :state ((:open nil :extra))))))))
+  (is (contains-substring-p
+       "Entity ref must be"
+       (error-message-from
+        (lambda ()
+          (source-node
+           '(:entity :name "panel" :refs (:door "door")))))))
+  (is (contains-substring-p
+       "Entity ref must be"
+       (error-message-from
+        (lambda ()
+          (source-node
+           '(:entity :name "panel" :refs ((:door "door" "extra")))))))))
 
 (test generated-nodes-expose-traversal-methods
   (let* ((game (source-node
@@ -569,12 +602,15 @@
     (source-node '(:state :scope self :key :switch))))
 
 (test effect-lists-error-and-empty-else-branches-are-safe
-  (signals error
-    (execute-effect
-     (list (source-node
-            '(:set
-              :target (:state :scope :global :key :x)
-              :value t)))))
+  (is (contains-substring-p
+       "(:sequence :effects ...)"
+       (error-message-from
+        (lambda ()
+          (execute-effect
+           (list (source-node
+                  '(:set
+                    :target (:state :scope :global :key :x)
+                    :value t))))))))
   (let ((game (source-game-with-body)))
     (is (null (execute-effect
                (source-node

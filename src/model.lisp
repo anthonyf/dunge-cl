@@ -114,13 +114,21 @@
   (declare (ignore context))
   (state-scope-key value))
 
+(defun source-pair-p (value)
+  (and (consp value)
+       (consp (cdr value))
+       (null (cddr value))))
+
 (define-dunge-field-type :state-declarations (value context)
   (declare (ignore context))
   (unless (listp value)
     (source-error "State declarations must be a list; got ~S." value))
   (mapcar (lambda (declaration)
-            (destructuring-bind (key initial-value) declaration
-              (list (state-key key) initial-value)))
+            (unless (source-pair-p declaration)
+              (source-error "State declaration must be (KEY INITIAL-VALUE); got ~S."
+                            declaration))
+            (list (state-key (first declaration))
+                  (second declaration)))
           value))
 
 (define-dunge-field-type :refs (value context)
@@ -128,8 +136,11 @@
   (unless (listp value)
     (source-error "Entity refs must be a list; got ~S." value))
   (mapcar (lambda (ref)
-            (destructuring-bind (role target-id) ref
-              (list (ref-role-key role) (scene-id-key target-id))))
+            (unless (source-pair-p ref)
+              (source-error "Entity ref must be (ROLE TARGET-ID); got ~S."
+                            ref))
+            (list (ref-role-key (first ref))
+                  (scene-id-key (second ref))))
           value))
 
 (define-dunge-node state-ref ()
@@ -556,7 +567,8 @@
     ((null effects)
      nil)
     ((listp effects)
-     (validation-error "Effect lists are not valid; wrap effects in :sequence."))
+     (validation-error
+      "Effect lists are not valid; wrap authored effects in (:sequence :effects ...)."))
     ((typep effects 'effect-node)
      (validate-node effects game context))
     (t
