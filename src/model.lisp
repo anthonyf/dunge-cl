@@ -18,6 +18,9 @@
   ((rooms :reader game-rooms :initarg :rooms :initform nil)
    (global-state :reader game-global-state
                  :initform (make-hash-table :test 'eql))
+   (global-state-declarations :reader game-global-state-declarations
+                              :initarg :state
+                              :initform nil)
    (taken-choices :reader game-taken-choices
                   :initform (make-hash-table :test 'eql))
    (player :accessor game-player :initarg :player :initform nil)
@@ -27,6 +30,7 @@
   (:source :game
    (:fields
     (:start :scene-id)
+    (:state :state-declarations :default nil)
     (:rooms :room-list :required t))))
 
 (define-dunge-node room ()
@@ -130,6 +134,26 @@
             (list (state-key (first declaration))
                   (second declaration)))
           value))
+
+(defun state-declaration-key-list (declarations)
+  (mapcar (lambda (declaration)
+            (state-key (first declaration)))
+          declarations))
+
+(defun declared-global-state-keys (game)
+  (state-declaration-key-list (game-global-state-declarations game)))
+
+(defun global-state-declared-p (game)
+  (not (null (game-global-state-declarations game))))
+
+(defun ensure-declared-global-state-key (game key)
+  (let ((state-key (state-key key)))
+    (when (global-state-declared-p game)
+      (unless (member state-key (declared-global-state-keys game) :test #'eql)
+        (error "Game has no declared global state key ~S. Declared keys: ~S."
+               state-key
+               (declared-global-state-keys game))))
+    state-key))
 
 (define-dunge-field-type :refs (value context)
   (declare (ignore context))
@@ -389,6 +413,13 @@
            (setf (gethash (state-key name) (local-state node))
                  value)))))))
 
+(defun reset-global-state (game)
+  (clrhash (game-global-state game))
+  (dolist (declaration (game-global-state-declarations game))
+    (destructuring-bind (name value) declaration
+      (setf (gethash (state-key name) (game-global-state game))
+            value))))
+
 (defun index-scene-node (scene thing)
   (walk-node-tree
    thing
@@ -441,7 +472,7 @@
     (assign-action-owners entity nil)))
 
 (defun prepare-game (game)
-  (clrhash (game-global-state game))
+  (reset-global-state game)
   (clrhash (game-taken-choices game))
   (dolist (room (game-rooms game))
     (prepare-room-scene room))
@@ -497,6 +528,18 @@
                                  (label existing)
                                  (label choice))
                (setf (gethash key *validation-choice-ids*) choice))))))))
+
+(defun validate-state-declaration-list (owner-label declarations)
+  (let ((seen (make-hash-table :test 'eql)))
+    (dolist (declaration declarations)
+      (destructuring-bind (key value) declaration
+        (declare (ignore value))
+        (let ((state-key (state-key key)))
+          (if (nth-value 1 (gethash state-key seen))
+              (validation-error "~A declares state key ~S more than once."
+                                owner-label
+                                state-key)
+              (setf (gethash state-key seen) t)))))))
 
 (defun condition-literal-p (thing)
   (or (stringp thing)
@@ -555,6 +598,8 @@
         (*validation-choice-ids* (make-hash-table :test 'eql))
         (*validation-resolve-room-targets* t))
     (validate-game-start game)
+    (validate-state-declaration-list "Game"
+                                     (game-global-state-declarations game))
     (dolist (room (game-rooms game))
       (validate-node room game room))
     (signal-validation-errors "Game"))
@@ -574,6 +619,9 @@
 
 (defmethod validate-node ((thing entity) game context)
   (declare (ignore context))
+  (validate-state-declaration-list
+   (format nil "Entity ~S" (or (entity-id thing) (name thing)))
+   (state-declarations thing))
   (validate-node-list (entities thing) game thing))
 
 (defmethod validate-node ((thing branch) game context)
@@ -631,7 +679,7 @@
   (validate-condition thing game context))
 
 (defmethod validate-node ((thing state-ref) game context)
-  (declare (ignore game context))
+  (declare (ignore context))
   (case (state-ref-scope thing)
     (:ref
      (unless (state-ref-role thing)
@@ -647,7 +695,17 @@
     ((:self :global)
      (unless (state-ref-key thing)
        (validation-error "~S state reference is missing a key."
-                         (state-ref-scope thing))))
+                         (state-ref-scope thing)))
+     (when (and (eq (state-ref-scope thing) :global)
+                game
+                (state-ref-key thing)
+                (global-state-declared-p game)
+                (not (member (state-key (state-ref-key thing))
+                             (declared-global-state-keys game)
+                             :test #'eql)))
+       (validation-error "GLOBAL state reference uses undeclared key ~S. Declared keys: ~S."
+                         (state-ref-key thing)
+                         (declared-global-state-keys game))))
     (otherwise
      (validation-error "Unknown state scope ~S."
                        (state-ref-scope thing))))

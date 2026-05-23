@@ -14,6 +14,12 @@
   scene
   self)
 
+(defstruct (runtime-session
+             (:constructor %make-runtime-session (game location return-stack)))
+  game
+  location
+  return-stack)
+
 (defgeneric evaluate (thing &optional context)
   (:documentation "Evaluate a Dunge CLOS AST node in CONTEXT.
 
@@ -47,6 +53,34 @@ can TYPEP the result against QUIT, BACK, and related classes."))
         room
         (error "No room named ~S." room-name))))
 
+(defun make-runtime-session (game &key current-room return-stack)
+  (let ((start-room (or current-room (game-start game))))
+    (unless start-room
+      (error "Cannot start a runtime session for a game with no rooms."))
+    (%make-runtime-session
+     game
+     (find-room game start-room)
+     (mapcar (lambda (room-name)
+               (find-room game room-name))
+             return-stack))))
+
+(defun ensure-saveable-room-location (location purpose)
+  (unless (typep location 'room)
+    (error "Cannot save ~A while it is a transient ~A."
+           purpose
+           (class-name (class-of location))))
+  location)
+
+(defun runtime-session-current-room-name (session)
+  (name (ensure-saveable-room-location
+         (runtime-session-location session)
+         "the current location")))
+
+(defun runtime-session-return-stack-room-names (session)
+  (mapcar (lambda (location)
+            (name (ensure-saveable-room-location location "the return stack")))
+          (runtime-session-return-stack session)))
+
 (defun read-choice-index (count)
   (loop
     (format *output* "> ")
@@ -73,6 +107,11 @@ can TYPEP the result against QUIT, BACK, and related classes."))
    :scene (runtime-context-scene context)
    :self self))
 
+(defun runtime-context-for-location (context location)
+  (if (typep location 'room)
+      (runtime-context-for-scene context location)
+      context))
+
 (defun describe-children (children context)
   (dolist (child children)
     (let ((result (if (control-result-p child)
@@ -81,17 +120,13 @@ can TYPEP the result against QUIT, BACK, and related classes."))
       (when (control-result-p result)
         (return result)))))
 
-(defmethod evaluate ((game game) &optional context)
-  (declare (ignore context))
-  (unless (game-start game)
-    (error "Cannot evaluate a game with no rooms."))
-  (let ((game-context (make-runtime-context :game game)))
-    (loop with location = (find-room game (game-start game))
-          with return-stack = nil
-          do (let* ((location-context
-                      (if (typep location 'room)
-                          (runtime-context-for-scene game-context location)
-                          game-context))
+(defun evaluate-session (session)
+  (check-type session runtime-session)
+  (let* ((game (runtime-session-game session))
+         (game-context (make-runtime-context :game game)))
+    (loop do (let* ((location (runtime-session-location session))
+                    (location-context
+                      (runtime-context-for-location game-context location))
                     (result (evaluate location location-context)))
                (match result
                  ((quit)
@@ -99,23 +134,31 @@ can TYPEP the result against QUIT, BACK, and related classes."))
                  ((refresh)
                   nil)
                  ((goto (room-name room-name))
-                  (setf location (find-room game room-name)))
+                  (setf (runtime-session-location session)
+                        (find-room game room-name)))
                  ((gosub (room-name room-name))
-                  (push location return-stack)
-                  (setf location (find-room game room-name)))
+                  (push location (runtime-session-return-stack session))
+                  (setf (runtime-session-location session)
+                        (find-room game room-name)))
                  ((enter (target target))
-                  (push location return-stack)
-                  (setf location target))
+                  (push location (runtime-session-return-stack session))
+                  (setf (runtime-session-location session) target))
                  ((back)
-                  (if return-stack
-                      (setf location (pop return-stack))
+                  (if (runtime-session-return-stack session)
+                      (setf (runtime-session-location session)
+                            (pop (runtime-session-return-stack session)))
                       (return result)))
                  ((fall-through)
-                  (if return-stack
-                      (setf location (pop return-stack))
+                  (if (runtime-session-return-stack session)
+                      (setf (runtime-session-location session)
+                            (pop (runtime-session-return-stack session)))
                       (return location)))
                  (_
                   (return result)))))))
+
+(defmethod evaluate ((game game) &optional context)
+  (declare (ignore context))
+  (evaluate-session (make-runtime-session game)))
 
 (defmethod evaluate ((room room) &optional context)
   (let ((room-context (runtime-context-for-scene context room)))
@@ -326,8 +369,11 @@ can TYPEP the result against QUIT, BACK, and related classes."))
     (:global
      (unless (and context (runtime-context-game context))
        (error "Cannot resolve GLOBAL state without a current game."))
-     (values (game-global-state (runtime-context-game context))
-             (state-key (state-ref-key reference))))
+     (let ((game (runtime-context-game context)))
+       (values (game-global-state game)
+               (ensure-declared-global-state-key
+                game
+                (state-ref-key reference)))))
     (:ref
      (unless (and context (runtime-context-self context))
        (error "Cannot resolve REF state without a current entity."))
@@ -354,6 +400,151 @@ can TYPEP the result against QUIT, BACK, and related classes."))
 (defun clear-state-reference-value (reference context)
   (multiple-value-bind (table key) (resolve-state-reference reference context)
     (remhash key table)))
+
+(defun sorted-state-alist (table)
+  (sort (loop for key being the hash-keys of table
+                using (hash-value value)
+              collect (cons key value))
+        #'string<
+        :key (lambda (entry)
+               (prin1-to-string (car entry)))))
+
+(defun sorted-hash-keys (table)
+  (sort (loop for key being the hash-keys of table
+              collect key)
+        #'string<
+        :key #'prin1-to-string))
+
+(defun collect-runtime-local-state (game)
+  (let (entries)
+    (dolist (room (game-rooms game))
+      (walk-node-tree
+       room
+       (lambda (node)
+         (when (and (typep node 'entity)
+                    (entity-id node)
+                    (state-declarations node))
+           (push (list :room (name room)
+                       :entity (entity-id node)
+                       :state (sorted-state-alist (local-state node)))
+                 entries)))))
+    (nreverse entries)))
+
+(defun capture-runtime-state (session)
+  (let ((game (runtime-session-game session)))
+    (list :current-room (runtime-session-current-room-name session)
+          :return-stack (runtime-session-return-stack-room-names session)
+          :globals (sorted-state-alist (game-global-state game))
+          :locals (collect-runtime-local-state game)
+          :taken-choices (sorted-hash-keys (game-taken-choices game)))))
+
+(defun runtime-state-field (state field &optional default)
+  (unless (and (listp state) (evenp (length state)))
+    (error "Runtime state must be a property list; got ~S." state))
+  (loop for (key value) on state by #'cddr
+        when (eq key field)
+          do (return value)
+        finally (return default)))
+
+(defun runtime-state-required-field (state field)
+  (let ((missing '#:missing))
+    (let ((value (runtime-state-field state field missing)))
+      (when (eq value missing)
+        (error "Runtime state is missing required field ~S." field))
+      value)))
+
+(defun runtime-state-pair-p (entry)
+  (consp entry))
+
+(defun restore-runtime-global-state (game globals)
+  (unless (listp globals)
+    (error "Runtime :GLOBALS must be an alist; got ~S." globals))
+  (dolist (entry globals)
+    (unless (runtime-state-pair-p entry)
+      (error "Runtime global state entry must be (KEY . VALUE); got ~S."
+             entry))
+    (setf (gethash (ensure-declared-global-state-key game (car entry))
+                   (game-global-state game))
+          (cdr entry))))
+
+(defun restore-runtime-taken-choices (game taken-choices)
+  (unless (listp taken-choices)
+    (error "Runtime :TAKEN-CHOICES must be a list; got ~S." taken-choices))
+  (clrhash (game-taken-choices game))
+  (dolist (choice-id taken-choices)
+    (setf (gethash (choice-id-key choice-id)
+                   (game-taken-choices game))
+          t)))
+
+(defun restore-runtime-local-state-entry (game entry)
+  (unless (and (listp entry) (evenp (length entry)))
+    (error "Runtime local state entry must be a property list; got ~S." entry))
+  (let* ((room-name (runtime-state-required-field entry :room))
+         (entity-id (runtime-state-required-field entry :entity))
+         (state (runtime-state-field entry :state nil))
+         (room (find-room game room-name))
+         (entity (gethash (scene-id-key entity-id) (scene-index room))))
+    (unless (typep entity 'entity)
+      (error "No saveable entity ~S in room ~S." entity-id room-name))
+    (unless (listp state)
+      (error "Runtime local :STATE must be an alist; got ~S." state))
+    (dolist (state-entry state)
+      (unless (runtime-state-pair-p state-entry)
+        (error "Runtime local state entry must be (KEY . VALUE); got ~S."
+               state-entry))
+      (setf (gethash (ensure-declared-state-key entity (car state-entry))
+                     (local-state entity))
+            (cdr state-entry)))))
+
+(defun restore-runtime-local-state (game locals)
+  (unless (listp locals)
+    (error "Runtime :LOCALS must be a list; got ~S." locals))
+  (dolist (entry locals)
+    (restore-runtime-local-state-entry game entry)))
+
+(defun restore-runtime-state (game state)
+  (let ((current-room (runtime-state-required-field state :current-room))
+        (return-stack (runtime-state-field state :return-stack nil))
+        (globals (runtime-state-field state :globals nil))
+        (locals (runtime-state-field state :locals nil))
+        (taken-choices (runtime-state-field state :taken-choices nil)))
+    (prepare-game game)
+    (restore-runtime-global-state game globals)
+    (restore-runtime-local-state game locals)
+    (restore-runtime-taken-choices game taken-choices)
+    (make-runtime-session game
+                          :current-room current-room
+                          :return-stack return-stack)))
+
+(defun read-runtime-state-form (stream source-name)
+  (let ((*read-eval* nil)
+        (*readtable* (copy-readtable nil))
+        (eof '#:eof))
+    (let ((form (read stream nil eof)))
+      (when (eq form eof)
+        (error "~A is empty." source-name))
+      (let ((extra (read stream nil eof)))
+        (unless (eq extra eof)
+          (error "~A must contain exactly one top-level form." source-name)))
+      form)))
+
+(defun read-runtime-state-file (path)
+  (with-open-file (stream path :direction :input)
+    (read-runtime-state-form stream (namestring (truename path)))))
+
+(defun write-runtime-state-file (session path)
+  (with-open-file (stream path
+                          :direction :output
+                          :if-exists :supersede
+                          :if-does-not-exist :create)
+    (let ((*print-readably* t)
+          (*print-pretty* t))
+      (prin1 (capture-runtime-state session) stream)
+      (terpri stream)))
+  path)
+
+(defun load-runtime-state-file (game path)
+  (restore-runtime-state game (read-runtime-state-file path)))
 
 (defun toggled-value (value on-value off-value)
   (cond

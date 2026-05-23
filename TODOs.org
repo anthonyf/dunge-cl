@@ -7,7 +7,8 @@
 - [X] Containers and placed items with interaction choices
 - [X] Local entity state, references, conditional visibility, and simple effects
 - [X] Load authored games from external data or user packages
-- [ ] Add save/load for current room, player state, entity state, and world flags
+- [X] Add save/load for current room, entity state, and world flags
+- [ ] Include player state in save/load once the player model exists
 
 * Phase 2: Character And Inventory
 - [ ] Character creation flow with name, background, stats, HP, armor, gold, fate, and inventory

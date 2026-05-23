@@ -75,6 +75,15 @@
           (*output* output))
       (evaluate game))))
 
+(defun run-session-script (session input)
+  (let (result)
+    (values
+     (with-output-to-string (output)
+       (let ((*input* (make-string-input-stream input))
+             (*output* output))
+         (setf result (evaluate-session session))))
+     result)))
+
 (defun run-example-with-input (function input)
   (with-output-to-string (output)
     (let ((*input* (make-string-input-stream input))
@@ -383,6 +392,163 @@
           (execute-effect
            (source-node '(:toggle :target (:state :scope :self :key :open)))
            door-context))))))
+
+(test declared-global-state-is-strict-when-present
+  (let ((game
+          (source-game-with-body
+           '(:choice
+             :options
+             ((:option
+               :label "Set declared"
+               :do (:set
+                    :target (:state :scope :global :key :known)
+                    :value t)))))))
+    (is (not (dunge::global-state-declared-p game))))
+  (let ((game
+          (source-node
+           '(:game
+             :start "room"
+             :state ((:known nil))
+             :rooms
+             ((:room
+               :id "room"
+               :body
+               ((:choice
+                 :options
+                 ((:option
+                   :label "Set declared"
+                   :do (:set
+                        :target (:state :scope :global :key :known)
+                        :value t)))))))))))
+    (is (equal '(:known) (dunge::declared-global-state-keys game)))
+    (is (not (state-value (source-state :global :known)
+                          (test-context game)))))
+  (is (contains-substring-p
+       "undeclared key :MISSING"
+       (error-message-from
+        (lambda ()
+          (source-node
+           '(:game
+             :start "room"
+             :state ((:known nil))
+             :rooms
+             ((:room
+               :id "room"
+               :body
+               ((:choice
+                 :options
+                 ((:option
+                   :label "Set undeclared"
+                   :do (:set
+                        :target (:state :scope :global :key :missing)
+                        :value t)))))))))))))
+  (is (contains-substring-p
+       "declares state key :KNOWN more than once"
+       (error-message-from
+        (lambda ()
+          (source-node
+           '(:game
+             :start "room"
+             :state ((:known nil) (:known t))
+             :rooms
+             ((:room :id "room")))))))))
+
+(defun build-save-load-fixture ()
+  (source-node
+   '(:game
+     :start "start"
+     :state ((:clue nil)
+             (:visits 0))
+     :rooms
+     ((:room
+       :id "start"
+       :title "Start"
+       :body
+       ((:entity
+         :name "panel"
+         :id "panel"
+         :state ((:open nil))
+         :body
+         ((:action
+           :label "Open panel"
+           :do
+           ((:set
+             :target (:state :scope :self :key :open)
+             :value t)))))
+        (:choice
+         :options
+         ((:option
+           :label "Find clue"
+           :id :find-clue
+           :once t
+           :do (:sequence
+                :effects
+                ((:set
+                  :target (:state :scope :global :key :clue)
+                  :value t)
+                 (:inc
+                  :target (:state :scope :global :key :visits)))))
+          (:option
+           :label "Go to notes"
+           :do (:goto :room "notes"))
+          (:option
+           :label "Quit"
+           :do (:quit))))))
+      (:room
+       :id "notes"
+       :title "Notes"
+       :body
+       ((:p :text "The notes are organized.")))))))
+
+(test runtime-state-captures-and-restores-current-room-state-and-taken-choices
+  (let* ((game (build-save-load-fixture))
+         (session (make-runtime-session game)))
+    (multiple-value-bind (output result)
+        (run-session-script session (format nil "2~%1~%2~%"))
+      (is (typep result 'room))
+      (is (contains-substring-p "The notes are organized." output)))
+    (let ((state (capture-runtime-state session)))
+      (is (equal "notes" (getf state :current-room)))
+      (is (equal '(:find-clue) (getf state :taken-choices)))
+      (is (equal '((:clue . t) (:visits . 1))
+                 (getf state :globals)))
+      (let* ((fresh-game (build-save-load-fixture))
+             (restored-session (restore-runtime-state fresh-game state))
+             (restored-context (test-context fresh-game))
+             (start-room (first (game-rooms fresh-game)))
+             (panel (gethash "panel" (dunge::scene-index start-room))))
+        (is (equal "notes"
+                   (runtime-session-current-room-name restored-session)))
+        (is (state-value (source-state :global :clue)
+                         restored-context))
+        (is (= 1 (state-value (source-state :global :visits)
+                              restored-context)))
+        (is (state-value (source-state :self :open)
+                         (test-context fresh-game :self panel)))
+        (is (dunge::choice-taken-p
+             (first
+              (options
+               (second (entities start-room))))
+             restored-context))))))
+
+(test runtime-state-round-trips-through-safe-file-reader
+  (let* ((game (build-save-load-fixture))
+         (session (make-runtime-session game))
+         (path (merge-pathnames
+                (format nil "dunge-runtime-state-~A.sexp" (gensym))
+                (uiop:temporary-directory))))
+    (unwind-protect
+         (progn
+           (run-session-script session (format nil "2~%1~%2~%"))
+           (write-runtime-state-file session path)
+           (let* ((fresh-game (build-save-load-fixture))
+                  (loaded-session (load-runtime-state-file fresh-game path)))
+             (is (equal "notes"
+                        (runtime-session-current-room-name loaded-session)))
+             (is (state-value (source-state :global :clue)
+                              (test-context fresh-game)))))
+      (when (probe-file path)
+        (delete-file path)))))
 
 (test malformed-conditions-fail-source-or-game-validation
   (signals error

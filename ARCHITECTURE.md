@@ -82,6 +82,7 @@ A small game is written as data:
 ```lisp
 (:game
  :start "kitchen"
+ :state ((:recipe nil))
  :rooms
  ((:room
    :id "kitchen"
@@ -243,8 +244,22 @@ story object names keep separate, predictable representations.
 Entity-local and ref-scope state is strictly declared. Reading, writing,
 incrementing, clearing, or toggling a key that the target entity did not declare
 in `:state` is an error. This catches typos instead of silently creating
-phantom slots. Global state is currently unrestricted; this may tighten in a
-future revision.
+phantom slots.
+
+Game-level global state can also be declared:
+
+```lisp
+(:game
+ :start "kitchen"
+ :state ((:recipe nil)
+         (:phase :prologue))
+ :rooms ...)
+```
+
+When a game declares any global state, every global state read or write must use
+one of those declared keys. Small experiments may omit game-level `:state` and
+continue using unrestricted globals, but authored mystery content should declare
+its clue, fact, phase, deduction, and scoring flags.
 
 ## Effects And Sequences
 
@@ -274,12 +289,18 @@ The minimum save payload is still:
 (:current-room "cupboard"
  :return-stack ("kitchen")
  :globals ((:recipe . t))
+ :locals ((:room "kitchen"
+           :entity "stove"
+           :state ((:lit . t))))
  :taken-choices (:take-recipe))
 ```
 
-Entity-local state can be added when save/load is implemented. The format can
-start as s-expressions and later move to JSON because the runtime state model
-does not depend on Lisp execution.
+Runtime sessions track the current location and return stack separately from
+authored content. `capture-runtime-state` produces the serializable payload,
+`restore-runtime-state` applies one to a prepared game, and
+`write-runtime-state-file` / `load-runtime-state-file` round-trip that payload
+through a safe s-expression reader with `*read-eval*` disabled. Entity-local
+state is saved for entities with stable scene IDs.
 
 ## Validator
 
@@ -289,6 +310,7 @@ authoring errors before play:
 - missing `:goto` and `:gosub` room targets when statically known;
 - malformed conditions and effects;
 - unknown state scopes;
+- undeclared global state references when game-level `:state` is present;
 - once-only choices without stable IDs;
 - duplicate room IDs and duplicate scene IDs;
 - unresolved entity refs.
