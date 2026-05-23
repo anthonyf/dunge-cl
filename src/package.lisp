@@ -28,8 +28,6 @@
    #:container-view
    #:dunge-source-error
    #:dunge-source-error-message
-   #:define-dunge-field-type
-   #:define-dunge-node
    #:contents
    #:describe-entity
    #:description
@@ -82,5 +80,6 @@
    #:text
    #:validate-game
    #:validate-node
+   #:validate-room
    #:walk-node-tree
    #:viewed-container))

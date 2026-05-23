@@ -229,9 +229,11 @@
                                (compile-source-fields descriptor
                                                       (rest form)
                                                       form-context))))
-              (when (typep node 'game)
-                (prepare-game node)
-                (validate-game node))
+              (cond
+                ((typep node 'game)
+                 (validate-game node))
+                ((typep node 'room)
+                 (validate-room node)))
               node)))))))
 
 (defun source-literal-p (value)

@@ -449,6 +449,7 @@
 
 (defvar *validation-errors* nil)
 (defvar *validation-choice-ids* nil)
+(defvar *validation-resolve-room-targets* nil)
 
 (defgeneric validate-node (thing game context)
   (:documentation "Validate a Dunge AST node in GAME and CONTEXT."))
@@ -461,11 +462,22 @@
   (stringp thing))
 
 (defun validate-room-target (node game room-name)
-  (when (static-room-name-p room-name)
+  (when (and *validation-resolve-room-targets*
+             (static-room-name-p room-name))
     (unless (nth-value 1 (gethash room-name (room-index game)))
       (validation-error "~A targets missing room ~S."
                         (class-name (class-of node))
                         room-name))))
+
+(defun validate-game-start (game)
+  (let ((start (game-start game)))
+    (cond
+      ((null start)
+       (validation-error "Game must declare or infer a start room."))
+      ((not (static-room-name-p start))
+       (validation-error "Game start room must be a string; got ~S." start))
+      ((not (nth-value 1 (gethash start (room-index game))))
+       (validation-error "Game start room ~S does not exist." start)))))
 
 (defun validate-choice-id (choice)
   (let ((id (choice-id choice)))
@@ -522,14 +534,30 @@
      (validation-error "Condition must be a condition-* or state-ref node; got ~S."
                        condition))))
 
-(defun validate-game (game)
+(defun signal-validation-errors (label)
+  (when *validation-errors*
+    (error "~A validation failed:~%~{  - ~A~%~}"
+           label
+           (nreverse *validation-errors*))))
+
+(defun validate-room (room)
+  (prepare-room-scene room)
   (let ((*validation-errors* nil)
-        (*validation-choice-ids* (make-hash-table :test 'eql)))
+        (*validation-choice-ids* (make-hash-table :test 'eql))
+        (*validation-resolve-room-targets* nil))
+    (validate-node room nil room)
+    (signal-validation-errors "Room"))
+  room)
+
+(defun validate-game (game)
+  (prepare-game game)
+  (let ((*validation-errors* nil)
+        (*validation-choice-ids* (make-hash-table :test 'eql))
+        (*validation-resolve-room-targets* t))
+    (validate-game-start game)
     (dolist (room (game-rooms game))
       (validate-node room game room))
-    (when *validation-errors*
-      (error "Game validation failed:~%~{  - ~A~%~}"
-             (nreverse *validation-errors*))))
+    (signal-validation-errors "Game"))
   game)
 
 (defmethod validate-node ((thing t) game context)

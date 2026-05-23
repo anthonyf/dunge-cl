@@ -3,7 +3,7 @@
 (def-suite :dunge-tests)
 (in-suite :dunge-tests)
 
-(define-dunge-node sample-ast-node ()
+(dunge::define-dunge-node sample-ast-node ()
   ((id :reader sample-ast-node-id :initarg :id :initform nil)
    (children :reader sample-ast-node-children :initarg :children :initform nil))
   (:id (thing) (sample-ast-node-id thing))
@@ -122,7 +122,7 @@
 (test define-dunge-node-rejects-unknown-options
   (signals error
     (macroexpand-1
-     '(define-dunge-node invalid-sample-ast-node ()
+     '(dunge::define-dunge-node invalid-sample-ast-node ()
        ()
        (:unknown-option t)))))
 
@@ -604,6 +604,23 @@
     (is (null (action-owner (first (entities panel)))))
     (is (eq unprepared-game (validate-game unprepared-game)))))
 
+(test room-validation-allows-unresolved-navigation-targets
+  (let ((room (load-dunge-string
+               "(:room :id \"start\" :body ((:choice :options ((:option :label \"Next\" :do (:goto :room \"missing\"))))))")))
+    (is (typep room 'room))
+    (is (eq room (validate-room room)))))
+
+(test room-validation-catches-local-authoring-errors
+  (signals error
+    (load-dunge-string
+     "(:room :id \"start\" :body ((:entity :name \"first\" :id \"same\") (:entity :name \"second\" :id \"same\")))"))
+  (signals error
+    (load-dunge-string
+     "(:room :id \"start\" :body ((:entity :name \"panel\" :refs ((:door \"missing-door\")))))"))
+  (signals error
+    (load-dunge-string
+     "(:room :id \"start\" :body ((:choice :options ((:option :label \"Once\" :do (:quit) :once t)))))")))
+
 (test validator-catches-authoring-errors
   (signals error
     (source-game-with-body
@@ -615,6 +632,12 @@
      '(:choice
        :options
        ((:option :label "Once without id" :do (:quit) :once t)))))
+  (signals error
+    (source-node
+     '(:game
+       :start "missing"
+       :rooms
+       ((:room :id "start")))))
   (signals error
     (source-node
      '(:game

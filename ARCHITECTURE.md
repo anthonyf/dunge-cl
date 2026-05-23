@@ -23,8 +23,8 @@ The pipeline is:
   -> safe read as data
   -> source-schema field compilation
   -> private generated AST builders
-  -> prepare-game
-  -> validate-game
+  -> prepare and validate rooms locally
+  -> prepare and validate the game
   -> evaluate
 ```
 
@@ -33,8 +33,8 @@ keeps editor-authored and hand-authored files on the same path.
 
 ## Source Schema
 
-AST classes are declared with `define-dunge-node`. Each node definition may
-also register a public `.dunge` source form:
+AST classes are declared internally with `define-dunge-node`. Each node
+definition may also register a public `.dunge` source form:
 
 ```lisp
 (define-dunge-node container ()
@@ -154,6 +154,14 @@ A game can also keep rooms in separate files:
 Room paths are resolved relative to the `.dunge` file that contains them. Each
 referenced room file contains exactly one top-level `:room` form, which is read
 through the same safe source-schema path as inline room data.
+
+Room files are prepared and validated locally when they are loaded. Local room
+validation catches room-internal authoring errors such as duplicate scene IDs,
+unresolved entity refs, malformed state references, and once-only choices
+without IDs. It deliberately does not reject navigation targets that may be
+declared by another room file. Full game validation remains responsible for
+game-level constraints such as the start room and `:goto`/`:gosub` room
+targets.
 
 ## Internal AST
 
