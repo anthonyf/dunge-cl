@@ -70,6 +70,11 @@ Only registered source tags and field kinds are valid. Unknown tags, unknown
 fields, duplicate fields, missing required fields, and malformed values are
 hard errors.
 
+Source diagnostics preserve file and schema context while forms are compiled.
+For split games, an error in a referenced room file reports the room file first
+and then the manifest field that included it. Diagnostics intentionally track
+source form and field paths rather than exact line and column positions.
+
 ## Source Example
 
 A small game is written as data:

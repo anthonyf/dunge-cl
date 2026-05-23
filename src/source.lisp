@@ -16,14 +16,72 @@
   fields)
 
 (defstruct dunge-source-context
-  base-directory)
+  source-name
+  base-directory
+  frames
+  parent)
 
 (defvar *dunge-source-forms* (make-hash-table :test 'eq))
 (defvar *dunge-field-types* (make-hash-table :test 'eq))
+(defvar *dunge-source-context* nil)
+
+(defun source-context-with-frame (context kind value)
+  (make-dunge-source-context
+   :source-name (and context (dunge-source-context-source-name context))
+   :base-directory (and context (dunge-source-context-base-directory context))
+   :frames (append (and context (dunge-source-context-frames context))
+                   (list (list kind value)))
+   :parent (and context (dunge-source-context-parent context))))
+
+(defun source-frame-description (frame)
+  (destructuring-bind (kind value) frame
+    (ecase kind
+      (:form (format nil "~S" value))
+      (:field (format nil "field ~S" value)))))
+
+(defun source-frame-path (frames)
+  (format nil "~{~A~^ -> ~}" (mapcar #'source-frame-description frames)))
+
+(defun report-source-context (context stream &key (source-prefix " in "))
+  (when (dunge-source-context-source-name context)
+    (format stream "~A~A"
+            source-prefix
+            (dunge-source-context-source-name context)))
+  (when (dunge-source-context-frames context)
+    (format stream "~%while compiling ~A"
+            (source-frame-path (dunge-source-context-frames context)))))
+
+(define-condition dunge-source-error (error)
+  ((message :initarg :message :reader dunge-source-error-message)
+   (context :initarg :context :reader dunge-source-error-context))
+  (:report
+   (lambda (condition stream)
+     (let ((context (dunge-source-error-context condition)))
+       (format stream "Dunge source error")
+       (when context
+         (report-source-context context stream))
+       (format stream ": ~A" (dunge-source-error-message condition))
+       (loop for parent = (and context
+                               (dunge-source-context-parent context))
+               then (dunge-source-context-parent parent)
+             while parent
+             do (progn
+                  (format stream "~%included from")
+                  (report-source-context parent stream
+                                         :source-prefix " ")))))))
+
+(defmacro with-source-error-wrapping (&body body)
+  `(handler-bind
+       ((error
+          (lambda (condition)
+            (unless (typep condition 'dunge-source-error)
+              (source-error "~A" condition)))))
+     ,@body))
 
 (defun source-error (format-control &rest format-arguments)
-  (error "Dunge source error: ~A"
-         (apply #'format nil format-control format-arguments)))
+  (error 'dunge-source-error
+         :message (apply #'format nil format-control format-arguments)
+         :context *dunge-source-context*))
 
 (defun parse-field-options (field-name options)
   (unless (evenp (length options))
@@ -109,12 +167,15 @@
         append (list key value)))
 
 (defun compile-field-value (field value context)
-  (funcall (dunge-field-type-compiler (dunge-source-field-kind field))
-           value
-           context))
+  (let ((*dunge-source-context* (or context *dunge-source-context*)))
+    (with-source-error-wrapping
+      (funcall (dunge-field-type-compiler (dunge-source-field-kind field))
+               value
+               (or context *dunge-source-context*)))))
 
 (defun compile-source-fields (descriptor arguments context)
-  (let* ((tag (dunge-source-form-tag descriptor))
+  (let* ((context (or context *dunge-source-context*))
+         (tag (dunge-source-form-tag descriptor))
          (fields (dunge-source-form-fields descriptor))
          (plist (parse-source-plist tag arguments))
          (field-names (mapcar #'dunge-source-field-name fields))
@@ -125,43 +186,53 @@
             do (source-error "~S does not allow field ~S." tag key))
     (dolist (field fields)
       (let* ((name (dunge-source-field-name field))
-             (raw-value (source-plist-value plist name missing)))
-        (cond
-          ((eq raw-value missing)
-           (cond
-             ((dunge-source-field-required-p field)
-              (source-error "~S requires field ~S." tag name))
-             ((dunge-source-field-default-p field)
-              (setf initargs
-                    (append initargs
-                            (list (dunge-source-field-target field)
-                                  (compile-field-value
-                                   field
-                                   (dunge-source-field-default field)
-                                   context)))))))
-          (t
-           (setf initargs
-                 (append initargs
-                         (list (dunge-source-field-target field)
-                               (compile-field-value field raw-value context))))))))
+             (raw-value (source-plist-value plist name missing))
+             (field-context (source-context-with-frame context :field name)))
+        (let ((*dunge-source-context* field-context))
+          (cond
+            ((eq raw-value missing)
+             (cond
+               ((dunge-source-field-required-p field)
+                (source-error "~S requires field ~S." tag name))
+               ((dunge-source-field-default-p field)
+                (setf initargs
+                      (append initargs
+                              (list (dunge-source-field-target field)
+                                    (compile-field-value
+                                     field
+                                     (dunge-source-field-default field)
+                                     field-context)))))))
+            (t
+             (setf initargs
+                   (append initargs
+                           (list (dunge-source-field-target field)
+                                 (compile-field-value
+                                  field
+                                  raw-value
+                                  field-context)))))))))
     initargs))
 
 (defun compile-dunge-source-form (form &optional context)
-  (unless (and (consp form) (keywordp (first form)))
-    (source-error "Expected a source form beginning with a keyword, got ~S."
-                  form))
-  (let* ((tag (first form))
-         (descriptor (gethash tag *dunge-source-forms*)))
-    (unless descriptor
-      (source-error "Unknown source form ~S." tag))
-    (let ((node (apply (dunge-source-form-builder descriptor)
-                       (compile-source-fields descriptor
-                                              (rest form)
-                                              context))))
-      (when (typep node 'game)
-        (prepare-game node)
-        (validate-game node))
-      node)))
+  (let ((context (or context *dunge-source-context*)))
+    (let ((*dunge-source-context* context))
+      (unless (and (consp form) (keywordp (first form)))
+        (source-error "Expected a source form beginning with a keyword, got ~S."
+                      form))
+      (let* ((tag (first form))
+             (descriptor (gethash tag *dunge-source-forms*)))
+        (unless descriptor
+          (source-error "Unknown source form ~S." tag))
+        (let* ((form-context (source-context-with-frame context :form tag))
+               (*dunge-source-context* form-context))
+          (with-source-error-wrapping
+            (let ((node (apply (dunge-source-form-builder descriptor)
+                               (compile-source-fields descriptor
+                                                      (rest form)
+                                                      form-context))))
+              (when (typep node 'game)
+                (prepare-game node)
+                (validate-game node))
+              node)))))))
 
 (defun source-literal-p (value)
   (or (stringp value)
@@ -267,17 +338,23 @@
         (merge-pathnames pathname
                          (dunge-source-context-base-directory context)))))
 
-(defun source-file-context (path)
+(defun source-file-context (path &optional parent)
   (let ((truename (truename path)))
     (make-dunge-source-context
+     :source-name (namestring truename)
+     :parent parent
      :base-directory (uiop:pathname-directory-pathname truename))))
 
 (defun load-dunge-file-with-context (path context)
   (let ((resolved-path (resolve-source-pathname path context)))
-    (with-open-file (stream resolved-path :direction :input)
-      (compile-dunge-source-form
-       (read-one-dunge-form stream (namestring resolved-path))
-       (source-file-context resolved-path)))))
+    (let ((*dunge-source-context* context))
+      (with-source-error-wrapping
+        (with-open-file (stream resolved-path :direction :input)
+          (let* ((file-context (source-file-context resolved-path context))
+                 (*dunge-source-context* file-context))
+            (compile-dunge-source-form
+             (read-one-dunge-form stream (namestring resolved-path))
+             file-context)))))))
 
 (defun compile-dunge-room-source (value context)
   (cond
@@ -341,9 +418,13 @@
   (compile-dunge-source-form form))
 
 (defun load-dunge-string (string &key (source-name "string"))
-  (with-input-from-string (stream string)
-    (compile-dunge-source-form
-     (read-one-dunge-form stream source-name))))
+  (let ((context (make-dunge-source-context :source-name source-name)))
+    (let ((*dunge-source-context* context))
+      (with-source-error-wrapping
+        (with-input-from-string (stream string)
+          (compile-dunge-source-form
+           (read-one-dunge-form stream source-name)
+           context))))))
 
 (defun load-dunge-file (path)
   (load-dunge-file-with-context path nil))
