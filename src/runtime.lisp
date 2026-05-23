@@ -119,14 +119,14 @@ can TYPEP the result against QUIT, BACK, and related classes."))
 
 (defmethod evaluate ((room room) &optional context)
   (let ((room-context (runtime-context-for-scene context room)))
-    (format *output* "~&~A~%" (name room))
+    (format *output* "~&~A~%" (or (room-title room) (name room)))
     (let ((result (describe-children (entities room) room-context)))
       (when result
         (return-from evaluate result)))
     (let ((collected-options (collect-options-from (entities room) room-context)))
       (if collected-options
-          (evaluate (apply #'choices collected-options) room-context)
-          (fall-through)))))
+          (evaluate (%make-choices :options collected-options) room-context)
+          (%make-fall-through)))))
 
 (defmethod describe-entity ((thing t) &optional context)
   (declare (ignore context))
@@ -186,14 +186,14 @@ can TYPEP the result against QUIT, BACK, and related classes."))
           (let ((option (elt options (1- index))))
             (mark-choice-taken option context)
             (evaluate (target option) context))
-          (quit)))))
+          (%make-quit)))))
 
 ;;; Effects can be reached as a choice target through EVALUATE, or inside a
 ;;; sequence through EXECUTE-EFFECT directly. This bridge keeps both paths
 ;;; equivalent while preserving CLOS dispatch over choice target unions.
 (defmethod evaluate ((effect effect-node) &optional context)
   (or (execute-effect effect context)
-      (refresh)))
+      (%make-refresh)))
 
 (defmethod collect-choices ((choices choices) &optional context)
   (loop for choice in (options choices)
@@ -231,8 +231,8 @@ can TYPEP the result against QUIT, BACK, and related classes."))
   (declare (ignore context))
   (unless (action-owner action)
     (error "Action ~S is not inside an entity." (label action)))
-  (list (option (label action)
-                action)))
+  (list (%make-choice :label (label action)
+                      :target action)))
 
 (defmethod evaluate ((action action) &optional context)
   (unless (action-owner action)
@@ -240,7 +240,7 @@ can TYPEP the result against QUIT, BACK, and related classes."))
   (let* ((action-context (runtime-context-for-self context
                                                    (action-owner action)))
          (result (evaluate-effects (effects action) action-context)))
-    (or result (refresh))))
+    (or result (%make-refresh))))
 
 (defmethod describe-entity ((item item) &optional context)
   (declare (ignore context))
@@ -254,8 +254,10 @@ can TYPEP the result against QUIT, BACK, and related classes."))
 (defmethod collect-choices ((container container) &optional context)
   (declare (ignore context))
   (when (open-choice container)
-    (list (option (open-choice container)
-                  (enter (container-view container))))))
+    (list (%make-choice :label (open-choice container)
+                        :target (%make-enter
+                                 :target (%make-container-view
+                                          :container container))))))
 
 (defmethod evaluate ((view container-view) &optional context)
   (let* ((container (viewed-container view))
@@ -269,9 +271,9 @@ can TYPEP the result against QUIT, BACK, and related classes."))
     (setf collected-options (collect-options-from (contents container) context))
     (setf collected-options
           (append collected-options
-                  (list (option (or (close-choice container) "Back")
-                                (back)))))
-    (evaluate (apply #'choices collected-options) context)))
+                  (list (%make-choice :label (or (close-choice container) "Back")
+                                      :target (%make-back)))))
+    (evaluate (%make-choices :options collected-options) context)))
 
 (defmethod describe-entity ((placement placement) &optional context)
   (declare (ignore context))
@@ -282,8 +284,8 @@ can TYPEP the result against QUIT, BACK, and related classes."))
   (declare (ignore context))
   (if (and (interaction-label placement)
            (interaction-target placement))
-      (list (option (interaction-label placement)
-                    (interaction-target placement)))
+      (list (%make-choice :label (interaction-label placement)
+                          :target (interaction-target placement)))
       nil))
 
 (defun entity-state-name (entity)
@@ -468,7 +470,7 @@ can TYPEP the result against QUIT, BACK, and related classes."))
    (or (if (evaluate-condition (conditional-effect-condition effect) context)
            (conditional-effect-then effect)
            (conditional-effect-else effect))
-       (sequence))
+       (%make-sequence))
    context))
 
 (defun evaluate-effects (effects context)
@@ -476,10 +478,10 @@ can TYPEP the result against QUIT, BACK, and related classes."))
     (execute-effect effects context)))
 
 (defmethod execute-effect ((effect goto) &optional context)
-  (goto (evaluate-expression (room-name effect) context)))
+  (%make-goto :room-name (evaluate-expression (room-name effect) context)))
 
 (defmethod execute-effect ((effect gosub) &optional context)
-  (gosub (evaluate-expression (room-name effect) context)))
+  (%make-gosub :room-name (evaluate-expression (room-name effect) context)))
 
 (defmethod execute-effect ((effect enter) &optional context)
   (declare (ignore context))
@@ -499,7 +501,7 @@ can TYPEP the result against QUIT, BACK, and related classes."))
 
 (defmethod execute-effect ((effects cons) &optional context)
   (declare (ignore effects context))
-  (error "Effect lists are not executable; use (sequence ...) instead."))
+  (error "Effect lists are not executable; authored effects should use (:sequence :effects ...)."))
 
 (defmethod execute-effect ((effect t) &optional context)
   (declare (ignore context))

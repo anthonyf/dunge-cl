@@ -1,6 +1,6 @@
 (in-package #:dunge)
 
-;;; Game model and DSL constructors
+;;; Internal CLOS AST model
 
 (defgeneric node-id (thing)
   (:documentation "Return the scene-local id for THING, or NIL."))
@@ -8,67 +8,13 @@
 (defgeneric node-children (thing)
   (:documentation "Return child AST nodes that participate in scene indexing."))
 
-(defmacro define-ast-node (name superclasses slots &body options)
-  "Define an AST node class and its local constructor/traversal boilerplate.
-
-Use this for nodes whose constructor is essentially (MAKE-INSTANCE CLASS
-:SLOT1 ARG1 :SLOT2 ARG2 ...). If the constructor needs to massage arguments,
-default parameter expressions, or build composite slot values, omit the
-:CONSTRUCTOR option and define the constructor as a separate DEFUN. The class
-still benefits from DEFINE-AST-NODE for slots, NODE-ID, and NODE-CHILDREN."
-  (labels ((method-option-form (option generic-function)
-             (destructuring-bind (keyword lambda-list &body body) option
-               (declare (ignore keyword))
-               (unless (and (listp lambda-list)
-                            (= 1 (length lambda-list))
-                            (symbolp (first lambda-list)))
-                 (error "DEFINE-AST-NODE method option for ~S must use a single-argument lambda list; got ~S."
-                        name
-                        lambda-list))
-               `(defmethod ,generic-function ((,(first lambda-list) ,name))
-                  ,@body))))
-    (let (constructor id children)
-      (dolist (option options)
-        (unless (consp option)
-          (error "Malformed DEFINE-AST-NODE option ~S." option))
-        (case (first option)
-          (:constructor
-           (when constructor
-             (error "Duplicate DEFINE-AST-NODE :CONSTRUCTOR option for ~S." name))
-           (setf constructor option))
-          (:id
-           (when id
-             (error "Duplicate DEFINE-AST-NODE :ID option for ~S." name))
-           (setf id option))
-          (:children
-           (when children
-             (error "Duplicate DEFINE-AST-NODE :CHILDREN option for ~S." name))
-           (setf children option))
-          (otherwise
-           (error "Unknown DEFINE-AST-NODE option ~S for ~S."
-                  (first option)
-                  name))))
-      `(progn
-         (defclass ,name ,superclasses
-           ,slots)
-         ,@(when constructor
-             (destructuring-bind (keyword function lambda-list &rest initargs)
-                 constructor
-               (declare (ignore keyword))
-               `((defun ,function ,lambda-list
-                   (make-instance ',name ,@initargs)))))
-         ,@(when id
-             `(,(method-option-form id 'node-id)))
-         ,@(when children
-             `(,(method-option-form children 'node-children)))))))
-
 (defmethod node-id ((thing t))
   nil)
 
 (defmethod node-children ((thing t))
   nil)
 
-(define-ast-node game ()
+(define-dunge-node game ()
   ((rooms :reader game-rooms :initarg :rooms :initform nil)
    (global-state :reader game-global-state
                  :initform (make-hash-table :test 'eql))
@@ -77,57 +23,53 @@ still benefits from DEFINE-AST-NODE for slots, NODE-ID, and NODE-CHILDREN."
    (player :accessor game-player :initarg :player :initform nil)
    (room-index :reader room-index :initform (make-hash-table :test 'equal))
    (start :accessor game-start :initarg :start :initform nil))
-  (:children (thing) (game-rooms thing)))
+  (:children (thing) (game-rooms thing))
+  (:source :game
+   (:fields
+    (:start :scene-id)
+    (:rooms :room-list :required t))))
 
-(defmethod initialize-instance :after ((game game) &key)
-  (clrhash (room-index game))
-  (dolist (room (game-rooms game))
-    (when (nth-value 1 (gethash (name room) (room-index game)))
-      (error "Duplicate room named ~S." (name room)))
-    (setf (gethash (name room) (room-index game)) room))
-  (unless (game-start game)
-    (setf (game-start game) (and (game-rooms game)
-                                 (name (first (game-rooms game)))))))
-
-(defun game (&rest rooms)
-  (let ((game (make-instance 'game :rooms rooms)))
-    (prepare-game game)
-    (validate-game game)
-    game))
-
-(define-ast-node room ()
+(define-dunge-node room ()
   ((name :reader name :initarg :name :initform nil)
+   (title :reader room-title :initarg :title :initform nil)
    (scene-index :reader scene-index
                 :initform (make-hash-table :test 'equal))
    (entities :accessor entities :initform nil :initarg :entities))
-  (:constructor room (name &rest entities) :name name :entities entities)
-  (:children (thing) (entities thing)))
+  (:children (thing) (entities thing))
+  (:source :room
+   (:fields
+    (:id :scene-id :required t :to :name)
+    (:title :string)
+    (:body :node-list :default nil :to :entities))))
 
-(define-ast-node effect-node ()
+(define-dunge-node effect-node ()
   ())
 
-(define-ast-node control-node (effect-node)
+(define-dunge-node control-node (effect-node)
   ())
 
-(define-ast-node fall-through (control-node)
-  ()
-  (:constructor fall-through ()))
+(define-dunge-node fall-through (control-node)
+  ())
 
-(define-ast-node goto (control-node)
+(define-dunge-node goto (control-node)
   ((room-name :reader room-name :initarg :room-name :initform nil))
-  (:constructor goto (room-name) :room-name room-name))
+  (:source :goto
+   (:fields
+    (:room :scene-id :required t :to :room-name))))
 
-(define-ast-node gosub (control-node)
+(define-dunge-node gosub (control-node)
   ((room-name :reader room-name :initarg :room-name :initform nil))
-  (:constructor gosub (room-name) :room-name room-name))
+  (:source :gosub
+   (:fields
+    (:room :scene-id :required t :to :room-name))))
 
-(define-ast-node enter (control-node)
-  ((target :reader enter-target :initarg :target :initform nil))
-  (:constructor enter (target) :target target))
+(define-dunge-node enter (control-node)
+  ((target :reader enter-target :initarg :target :initform nil)))
 
-(define-ast-node back (control-node)
+(define-dunge-node back (control-node)
   ()
-  (:constructor back ()))
+  (:source :back
+   (:fields)))
 
 (defun state-scope-key (scope)
   (case scope
@@ -156,193 +98,172 @@ still benefits from DEFINE-AST-NODE for slots, NODE-ID, and NODE-CHILDREN."
     (error "Choice ids must be keywords; got ~S." id))
   id)
 
-(define-ast-node state-ref ()
+(define-dunge-field-type :scene-id (value context)
+  (declare (ignore context))
+  (scene-id-key value))
+
+(define-dunge-field-type :choice-id (value context)
+  (declare (ignore context))
+  (choice-id-key value))
+
+(define-dunge-field-type :state-key (value context)
+  (declare (ignore context))
+  (state-key value))
+
+(define-dunge-field-type :state-scope (value context)
+  (declare (ignore context))
+  (state-scope-key value))
+
+(defun source-pair-p (value)
+  (and (consp value)
+       (consp (cdr value))
+       (null (cddr value))))
+
+(define-dunge-field-type :state-declarations (value context)
+  (declare (ignore context))
+  (unless (listp value)
+    (source-error "State declarations must be a list; got ~S." value))
+  (mapcar (lambda (declaration)
+            (unless (source-pair-p declaration)
+              (source-error "State declaration must be (KEY INITIAL-VALUE); got ~S."
+                            declaration))
+            (list (state-key (first declaration))
+                  (second declaration)))
+          value))
+
+(define-dunge-field-type :refs (value context)
+  (declare (ignore context))
+  (unless (listp value)
+    (source-error "Entity refs must be a list; got ~S." value))
+  (mapcar (lambda (ref)
+            (unless (source-pair-p ref)
+              (source-error "Entity ref must be (ROLE TARGET-ID); got ~S."
+                            ref))
+            (list (ref-role-key (first ref))
+                  (scene-id-key (second ref))))
+          value))
+
+(define-dunge-node state-ref ()
   ((scope :reader state-ref-scope :initarg :scope :initform :global)
    (role :reader state-ref-role :initarg :role :initform nil)
-   (key :reader state-ref-key :initarg :key :initform nil)))
+   (key :reader state-ref-key :initarg :key :initform nil))
+  (:source :state
+   (:fields
+    (:scope :state-scope :required t)
+    (:role :keyword)
+    (:key :state-key :required t))))
 
-(defun state-ref (scope key &optional (ref-state-key nil ref-state-key-p))
-  (let ((scope-key (state-scope-key scope)))
-    (cond
-      ((eq scope-key :ref)
-       (unless ref-state-key-p
-         (error "REF state references must include a role and key."))
-       (make-instance 'state-ref
-                      :scope scope-key
-                      :role (ref-role-key key)
-                      :key (state-key ref-state-key)))
-      (ref-state-key-p
-       (error "~S state references take only one key." scope-key))
-      (t
-       (make-instance 'state-ref
-                      :scope scope-key
-                      :key (state-key key))))))
-
-(defun state-reference-from-arguments (target arguments)
-  "Parse state mutation constructor arguments.
-
-TARGET may be an existing STATE-REF, or a scope designator followed by
-positional arguments. Examples:
-
-  (state-set (state-ref :self :switch) :on)
-  (state-set :global :recipe t)
-  (state-toggle :self :switch)
-  (state-set :ref :door :open t)"
-  (cond
-    ((typep target 'state-ref)
-     (values target arguments))
-    (t
-     (let ((scope (state-scope-key target)))
-       (case scope
-         (:ref
-          (unless (>= (length arguments) 2)
-            (error "REF state references need a role and key."))
-          (values (state-ref :ref (first arguments) (second arguments))
-                  (cddr arguments)))
-         (otherwise
-          (unless arguments
-            (error "~S state references need a key." scope))
-          (values (state-ref scope (first arguments))
-                  (rest arguments))))))))
-
-(define-ast-node condition-eq ()
+(define-dunge-node condition-eq ()
   ((left :reader condition-left :initarg :left :initform nil)
    (right :reader condition-right :initarg :right :initform nil))
-  (:constructor condition-eq (left right) :left left :right right))
+  (:source :eq
+   (:fields
+    (:left :expression :required t)
+    (:right :expression :required t))))
 
-(define-ast-node condition-not ()
+(define-dunge-node condition-not ()
   ((condition :reader condition-child :initarg :condition :initform nil))
-  (:constructor condition-not (condition) :condition condition))
+  (:source :not
+   (:fields
+    (:condition :condition :required t))))
 
-(define-ast-node condition-and ()
+(define-dunge-node condition-and ()
   ((conditions :reader conditions :initarg :conditions :initform nil))
-  (:constructor condition-and (&rest conditions) :conditions conditions))
+  (:source :and
+   (:fields
+    (:conditions :condition-list :required t))))
 
-(define-ast-node condition-or ()
+(define-dunge-node condition-or ()
   ((conditions :reader conditions :initarg :conditions :initform nil))
-  (:constructor condition-or (&rest conditions) :conditions conditions))
+  (:source :or
+   (:fields
+    (:conditions :condition-list :required t))))
 
-(define-ast-node sequence (effect-node)
+(define-dunge-node sequence (effect-node)
   ((effects :reader sequence-effects :initarg :effects :initform nil))
-  (:constructor sequence (&rest effects) :effects effects))
+  (:source :sequence
+   (:fields
+    (:effects :effect-list :default nil))))
 
-(define-ast-node state-effect (effect-node)
+(define-dunge-node state-effect (effect-node)
   ((target :reader effect-target :initarg :target :initform nil)))
 
-(define-ast-node state-set (state-effect)
-  ((value :reader effect-value :initarg :value :initform nil)))
+(define-dunge-node state-set (state-effect)
+  ((value :reader effect-value :initarg :value :initform nil))
+  (:source :set
+   (:fields
+    (:target :state-reference :required t)
+    (:value :expression :required t))))
 
-(defun state-set (target &rest arguments)
-  (multiple-value-bind (reference rest) (state-reference-from-arguments target arguments)
-    (destructuring-bind (value) rest
-      (make-instance 'state-set :target reference :value value))))
+(define-dunge-node state-clear (state-effect)
+  ()
+  (:source :clear
+   (:fields
+    (:target :state-reference :required t))))
 
-(define-ast-node state-clear (state-effect)
-  ())
+(define-dunge-node state-inc (state-effect)
+  ((amount :reader effect-amount :initarg :amount :initform 1))
+  (:source :inc
+   (:fields
+    (:target :state-reference :required t)
+    (:amount :expression :default 1))))
 
-(defun state-clear (target &rest arguments)
-  (multiple-value-bind (reference rest) (state-reference-from-arguments target arguments)
-    (when rest
-      (error "STATE-CLEAR does not take a value."))
-    (make-instance 'state-clear :target reference)))
+(define-dunge-node state-dec (state-effect)
+  ((amount :reader effect-amount :initarg :amount :initform 1))
+  (:source :dec
+   (:fields
+    (:target :state-reference :required t)
+    (:amount :expression :default 1))))
 
-(define-ast-node state-inc (state-effect)
-  ((amount :reader effect-amount :initarg :amount :initform 1)))
+(define-dunge-node state-toggle (state-effect)
+  ()
+  (:source :toggle
+   (:fields
+    (:target :state-reference :required t))))
 
-(defun state-inc (target &rest arguments)
-  (multiple-value-bind (reference rest) (state-reference-from-arguments target arguments)
-    (destructuring-bind (&optional (amount 1)) rest
-      (make-instance 'state-inc :target reference :amount amount))))
-
-(define-ast-node state-dec (state-effect)
-  ((amount :reader effect-amount :initarg :amount :initform 1)))
-
-(defun state-dec (target &rest arguments)
-  (multiple-value-bind (reference rest) (state-reference-from-arguments target arguments)
-    (destructuring-bind (&optional (amount 1)) rest
-      (make-instance 'state-dec :target reference :amount amount))))
-
-(define-ast-node state-toggle (state-effect)
-  ())
-
-(defun state-toggle (target &rest arguments)
-  (multiple-value-bind (reference rest) (state-reference-from-arguments target arguments)
-    (when rest
-      (error "STATE-TOGGLE does not take a value."))
-    (make-instance 'state-toggle :target reference)))
-
-(defun have? (key)
-  (state-ref :global key))
-
-(defun gain (key)
-  (state-set :global key t))
-
-(defun lose (key)
-  (state-clear :global key))
-
-(defun toggle (target &rest arguments)
-  (apply #'state-toggle target arguments))
-
-(define-ast-node say (effect-node)
+(define-dunge-node say (effect-node)
   ((text :reader say-text :initarg :text :initform nil))
-  (:constructor say (text) :text text))
+  (:source :say
+   (:fields
+    (:text :expression :required t))))
 
-(define-ast-node conditional-effect (effect-node)
+(define-dunge-node conditional-effect (effect-node)
   ((condition :reader conditional-effect-condition
               :initarg :condition
               :initform nil)
    (then-effects :reader conditional-effect-then
                  :initarg :then
-                 :initform (sequence))
+                 :initform nil)
    (else-effects :reader conditional-effect-else
                  :initarg :else
-                 :initform (sequence))))
+                 :initform nil))
+  (:source :if
+   (:fields
+    (:when :condition :required t :to :condition)
+    (:then :effect-block :default nil)
+    (:else :effect-block :default nil))))
 
-(defun conditional-effect (condition then-effects
-                           &optional (else-effects nil else-effects-p))
-  (apply #'make-instance
-         'conditional-effect
-         :condition condition
-         (append (when then-effects
-                   (list :then then-effects))
-                 (when else-effects-p
-                   (list :else else-effects)))))
-
-(define-ast-node choice ()
+(define-dunge-node choice ()
   ((label :accessor label :initarg :label :initform nil)
    (target :accessor target :initarg :target :initform nil)
    (id :reader choice-id :initarg :id :initform nil)
    (condition :reader choice-condition :initarg :condition :initform nil)
-   (once :reader choice-once-p :initarg :once :initform nil)))
+   (once :reader choice-once-p :initarg :once :initform nil))
+  (:source :option
+   (:fields
+    (:label :string :required t)
+    (:do :effect :required t :to :target)
+    (:id :choice-id)
+    (:when :condition :to :condition)
+    (:once :boolean))))
 
-(define-ast-node choices ()
-  ((options :accessor options :initarg :options :initform nil)))
+(define-dunge-node choices ()
+  ((options :accessor options :initarg :options :initform nil))
+  (:source :choice
+   (:fields
+    (:options :choice-list :required t))))
 
-(defun make-option (label target &key id condition once)
-  (make-instance 'choice
-                 :label label
-                 :target target
-                 :id (and id (choice-id-key id))
-                 :condition condition
-                 :once once))
-
-(defmacro option (label target &key id when once)
-  `(make-option ,label
-                ,target
-                :id ,id
-                :condition ,when
-                :once ,once))
-
-(defun choices (&rest options)
-  (make-instance 'choices :options options))
-
-(defmacro choice (&body options)
-  `(choices ,@(mapcar (lambda (option)
-                        (destructuring-bind (label target &rest args) option
-                          `(option ,label ,target ,@args)))
-                      options)))
-
-(define-ast-node entity ()
+(define-dunge-node entity ()
   ((name :reader name :initarg :name :initform nil)
    (id :reader entity-id :initarg :id :initform nil)
    (state-declarations :reader state-declarations
@@ -355,69 +276,41 @@ positional arguments. Examples:
                   :initform (make-hash-table :test 'eql))
    (entities :accessor entities :initarg :entities :initform nil))
   (:id (thing) (entity-id thing))
-  (:children (thing) (entities thing)))
+  (:children (thing) (entities thing))
+  (:source :entity
+   (:fields
+    (:name :string :required t)
+    (:id :scene-id)
+    (:state :state-declarations :default nil)
+    (:refs :refs :default nil)
+    (:body :node-list :default nil :to :entities))))
 
-(defmacro entity (name &body body)
-  (let ((id nil)
-        (state nil)
-        (refs nil)
-        (forms body))
-    (loop while (and forms (keywordp (first forms)))
-          for key = (pop forms)
-          do (case key
-               (:id (setf id (pop forms)))
-               (:state (setf state (pop forms)))
-               (:refs (setf refs (pop forms)))
-               (otherwise
-                (error "Unknown entity option ~S." key))))
-    (let ((stray-keyword (find-if #'keywordp forms)))
-      (when stray-keyword
-        (error "Entity keyword options (:id, :state, :refs) must appear before body forms; got stray ~S."
-               stray-keyword)))
-    `(make-instance 'entity
-                    :name ,name
-                    :id ,id
-                    :state ',state
-                    :refs ',refs
-                    :entities (list ,@forms))))
-
-(define-ast-node branch ()
+(define-dunge-node branch ()
   ((condition :reader branch-condition :initarg :condition :initform nil)
    (then-entities :reader branch-then-entities :initarg :then :initform nil)
    (else-entities :reader branch-else-entities :initarg :else :initform nil))
   (:children (thing)
     (append (branch-then-entities thing)
-            (branch-else-entities thing))))
+            (branch-else-entities thing)))
+  (:source :branch
+   (:fields
+    (:when :condition :required t :to :condition)
+    (:then :node-list :default nil)
+    (:else :node-list :default nil))))
 
-(defmacro branch (condition &key then else)
-  `(make-instance 'branch
-                  :condition ,condition
-                  :then (list ,@then)
-                  :else (list ,@else)))
-
-(defmacro shown-when (condition &body entities)
-  `(branch ,condition
-           :then ,entities))
-
-(defmacro shown-unless (condition &body entities)
-  `(branch (condition-not ,condition)
-           :then ,entities))
-
-(define-ast-node action ()
+(define-dunge-node action ()
   ((label :accessor label :initarg :label :initform nil)
    (effects :reader effects :initarg :effects :initform nil)
-   (owner :accessor action-owner :initarg :owner :initform nil)))
+   (owner :accessor action-owner :initarg :owner :initform nil))
+  (:source :action
+   (:fields
+    (:label :string :required t)
+    (:do :effect-block :default nil :to :effects))))
 
-(defmacro action (label &body effects)
-  `(make-instance 'action
-                  :label ,label
-                  :effects (sequence ,@effects)))
+(define-dunge-node refresh (control-node)
+  ())
 
-(define-ast-node refresh (control-node)
-  ()
-  (:constructor refresh ()))
-
-(define-ast-node placement ()
+(define-dunge-node placement ()
   ((thing :reader placed-thing :initarg :thing :initform nil)
    (description :reader placement-description :initarg :description :initform nil)
    (interaction-label :reader interaction-label
@@ -426,44 +319,59 @@ positional arguments. Examples:
    (interaction-target :reader interaction-target
                        :initarg :interaction-target
                        :initform nil))
-  (:constructor placed (thing &key description interaction-label interaction-target)
-   :thing thing
-   :description description
-   :interaction-label interaction-label
-   :interaction-target interaction-target))
+  (:source :placed
+   (:fields
+    (:thing :node :required t)
+    (:description :string)
+    (:label :string :to :interaction-label)
+    (:do :effect :to :interaction-target))))
 
-(define-ast-node item ()
+(define-dunge-node item ()
   ((name :reader name :initarg :name :initform nil)
    (description :reader description :initarg :description :initform nil))
-  (:constructor item (name &key description) :name name :description description))
+  (:source :item
+   (:fields
+    (:name :string :required t)
+    (:description :string))))
 
-(define-ast-node container ()
+(define-dunge-node container ()
   ((name :reader name :initarg :name :initform nil)
    (description :reader description :initarg :description :initform nil)
    (open-choice :reader open-choice :initarg :open-choice :initform nil)
    (close-choice :reader close-choice :initarg :close-choice :initform nil)
    (contents :accessor contents :initarg :contents :initform nil))
-  (:children (thing) (contents thing)))
+  (:children (thing) (contents thing))
+  (:source :container
+   (:fields
+    (:name :string :required t)
+    (:description :string)
+    (:open :string :to :open-choice)
+    (:close :string :to :close-choice)
+    (:contents :node-list :default nil))))
 
-(defmacro container (name &key description open-choice contents close-choice)
-  `(make-instance 'container
-                  :name ,name
-                  :description ,description
-                  :open-choice ,open-choice
-                  :contents (list ,@contents)
-                  :close-choice ,close-choice))
+(define-dunge-node container-view ()
+  ((container :reader viewed-container :initarg :container :initform nil)))
 
-(define-ast-node container-view ()
-  ((container :reader viewed-container :initarg :container :initform nil))
-  (:constructor container-view (container) :container container))
-
-(define-ast-node p ()
+(define-dunge-node p ()
   ((text :reader text :initarg :text :initform nil))
-  (:constructor p (text) :text text))
+  (:source :p
+   (:fields
+    (:text :string :required t))))
 
-(define-ast-node quit (control-node)
+(define-dunge-node quit (control-node)
   ()
-  (:constructor quit ()))
+  (:source :quit
+   (:fields)))
+
+(defmethod initialize-instance :after ((game game) &key)
+  (clrhash (room-index game))
+  (dolist (room (game-rooms game))
+    (when (nth-value 1 (gethash (name room) (room-index game)))
+      (error "Duplicate room named ~S." (name room)))
+    (setf (gethash (name room) (room-index game)) room))
+  (unless (game-start game)
+    (setf (game-start game) (and (game-rooms game)
+                                 (name (first (game-rooms game)))))))
 
 (defun walk-node-tree (thing function)
   (funcall function thing)
@@ -659,7 +567,8 @@ positional arguments. Examples:
     ((null effects)
      nil)
     ((listp effects)
-     (validation-error "Effect lists are not valid; wrap effects in (sequence ...)."))
+     (validation-error
+      "Effect lists are not valid; wrap authored effects in (:sequence :effects ...)."))
     ((typep effects 'effect-node)
      (validate-node effects game context))
     (t
