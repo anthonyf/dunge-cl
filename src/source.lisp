@@ -15,6 +15,9 @@
   builder
   fields)
 
+(defstruct dunge-source-context
+  base-directory)
+
 (defvar *dunge-source-forms* (make-hash-table :test 'eq))
 (defvar *dunge-field-types* (make-hash-table :test 'eq))
 
@@ -237,12 +240,65 @@
             (compile-dunge-source-form form context))
           (ensure-source-list :node-list value)))
 
+(defun read-one-dunge-form (stream source-name)
+  (let ((*read-eval* nil)
+        (*readtable* (copy-readtable nil))
+        (eof '#:eof))
+    (let ((form (read stream nil eof)))
+      (when (eq form eof)
+        (source-error "~A is empty." source-name))
+      (let ((extra (read stream nil eof)))
+        (unless (eq extra eof)
+          (source-error "~A must contain exactly one top-level form."
+                        source-name)))
+      form)))
+
+(defun absolute-source-pathname-p (pathname)
+  (let ((directory (pathname-directory pathname)))
+    (and (consp directory)
+         (eq (first directory) :absolute))))
+
+(defun resolve-source-pathname (path context)
+  (let ((pathname (pathname path)))
+    (if (or (absolute-source-pathname-p pathname)
+            (null context)
+            (null (dunge-source-context-base-directory context)))
+        pathname
+        (merge-pathnames pathname
+                         (dunge-source-context-base-directory context)))))
+
+(defun source-file-context (path)
+  (let ((truename (truename path)))
+    (make-dunge-source-context
+     :base-directory (uiop:pathname-directory-pathname truename))))
+
+(defun load-dunge-file-with-context (path context)
+  (let ((resolved-path (resolve-source-pathname path context)))
+    (with-open-file (stream resolved-path :direction :input)
+      (compile-dunge-source-form
+       (read-one-dunge-form stream (namestring resolved-path))
+       (source-file-context resolved-path)))))
+
+(defun compile-dunge-room-source (value context)
+  (cond
+    ((stringp value)
+     (let ((node (load-dunge-file-with-context value context)))
+       (unless (typep node 'room)
+         (source-error "Expected a room source file, got ~S." value))
+       node))
+    ((consp value)
+     (let ((node (compile-dunge-source-form value context)))
+       (unless (typep node 'room)
+         (source-error "Expected a room source form, got ~S." value))
+       node))
+    (t
+     (source-error
+      "Room entries must be room source forms or string file paths; got ~S."
+      value))))
+
 (define-dunge-field-type :room-list (value context)
   (mapcar (lambda (form)
-            (let ((node (compile-dunge-source-form form context)))
-              (unless (typep node 'room)
-                (source-error "Expected a room source form, got ~S." form))
-              node))
+            (compile-dunge-room-source form context))
           (ensure-source-list :room-list value)))
 
 (define-dunge-field-type :choice-list (value context)
@@ -281,19 +337,6 @@
 (define-dunge-field-type :state-reference (value context)
   (compile-dunge-state-reference value context))
 
-(defun read-one-dunge-form (stream source-name)
-  (let ((*read-eval* nil)
-        (*readtable* (copy-readtable nil))
-        (eof '#:eof))
-    (let ((form (read stream nil eof)))
-      (when (eq form eof)
-        (source-error "~A is empty." source-name))
-      (let ((extra (read stream nil eof)))
-        (unless (eq extra eof)
-          (source-error "~A must contain exactly one top-level form."
-                        source-name)))
-      form)))
-
 (defun compile-dunge-source (form)
   (compile-dunge-source-form form))
 
@@ -303,9 +346,7 @@
      (read-one-dunge-form stream source-name))))
 
 (defun load-dunge-file (path)
-  (with-open-file (stream path :direction :input)
-    (compile-dunge-source-form
-     (read-one-dunge-form stream path))))
+  (load-dunge-file-with-context path nil))
 
 (defmacro define-dunge-node (name superclasses slots &body options)
   "Define an internal CLOS AST node and optional public .dunge source schema."

@@ -1,0 +1,17 @@
+(:room
+ :id "entrance"
+ :title "Entrance"
+ :body
+ ((:p :text "You stand at the entrance of a dark dungeon.")
+  (:container
+   :name "chest"
+   :description "You see a chest in the corner of the room."
+   :open "Open the chest"
+   :close "Close the chest"
+   :contents
+   ((:item :name "A brass key")
+    (:item :name "A sword")))
+  (:choice
+   :options
+   ((:option :label "Enter the dungeon" :do (:goto :room "hallway"))
+    (:option :label "Leave" :do (:quit))))))
