@@ -16,7 +16,9 @@
   :description "Examples for Dunge"
   :components ((:module "examples"
                 :components ((:file "package")
+                             (:static-file "basic.dunge")
                              (:file "basic")
+                             (:static-file "control-panel.dunge")
                              (:file "control-panel")))))
 
 (asdf:defsystem "dunge/tests"
