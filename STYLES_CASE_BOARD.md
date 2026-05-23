@@ -532,7 +532,7 @@ facts into the graph; deductions and endings read from it.
 ```mermaid
 flowchart TD
   Coffee["Broken or missing coffee evidence"]
-  Cocoa["Cocoa sample and salt clue"]
+  Cocoa["Cocoa saucepan evidence"]
   Bitter["Strychnine's bitter taste"]
   Medicine["Medicine contained strychnine"]
   Bromide["Bromide powders"]
@@ -583,6 +583,10 @@ flowchart TD
 ## State Categories
 
 These are not implementation code. They are authoring names for the case board.
+Identifiers are shown without a leading colon for readability, but each one
+should map directly to a Dunge keyword state key during implementation. For
+example, `clue-cocoa-saucepan` here becomes `:clue-cocoa-saucepan` in authored
+Dunge content.
 
 ### Phase Flags
 
