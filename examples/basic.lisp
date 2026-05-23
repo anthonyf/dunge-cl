@@ -1,7 +1,9 @@
 (in-package #:dunge-examples)
 
+(defun load-basic-example ()
+  (load-dunge-file
+   (asdf:system-relative-pathname "dunge/examples"
+                                  "examples/basic.dunge")))
+
 (defun basic-example ()
-  (evaluate
-   (load-dunge-file
-    (asdf:system-relative-pathname "dunge/examples"
-                                   "examples/basic.dunge"))))
+  (evaluate (load-basic-example)))

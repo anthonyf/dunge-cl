@@ -5,4 +5,6 @@
                           #:sequence)
   (:export
    #:basic-example
-   #:control-panel-example))
+   #:control-panel-example
+   #:load-basic-example
+   #:load-control-panel-example))

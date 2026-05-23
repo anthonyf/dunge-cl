@@ -693,6 +693,16 @@
     (is (= 2 (substring-count "The start chamber waits." output)))
     (is (= 1 (substring-count "The alcove hums." output)))))
 
+(test example-loaders-read-dunge-source-files
+  (let ((basic (dunge-examples:load-basic-example))
+        (control-panel (dunge-examples:load-control-panel-example)))
+    (is (typep basic 'game))
+    (is (equal '("entrance" "hallway")
+               (mapcar #'name (game-rooms basic))))
+    (is (typep control-panel 'game))
+    (is (equal '("hallway" "hidden room")
+               (mapcar #'name (game-rooms control-panel))))))
+
 (test basic-example-scripted-transcript
   (let ((output (run-example-with-input #'dunge-examples:basic-example
                                         (format nil "2~%"))))
