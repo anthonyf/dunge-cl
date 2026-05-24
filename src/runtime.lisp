@@ -123,6 +123,7 @@ can TYPEP the result against QUIT, BACK, and related classes."))
       (unless line
         (return nil))
       (when (and index (<= 1 index count))
+        (terpri *output*)
         (return index))
       (format *output* "Choose 1-~D.~%" count))))
 
@@ -191,6 +192,7 @@ can TYPEP the result against QUIT, BACK, and related classes."))
 
 (defmethod evaluate ((game game) &optional context)
   (declare (ignore context))
+  (terpri *output*)
   (evaluate-session (make-runtime-session game)))
 
 (defun render-scene-title (title)

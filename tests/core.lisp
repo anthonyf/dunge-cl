@@ -1011,6 +1011,16 @@
          (format nil "Scene Title~%===========~%~%")
          output))))
 
+(test game-output-starts-with-blank-line
+  (let* ((game
+           (source-node
+            '(:game
+              :start "start"
+              :rooms
+              ((:room :id "start" :title "Scene Title")))))
+         (output (run-game-with-input game "")))
+    (is (char= #\Newline (char output 0)))))
+
 (test paragraph-output-uses-blank-lines
   (let* ((game (source-game-with-body
                 '(:p :text "First paragraph.")
@@ -1030,6 +1040,18 @@
          (output (run-game-with-input game (format nil "1~%2~%"))))
     (is (contains-substring-p
          (format nil "A spoken beat.~%~%room")
+         output))))
+
+(test choice-submit-adds-spacing-before-next-output
+  (let* ((game
+           (source-game-with-body
+            '(:choice
+              :options
+              ((:option :label "Speak" :do (:say :text "A spoken beat."))
+               (:option :label "Leave" :do (:quit))))))
+         (output (run-game-with-input game (format nil "1~%2~%"))))
+    (is (contains-substring-p
+         (format nil "2. Leave~%> ~%A spoken beat.")
          output))))
 
 (test gosub-and-back-return-to-calling-room
