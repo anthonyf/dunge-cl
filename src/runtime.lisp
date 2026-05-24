@@ -8,6 +8,7 @@
 
 (defvar *input* *standard-input*)
 (defvar *output* *standard-output*)
+(defvar *pending-choice-spacing* nil)
 
 (defstruct runtime-context
   game
@@ -123,9 +124,14 @@ can TYPEP the result against QUIT, BACK, and related classes."))
       (unless line
         (return nil))
       (when (and index (<= 1 index count))
-        (terpri *output*)
+        (setf *pending-choice-spacing* t)
         (return index))
       (format *output* "Choose 1-~D.~%" count))))
+
+(defun render-pending-choice-spacing ()
+  (when *pending-choice-spacing*
+    (terpri *output*)
+    (setf *pending-choice-spacing* nil)))
 
 (defun runtime-context-for-scene (context scene)
   (check-type context runtime-context)
@@ -156,39 +162,40 @@ can TYPEP the result against QUIT, BACK, and related classes."))
 
 (defun evaluate-session (session)
   (check-type session runtime-session)
-  (let* ((game (runtime-session-game session))
-         (game-context (make-runtime-context :game game)))
-    (loop do (let* ((location (runtime-session-location session))
-                    (location-context
-                      (runtime-context-for-location game-context location))
-                    (result (evaluate location location-context)))
-               (match result
-                 ((quit)
-                  (return result))
-                 ((refresh)
-                  nil)
-                 ((goto (room-name room-name))
-                  (setf (runtime-session-location session)
-                        (find-room game room-name)))
-                 ((gosub (room-name room-name))
-                  (push location (runtime-session-return-stack session))
-                  (setf (runtime-session-location session)
-                        (find-room game room-name)))
-                 ((enter (target target))
-                  (push location (runtime-session-return-stack session))
-                  (setf (runtime-session-location session) target))
-                 ((back)
-                  (if (runtime-session-return-stack session)
-                      (setf (runtime-session-location session)
-                            (pop (runtime-session-return-stack session)))
-                      (return result)))
-                 ((fall-through)
-                  (if (runtime-session-return-stack session)
-                      (setf (runtime-session-location session)
-                            (pop (runtime-session-return-stack session)))
-                      (return location)))
-                 (_
-                  (return result)))))))
+  (let ((*pending-choice-spacing* nil))
+    (let* ((game (runtime-session-game session))
+           (game-context (make-runtime-context :game game)))
+      (loop do (let* ((location (runtime-session-location session))
+                      (location-context
+                        (runtime-context-for-location game-context location))
+                      (result (evaluate location location-context)))
+                 (match result
+                   ((quit)
+                    (return result))
+                   ((refresh)
+                    nil)
+                   ((goto (room-name room-name))
+                    (setf (runtime-session-location session)
+                          (find-room game room-name)))
+                   ((gosub (room-name room-name))
+                    (push location (runtime-session-return-stack session))
+                    (setf (runtime-session-location session)
+                          (find-room game room-name)))
+                   ((enter (target target))
+                    (push location (runtime-session-return-stack session))
+                    (setf (runtime-session-location session) target))
+                   ((back)
+                    (if (runtime-session-return-stack session)
+                        (setf (runtime-session-location session)
+                              (pop (runtime-session-return-stack session)))
+                        (return result)))
+                   ((fall-through)
+                    (if (runtime-session-return-stack session)
+                        (setf (runtime-session-location session)
+                              (pop (runtime-session-return-stack session)))
+                        (return location)))
+                   (_
+                    (return result))))))))
 
 (defmethod evaluate ((game game) &optional context)
   (declare (ignore context))
@@ -196,6 +203,7 @@ can TYPEP the result against QUIT, BACK, and related classes."))
   (evaluate-session (make-runtime-session game)))
 
 (defun render-scene-title (title)
+  (render-pending-choice-spacing)
   (format *output* "~&~A~%~A~%~%"
           title
           (make-string (length title) :initial-element #\=)))
@@ -252,6 +260,7 @@ can TYPEP the result against QUIT, BACK, and related classes."))
 
 (defmethod evaluate ((paragraph p) &optional context)
   (declare (ignore context))
+  (render-pending-choice-spacing)
   (format *output* "~A~%~%" (text paragraph)))
 
 (defmethod describe-entity ((paragraph p) &optional context)
@@ -696,6 +705,7 @@ can TYPEP the result against QUIT, BACK, and related classes."))
   nil)
 
 (defmethod execute-effect ((effect say) &optional context)
+  (render-pending-choice-spacing)
   (format *output* "~A~%~%" (evaluate-expression (say-text effect) context))
   nil)
 

@@ -1054,6 +1054,27 @@
          (format nil "2. Leave~%> ~%A spoken beat.")
          output))))
 
+(test choice-submit-keeps-next-scene-heading-tight
+  (let* ((game
+           (source-node
+            '(:game
+              :start "start"
+              :rooms
+              ((:room
+                :id "start"
+                :body
+                ((:choice
+                  :options
+                  ((:option :label "Go" :do (:goto :room "next"))))))
+               (:room :id "next" :title "Next Room")))))
+         (output (run-game-with-input game (format nil "1~%"))))
+    (is (contains-substring-p
+         (format nil "1. Go~%> ~%Next Room~%=========~%~%")
+         output))
+    (is (not (contains-substring-p
+              (format nil "Next Room~%~%=========")
+              output)))))
+
 (test gosub-and-back-return-to-calling-room
   (let* ((game
            (source-node
