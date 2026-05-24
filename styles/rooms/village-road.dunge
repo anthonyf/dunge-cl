@@ -5,7 +5,7 @@
  ((:branch
    :when (:not (:marked? :seen-road-intro))
    :then ((:p "John pilots the motor away from the station, through the village, and out toward Styles Court. The road runs past flat Essex fields bright under the July sun, peaceful enough to make the war feel indecently far away.")
-          (:p "The quiet does not last. John talks of volunteer drills, farms short of hands, his wife rising early to work on the land, and the uneasy way every ordinary arrangement at Styles seems to lead back to Alfred Inglethorp."))
+          (:p "The quiet does not last. \"We do our bit,\" John says, speaking of volunteer drills, farms short of hands, and Mary rising early to work on the land. Somehow every ordinary arrangement at Styles still seems to lead back to Alfred Inglethorp."))
    :else ((:p "The motor carries you closer to Styles Court while John keeps one eye on the road and the other on everything he has not quite said.")))
   (:when (:marked? :fact-household-dislikes-alfred)
    (:p "What John said at the station settles into a clearer shape: Alfred is not merely disliked. He has changed the air of the house."))
@@ -17,7 +17,7 @@
       :label "Ask about Emily Inglethorp's place in the house"
       :do ((:mark :seen-road-intro)
            (:mark :fact-john-invited-hastings)
-           (:say "John says Emily Inglethorp is generous, energetic, and accustomed to arranging everyone around her. Styles is her house in money, habit, and command."))))
+           (:say "\"My mother is generosity itself,\" John says, \"and energy itself too. Styles is hers in money, in habit, and in command. We all move where she places us.\""))))
     (:once
      :id :styles-road-alfred
      (:option
@@ -25,7 +25,7 @@
       :do ((:mark :seen-road-intro)
            (:mark :fact-emily-married-alfred)
            (:mark :fact-household-dislikes-alfred)
-           (:say "John gives a short laugh without amusement. Alfred is useful to Emily, unwelcome to everyone else, and somehow always present where money, letters, and influence are concerned."))))
+           (:say "John gives a short laugh without amusement. \"Alfred is useful to my mother, unwelcome to the rest of us, and somehow always present where money, letters, and influence are concerned.\""))))
     (:option
      :label "Let the car carry you into Styles"
      :do ((:mark :seen-road-intro)

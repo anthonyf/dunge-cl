@@ -2,7 +2,7 @@
  :id "final-drawing-room"
  :title "Final Drawing Room"
  :body
- ((:p "Poirot arranges the room like a stage. The facts have not changed, but for the first time they may all point in one direction.")
+ ((:p "Poirot arranges the room like a stage. \"Now, Hastings,\" he says softly, \"we shall see whether the facts consent to stand in one line.\" The facts have not changed, but for the first time they may all point in one direction.")
   (:choice
    :options
    ((:option

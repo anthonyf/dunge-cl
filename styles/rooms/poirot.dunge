@@ -2,7 +2,7 @@
  :id "poirot"
  :title "Poirot's Lodging"
  :body
- ((:p "Poirot's room is small, exact, and impossibly neat. He refuses to give you an answer that has not been earned.")
+ ((:p "Poirot's room is small, exact, and impossibly neat. \"No, my friend,\" he says when you press him. \"I do not give you the answer. I give you the little road by which you may arrive.\"")
   (:when (:marked? :deduction-poison-in-medicine)
    (:p "The medicine method is now fixed in your notebook."))
   (:when (:marked? :deduction-chemist-purchase-staged)
@@ -30,7 +30,7 @@
              (:marked? :clue-final-dose-danger)
              (:not (:marked? :deduction-poison-in-medicine)))
       :do ((:mark :deduction-poison-in-medicine)
-           (:say "Poirot nods. The fatal dose was prepared before the final cup was ever poured."))))
+           (:say "\"Precisely, Hastings.\" Poirot nods. \"The fatal dose was prepared before the final cup was ever poured. The poison waited. That is the terrible neatness of it.\""))))
     (:once
      :id :styles-deduce-staged-purchase
      (:option
@@ -41,7 +41,7 @@
              (:marked? :clue-evelyn-could-impersonate-alfred)
              (:not (:marked? :deduction-chemist-purchase-staged)))
       :do ((:mark :deduction-chemist-purchase-staged)
-           (:say "Poirot smiles. The purchase was arranged to be found."))))
+           (:say "Poirot smiles. \"The purchase was arranged to be found. A clue too obliging, my friend, is sometimes not a clue but an invitation.\""))))
     (:once
      :id :styles-deduce-alfred-wanted-arrest
      (:option
@@ -50,7 +50,7 @@
              (:marked? :deduction-chemist-purchase-staged)
              (:not (:marked? :deduction-alfred-wanted-arrest)))
       :do ((:mark :deduction-alfred-wanted-arrest)
-           (:say "An innocent man would use the alibi. Alfred hides it because suspicion can protect him if it is built on false evidence."))))
+           (:say "\"An innocent man uses such an alibi,\" Poirot says. \"Alfred hides it because suspicion can protect him, if the suspicion rests upon evidence that is false.\""))))
     (:once
      :id :styles-deduce-evelyn-conspiracy
      (:option
@@ -62,7 +62,7 @@
              (:not (:marked? :deduction-alfred-evelyn-conspiracy)))
       :do ((:mark :clue-incriminating-letter)
            (:mark :deduction-alfred-evelyn-conspiracy)
-           (:say "Poirot produces the last link: Evelyn's hatred of Alfred was a performance, not a barrier."))))
+           (:say "Poirot produces the last link. \"Evelyn Howard's hatred was a performance, Hastings, not a barrier. The two who seemed farthest apart were standing side by side all along.\""))))
     (:option
      :label "Begin the final reconstruction"
      :do (:go "final-drawing-room"))))))

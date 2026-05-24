@@ -2,5 +2,5 @@
  :id "ending-player-led"
  :title "Player-Led Solution"
  :body
- ((:p "You name Alfred Inglethorp and Evelyn Howard, explain the medicine, the staged purchase, and Alfred's hidden alibi. Poirot lets the silence do the rest.")
+ ((:p "\"Alfred Inglethorp and Evelyn Howard,\" you say. \"The medicine carried the poison; the chemist's purchase was staged; and Alfred hid the alibi that would have saved him too soon.\" Poirot lets the silence do the rest.")
   (:p "Rank: Brilliant.")))
