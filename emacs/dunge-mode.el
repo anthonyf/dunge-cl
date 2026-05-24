@@ -17,9 +17,11 @@
 (require 'lisp-mode)
 
 (declare-function sly-connected-p "sly")
+(declare-function sly-editing-mode "sly")
 (declare-function sly-interactive-eval "sly")
 (declare-function slime-connected-p "slime")
 (declare-function slime-interactive-eval "slime")
+(declare-function slime-mode "slime")
 
 (defgroup dunge nil
   "Editing support for Dunge source files."
@@ -81,6 +83,19 @@
   "Emulation-mode map alist that lets Dunge commands beat Lisp minor modes.")
 
 (add-to-list 'emulation-mode-map-alists 'dunge--emulation-mode-map-alist)
+
+(defun dunge--turn-off-common-lisp-editing-modes ()
+  "Turn off Common Lisp editing minor modes in Dunge source buffers."
+  (when (derived-mode-p 'dunge-mode)
+    (when (and (bound-and-true-p sly-editing-mode)
+               (fboundp 'sly-editing-mode))
+      (sly-editing-mode -1))
+    (when (and (bound-and-true-p slime-mode)
+               (fboundp 'slime-mode))
+      (slime-mode -1))))
+
+(add-hook 'sly-editing-mode-hook #'dunge--turn-off-common-lisp-editing-modes)
+(add-hook 'slime-mode-hook #'dunge--turn-off-common-lisp-editing-modes)
 
 (defun dunge--cl-string (string)
   "Return STRING as a Common Lisp string literal."
@@ -246,7 +261,8 @@
   (setq-local comment-end "")
   (setq-local lisp-indent-function 'common-lisp-indent-function)
   (setq-local font-lock-defaults '(dunge-font-lock-keywords nil t))
-  (setq-local dunge--command-overrides-active t))
+  (setq-local dunge--command-overrides-active t)
+  (dunge--turn-off-common-lisp-editing-modes))
 
 ;;;###autoload
 (add-to-list 'auto-mode-alist '("\\.dunge\\'" . dunge-mode))
