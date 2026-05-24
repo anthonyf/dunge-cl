@@ -99,7 +99,19 @@
 
 (defun dunge--cl-string (string)
   "Return STRING as a Common Lisp string literal."
-  (prin1-to-string string))
+  (with-temp-buffer
+    (insert "\"")
+    (dotimes (index (length string))
+      (let ((character (aref string index)))
+        (cond
+         ((eq character ?\\)
+          (insert "\\\\"))
+         ((eq character ?\")
+          (insert "\\\""))
+         (t
+          (insert-char character)))))
+    (insert "\"")
+    (buffer-string)))
 
 (defun dunge--wrap-loader-expression (expression)
   "Return Common Lisp EXPRESSION with optional Dunge system loading."
