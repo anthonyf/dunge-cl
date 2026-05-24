@@ -281,10 +281,24 @@ function prepareGame() {
 function roomLocationId(location) {
     return location && location.type === 'room' ? location.id : null;
 };
+function returnStackRoomId() {
+    var roomId = null;
+    for (var offset = 0; offset < RETURNSTACK.length; offset += 1) {
+        if (!roomId) {
+            var index = (RETURNSTACK.length - 1) - offset;
+            var candidate = roomLocationId(RETURNSTACK[index]);
+            if (candidate) {
+                roomId = candidate;
+            };
+        };
+    };
+    __PS_MV_REG = [];
+    return roomId;
+};
 function fallbackCurrentRoomId() {
     var currentRoomId = roomLocationId(CURRENTLOCATION);
     __PS_MV_REG = [];
-    return currentRoomId || (RETURNSTACK.length > 0 ? roomLocationId(RETURNSTACK[RETURNSTACK.length - 1]) : null) || GAME.start;
+    return currentRoomId || returnStackRoomId() || GAME.start;
 };
 function captureReturnStack() {
     var ids = [];

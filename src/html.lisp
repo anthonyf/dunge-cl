@@ -609,12 +609,20 @@ body {
           (@ location id)
           nil))
 
+    (defun return-stack-room-id ()
+      (let ((room-id nil))
+        (dotimes (offset (@ *return-stack* length))
+          (unless room-id
+            (let* ((index (- (- (@ *return-stack* length) 1) offset))
+                   (candidate (room-location-id (aref *return-stack* index))))
+              (when candidate
+                (setf room-id candidate)))))
+        room-id))
+
     (defun fallback-current-room-id ()
       (let ((current-room-id (room-location-id *current-location*)))
         (or current-room-id
-            (when (> (@ *return-stack* length) 0)
-              (room-location-id
-               (aref *return-stack* (- (@ *return-stack* length) 1))))
+            (return-stack-room-id)
             (@ *game* start))))
 
     (defun capture-return-stack ()

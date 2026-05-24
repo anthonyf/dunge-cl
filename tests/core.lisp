@@ -1201,6 +1201,7 @@
     (is (contains-substring-p "window.DUNGE_GAME_SAVE_KEY = \"dunge-save:"
                               script))
     (is (contains-substring-p "function captureRuntimeState" script))
+    (is (contains-substring-p "function returnStackRoomId" script))
     (is (contains-substring-p "function restoreSavedGame" script))
     (is (contains-substring-p "node.stateData" script))
     (is (contains-substring-p "window.localStorage.setItem" script))
