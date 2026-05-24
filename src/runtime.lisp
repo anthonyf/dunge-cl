@@ -53,16 +53,49 @@ can TYPEP the result against QUIT, BACK, and related classes."))
         room
         (error "No room named ~S." room-name))))
 
+(defun ensure-runtime-room-name (room-name label)
+  (unless (stringp room-name)
+    (error "Runtime ~A must be a room id string." label))
+  room-name)
+
+(defun runtime-proper-list-length (value label)
+  (unless (listp value)
+    (error "Runtime ~A must be a proper list." label))
+  (let ((length (handler-case
+                    (list-length value)
+                  (type-error ()
+                    nil))))
+    (unless length
+      (error "Runtime ~A must be a proper, non-circular list." label))
+    length))
+
+(defun ensure-runtime-list (value label)
+  (runtime-proper-list-length value label)
+  value)
+
+(defun ensure-runtime-property-list (value label)
+  (let ((length (runtime-proper-list-length value label)))
+    (unless (evenp length)
+      (error "Runtime ~A must contain an even number of property entries."
+             label)))
+  value)
+
+(defun ensure-runtime-return-stack (return-stack)
+  (ensure-runtime-list return-stack "return stack")
+  (dolist (room-name return-stack)
+    (ensure-runtime-room-name room-name "return stack entry"))
+  return-stack)
+
 (defun make-runtime-session (game &key current-room return-stack)
   (let ((start-room (or current-room (game-start game))))
     (unless start-room
       (error "Cannot start a runtime session for a game with no rooms."))
     (%make-runtime-session
      game
-     (find-room game start-room)
+     (find-room game (ensure-runtime-room-name start-room "current room"))
      (mapcar (lambda (room-name)
                (find-room game room-name))
-             return-stack))))
+             (ensure-runtime-return-stack return-stack)))))
 
 (defun ensure-saveable-room-location (location purpose)
   (unless (typep location 'room)
@@ -439,8 +472,7 @@ can TYPEP the result against QUIT, BACK, and related classes."))
           :taken-choices (sorted-hash-keys (game-taken-choices game)))))
 
 (defun runtime-state-field (state field &optional default)
-  (unless (and (listp state) (evenp (length state)))
-    (error "Runtime state must be a property list; got ~S." state))
+  (ensure-runtime-property-list state "state")
   (loop for (key value) on state by #'cddr
         when (eq key field)
           do (return value)
@@ -457,19 +489,16 @@ can TYPEP the result against QUIT, BACK, and related classes."))
   (consp entry))
 
 (defun restore-runtime-global-state (game globals)
-  (unless (listp globals)
-    (error "Runtime :GLOBALS must be an alist; got ~S." globals))
+  (ensure-runtime-list globals ":GLOBALS")
   (dolist (entry globals)
     (unless (runtime-state-pair-p entry)
-      (error "Runtime global state entry must be (KEY . VALUE); got ~S."
-             entry))
+      (error "Runtime global state entry must be (KEY . VALUE)."))
     (setf (gethash (ensure-declared-global-state-key game (car entry))
                    (game-global-state game))
           (cdr entry))))
 
 (defun restore-runtime-taken-choices (game taken-choices)
-  (unless (listp taken-choices)
-    (error "Runtime :TAKEN-CHOICES must be a list; got ~S." taken-choices))
+  (ensure-runtime-list taken-choices ":TAKEN-CHOICES")
   (clrhash (game-taken-choices game))
   (dolist (choice-id taken-choices)
     (setf (gethash (choice-id-key choice-id)
@@ -477,8 +506,7 @@ can TYPEP the result against QUIT, BACK, and related classes."))
           t)))
 
 (defun restore-runtime-local-state-entry (game entry)
-  (unless (and (listp entry) (evenp (length entry)))
-    (error "Runtime local state entry must be a property list; got ~S." entry))
+  (ensure-runtime-property-list entry "local state entry")
   (let* ((room-name (runtime-state-required-field entry :room))
          (entity-id (runtime-state-required-field entry :entity))
          (state (runtime-state-field entry :state nil))
@@ -486,19 +514,16 @@ can TYPEP the result against QUIT, BACK, and related classes."))
          (entity (gethash (scene-id-key entity-id) (scene-index room))))
     (unless (typep entity 'entity)
       (error "No saveable entity ~S in room ~S." entity-id room-name))
-    (unless (listp state)
-      (error "Runtime local :STATE must be an alist; got ~S." state))
+    (ensure-runtime-list state "local :STATE")
     (dolist (state-entry state)
       (unless (runtime-state-pair-p state-entry)
-        (error "Runtime local state entry must be (KEY . VALUE); got ~S."
-               state-entry))
+        (error "Runtime local state entry must be (KEY . VALUE)."))
       (setf (gethash (ensure-declared-state-key entity (car state-entry))
                      (local-state entity))
             (cdr state-entry)))))
 
 (defun restore-runtime-local-state (game locals)
-  (unless (listp locals)
-    (error "Runtime :LOCALS must be a list; got ~S." locals))
+  (ensure-runtime-list locals ":LOCALS")
   (dolist (entry locals)
     (restore-runtime-local-state-entry game entry)))
 
@@ -518,7 +543,7 @@ can TYPEP the result against QUIT, BACK, and related classes."))
 
 (defun read-runtime-state-form (stream source-name)
   (let ((*read-eval* nil)
-        (*readtable* (copy-readtable nil))
+        (*readtable* (runtime-state-readtable))
         (eof '#:eof))
     (let ((form (read stream nil eof)))
       (when (eq form eof)
@@ -527,6 +552,17 @@ can TYPEP the result against QUIT, BACK, and related classes."))
         (unless (eq extra eof)
           (error "~A must contain exactly one top-level form." source-name)))
       form)))
+
+(defun runtime-state-readtable ()
+  (let ((readtable (copy-readtable nil)))
+    (set-macro-character
+     #\#
+     (lambda (stream char)
+       (declare (ignore stream char))
+       (error "Runtime state reader does not allow # reader syntax."))
+     nil
+     readtable)
+    readtable))
 
 (defun read-runtime-state-file (path)
   (with-open-file (stream path :direction :input)

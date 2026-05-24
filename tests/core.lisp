@@ -550,6 +550,35 @@
       (when (probe-file path)
         (delete-file path)))))
 
+(test runtime-state-validation-rejects-malformed-session-input
+  (let ((game (build-save-load-fixture)))
+    (is (contains-substring-p
+         "return stack must be a proper list"
+         (error-message-from
+          (lambda ()
+            (make-runtime-session game :return-stack "start")))))
+    (is (contains-substring-p
+         "return stack entry must be a room id string"
+         (error-message-from
+          (lambda ()
+            (make-runtime-session game :return-stack '(42))))))
+    (let ((state (list :current-room "start" :globals nil)))
+      (setf (cddr state) state)
+      (is (contains-substring-p
+           "state must be a proper, non-circular list"
+           (error-message-from
+            (lambda ()
+              (restore-runtime-state game state))))))))
+
+(test runtime-state-reader-rejects-dispatch-macros
+  (is (contains-substring-p
+       "does not allow # reader syntax"
+       (error-message-from
+        (lambda ()
+          (with-input-from-string
+              (stream "#1=(:current-room \"start\" :return-stack #1#)")
+            (dunge::read-runtime-state-form stream "runtime-state")))))))
+
 (test malformed-conditions-fail-source-or-game-validation
   (signals error
     (source-game-with-body
