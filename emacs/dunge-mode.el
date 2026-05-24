@@ -111,12 +111,16 @@
               expression)
     expression))
 
-(defun dunge--load-string-expression (source source-name)
+(defun dunge--load-string-expression (source source-name &optional base-directory)
   "Build a Common Lisp expression that loads SOURCE named SOURCE-NAME."
   (dunge--wrap-loader-expression
-   (format "(funcall (find-symbol \"LOAD-DUNGE-STRING\" \"DUNGE\") %s :source-name %s)"
+   (format "(funcall (find-symbol \"LOAD-DUNGE-STRING\" \"DUNGE\") %s :source-name %s%s)"
            (dunge--cl-string source)
-           (dunge--cl-string source-name))))
+           (dunge--cl-string source-name)
+           (if base-directory
+               (format " :base-directory %s"
+                       (dunge--cl-string base-directory))
+             ""))))
 
 (defun dunge--load-file-expression (file)
   "Build a Common Lisp expression that loads FILE."
@@ -238,7 +242,11 @@
                                 (or buffer-file-name (buffer-name))
                                 (line-number-at-pos (car bounds)))))
       (dunge--send-expression
-       (dunge--load-string-expression source source-name)
+       (dunge--load-string-expression
+        source
+        source-name
+        (and buffer-file-name
+             (file-name-directory (file-truename buffer-file-name))))
        "form"))))
 
 ;;;###autoload

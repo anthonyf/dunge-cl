@@ -419,8 +419,12 @@
 (defun compile-dunge-source (form)
   (compile-dunge-source-form form))
 
-(defun load-dunge-string (string &key (source-name "string"))
-  (let ((context (make-dunge-source-context :source-name source-name)))
+(defun load-dunge-string (string &key (source-name "string") base-directory)
+  (let ((context (make-dunge-source-context
+                  :source-name source-name
+                  :base-directory (and base-directory
+                                       (uiop:ensure-directory-pathname
+                                        base-directory)))))
     (let ((*dunge-source-context* context))
       (with-source-error-wrapping
         (with-input-from-string (stream string)
