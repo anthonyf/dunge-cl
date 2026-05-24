@@ -81,9 +81,11 @@ body {
 #dunge-controls {
   display: flex;
   justify-content: flex-end;
+  gap: 8px;
   margin-bottom: 24px;
 }
-#dunge-new-game {
+#dunge-new-game,
+#dunge-undo {
   min-height: 36px;
   padding: 6px 10px;
   border: 1px solid #6f6a5f;
@@ -94,10 +96,16 @@ body {
   cursor: pointer;
 }
 #dunge-new-game:hover,
-#dunge-new-game:focus {
+#dunge-new-game:focus,
+#dunge-undo:hover,
+#dunge-undo:focus {
   border-color: #211f1c;
   outline: 2px solid transparent;
   background: #fffaf0;
+}
+#dunge-undo:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 @media (prefers-color-scheme: dark) {
   body { color: #f4efe5; background: #181713; }
@@ -111,7 +119,9 @@ body {
     background: #302c24;
   }
   #dunge-new-game:hover,
-  #dunge-new-game:focus { border-color: #f4efe5; background: #25221c; }
+  #dunge-new-game:focus,
+  #dunge-undo:hover,
+  #dunge-undo:focus { border-color: #f4efe5; background: #25221c; }
   .dunge-quit { color: #bbb3a6; }
 }")
 
@@ -466,10 +476,12 @@ body {
     (defvar *save-key* nil)
     (defvar *save-signature* nil)
     (defvar *progress-made* nil)
+    (defvar *debug* nil)
     (defvar *game* nil)
     (defvar *state* nil)
     (defvar *current-location* nil)
     (defvar *return-stack* (array))
+    (defvar *undo-stack* (array))
     (defvar *messages* (array))
     (defvar *room-index* nil)
 
@@ -506,6 +518,14 @@ body {
       (not (or (eql value nil)
                (eql value false)
                (eql value undefined))))
+
+    (defun contains-text-p (text needle)
+      (>= (chain text (index-of needle)) 0))
+
+    (defun debug-requested-p ()
+      (or (truthy (getprop window "DUNGE_GAME_DEBUG"))
+          (contains-text-p (@ window location search) "debug=1")
+          (contains-text-p (@ window location hash) "debug")))
 
     (defun runtime-error (message)
       (throw (-error message)))
@@ -594,6 +614,7 @@ body {
     (defun prepare-game ()
       (setf *room-index* (create))
       (setf *return-stack* (array))
+      (setf *undo-stack* (array))
       (setf *messages* (array))
       (dolist (room (@ *game* rooms))
         (setf (getprop *room-index* (@ room id)) room)
@@ -681,20 +702,23 @@ body {
            (eql (getprop save "signature") *save-signature*)
            (getprop save "currentRoom")))
 
+    (defun restore-runtime-state (state)
+      (setf (@ *state* globals)
+            (copy-object (or (getprop state "globals") (create))))
+      (setf (getprop *state* "taken-choices")
+            (copy-object (or (getprop state "takenChoices") (create))))
+      (restore-local-state (getprop state "locals"))
+      (restore-return-stack (getprop state "returnStack"))
+      (setf *current-location*
+            (room-by-id (getprop state "currentRoom"))))
+
     (defun restore-saved-game ()
       (try
        (let* ((raw (and *save-key* (storage-get *save-key*)))
               (save (and raw (decode-json raw))))
          (if (valid-save-p save)
              (progn
-               (setf (@ *state* globals)
-                     (copy-object (or (getprop save "globals") (create))))
-               (setf (getprop *state* "taken-choices")
-                     (copy-object (or (getprop save "takenChoices") (create))))
-               (restore-local-state (getprop save "locals"))
-               (restore-return-stack (getprop save "returnStack"))
-               (setf *current-location*
-                     (room-by-id (getprop save "currentRoom")))
+               (restore-runtime-state save)
                (setf *progress-made* t)
                t)
              (progn
@@ -714,6 +738,19 @@ body {
     (defun clear-save ()
       (when *save-key*
         (storage-remove *save-key*)))
+
+    (defun remember-undo-state ()
+      (when *debug*
+        (push-array *undo-stack* (capture-runtime-state))
+        (update-undo-control)))
+
+    (defun undo-last-choice ()
+      (when (> (@ *undo-stack* length) 0)
+        (restore-runtime-state (pop-array *undo-stack*))
+        (setf *messages* (array))
+        (setf *progress-made* t)
+        (save-game)
+        (render-location)))
 
     (defun resolve-state (reference context)
       (cond
@@ -967,7 +1004,8 @@ body {
         (clear-element choices-element)
         (if (eql (@ *current-location* type) "container-view")
             (render-container-view title body choices-element)
-            (render-room title body choices-element))))
+            (render-room title body choices-element))
+        (update-undo-control)))
 
     (defun render-room (title body choices-element)
       (let ((context (current-context))
@@ -1012,6 +1050,7 @@ body {
           (append-text choices-element "p" "dunge-quit" "The scene rests here.")))
 
     (defun choose (choice)
+      (remember-undo-state)
       (when (and (@ choice once) (@ choice id))
         (setf (getprop (getprop *state* "taken-choices")
                        (@ choice id))
@@ -1064,6 +1103,25 @@ body {
           (chain button
                  (add-event-listener "click" reset-game)))))
 
+    (defun update-undo-control ()
+      (let ((button (by-id "dunge-undo")))
+        (when button
+          (setf (@ button disabled) (<= (@ *undo-stack* length) 0)))))
+
+    (defun bind-debug-controls ()
+      (when *debug*
+        (let ((controls (by-id "dunge-controls"))
+              (button (by-id "dunge-undo")))
+          (when (and controls (not button))
+            (setf button (chain document (create-element "button")))
+            (setf (@ button id) "dunge-undo")
+            (setf (@ button type) "button")
+            (setf (@ button text-content) "Undo")
+            (chain button
+                   (add-event-listener "click" undo-last-choice))
+            (chain controls (append-child button)))
+          (update-undo-control))))
+
     (defun install-refresh-guard ()
       (chain window
              (add-event-listener
@@ -1077,29 +1135,33 @@ body {
       (setf *game* (getprop window "DUNGE_GAME_DATA"))
       (setf *save-signature* (getprop window "DUNGE_GAME_SIGNATURE"))
       (setf *save-key* (getprop window "DUNGE_GAME_SAVE_KEY"))
+      (setf *debug* (debug-requested-p))
       (prepare-game)
       (restore-saved-game)
       (bind-new-game-control)
+      (bind-debug-controls)
       (install-refresh-guard)
       (render-location))
 
     (chain document
            (add-event-listener "DOMContentLoaded" boot-dunge-game))))
 
-(defun compile-game-script (game)
+(defun compile-game-script (game &key debug)
   "Return the embedded JavaScript for GAME."
   (let* ((data-json (json-string (compile-game-data game)))
          (signature (fnv1a-32 data-json)))
-    (format nil "window.DUNGE_GAME_DATA = ~A;~%window.DUNGE_GAME_SIGNATURE = ~A;~%window.DUNGE_GAME_SAVE_KEY = ~A;~%~A"
+    (format nil "window.DUNGE_GAME_DATA = ~A;~%window.DUNGE_GAME_SIGNATURE = ~A;~%window.DUNGE_GAME_SAVE_KEY = ~A;~%window.DUNGE_GAME_DEBUG = ~A;~%~A"
             data-json
             (json-string signature)
             (json-string (game-save-key signature))
+            (if debug "true" "false")
             (parenscript-runtime))))
 
 (defun compile-index-html (game &key (title *default-title*)
-                                      (style *default-style*))
+                                      (style *default-style*)
+                                      debug)
   "Return a self-contained index.html document for GAME."
-  (let ((script (compile-game-script game)))
+  (let ((script (compile-game-script game :debug debug)))
     (cl-who:with-html-output-to-string (stream nil :prologue "<!doctype html>")
       (:html :lang "en"
        (:head
@@ -1119,6 +1181,7 @@ body {
 
 (defun write-index-html (game pathname &key (title *default-title*)
                                        (style *default-style*)
+                                       debug
                                        (if-exists :supersede))
   "Write a self-contained index.html document for GAME to PATHNAME."
   (ensure-directories-exist pathname)
@@ -1126,6 +1189,10 @@ body {
                           :direction :output
                           :if-exists if-exists
                           :if-does-not-exist :create)
-    (write-string (compile-index-html game :title title :style style) stream)
+    (write-string (compile-index-html game
+                                      :title title
+                                      :style style
+                                      :debug debug)
+                  stream)
     (terpri stream))
   pathname)
