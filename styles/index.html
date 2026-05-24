@@ -1,0 +1,550 @@
+<!doctype html>
+<html lang='en'><head><meta charset='utf-8' /><meta name='viewport' content='width=device-width, initial-scale=1' /><title>The Mysterious Affair at Styles</title><style>*, *::before, *::after { box-sizing: border-box; }
+html { color-scheme: light dark; }
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: ui-serif, Georgia, Cambria, "Times New Roman", serif;
+  line-height: 1.55;
+  color: #211f1c;
+  background: #f7f4ed;
+}
+#dunge-app {
+  width: min(760px, calc(100vw - 32px));
+  margin: 0 auto;
+  padding: 48px 0;
+}
+#dunge-scene-title {
+  margin: 0 0 24px;
+  font-size: clamp(2rem, 7vw, 3.75rem);
+  line-height: 1.05;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+#dunge-scene-body {
+  font-size: 1.1rem;
+}
+#dunge-scene-body p {
+  margin: 0 0 1rem;
+}
+.dunge-message {
+  margin: 0 0 1rem;
+  padding-left: 1rem;
+  border-left: 3px solid #8f6a3a;
+  font-style: italic;
+}
+#dunge-choices {
+  display: grid;
+  gap: 10px;
+  margin-top: 32px;
+}
+.dunge-choice {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 14px;
+  border: 1px solid #6f6a5f;
+  border-radius: 6px;
+  color: inherit;
+  background: #fffaf0;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.dunge-choice:hover,
+.dunge-choice:focus {
+  border-color: #211f1c;
+  outline: 2px solid transparent;
+  background: #fffdf8;
+}
+.dunge-quit {
+  color: #666056;
+}
+@media (prefers-color-scheme: dark) {
+  body { color: #f4efe5; background: #181713; }
+  .dunge-choice {
+    border-color: #80776a;
+    background: #25221c;
+  }
+  .dunge-choice:hover,
+  .dunge-choice:focus {
+    border-color: #f4efe5;
+    background: #302c24;
+  }
+  .dunge-quit { color: #bbb3a6; }
+}</style><script>window.DUNGE_GAME_DATA = {"version":1,"start":"station","state":{"keys":["seen-station-intro","seen-road-intro","fact-john-invited-hastings","fact-emily-married-alfred","fact-household-dislikes-alfred","clue-evie-warning","clue-cynthia-dispensary","clue-mary-poison-talk","event-emily-dies","clue-locked-bedroom","clue-broken-bell","clue-cynthia-deep-sleep","clue-charred-will-fragment","clue-broken-coffee-cup","clue-cocoa-saucepan","clue-medicine-contained-strychnine","clue-purple-despatch-case","clue-dorcas-heard-quarrel","clue-fire-in-hot-weather","clue-missing-coffee-cup","clue-chemist-strychnine-sale","clue-alfred-alibi-sale-time","clue-evelyn-could-impersonate-alfred","clue-bromide-powders","clue-strychnine-bitter","clue-final-dose-danger","clue-incriminating-letter","deduction-poison-in-medicine","deduction-chemist-purchase-staged","deduction-alfred-wanted-arrest","deduction-alfred-evelyn-conspiracy","fact-hastings-on-leave"],"values":{"seen-station-intro":null,"seen-road-intro":null,"fact-john-invited-hastings":null,"fact-emily-married-alfred":null,"fact-household-dislikes-alfred":null,"clue-evie-warning":null,"clue-cynthia-dispensary":null,"clue-mary-poison-talk":null,"event-emily-dies":null,"clue-locked-bedroom":null,"clue-broken-bell":null,"clue-cynthia-deep-sleep":null,"clue-charred-will-fragment":null,"clue-broken-coffee-cup":null,"clue-cocoa-saucepan":null,"clue-medicine-contained-strychnine":null,"clue-purple-despatch-case":null,"clue-dorcas-heard-quarrel":null,"clue-fire-in-hot-weather":null,"clue-missing-coffee-cup":null,"clue-chemist-strychnine-sale":null,"clue-alfred-alibi-sale-time":null,"clue-evelyn-could-impersonate-alfred":null,"clue-bromide-powders":null,"clue-strychnine-bitter":null,"clue-final-dose-danger":null,"clue-incriminating-letter":null,"deduction-poison-in-medicine":null,"deduction-chemist-purchase-staged":null,"deduction-alfred-wanted-arrest":null,"deduction-alfred-evelyn-conspiracy":null,"fact-hastings-on-leave":true}},"rooms":[{"type":"room","id":"station","title":"Styles St. Mary Station","body":[{"type":"branch","condition":{"type":"not","condition":{"type":"state","scope":"global","role":null,"key":"seen-station-intro"}},"then":[{"type":"p","text":"You are Captain Arthur Hastings, invalided home from the Front after months in a convalescent home. A month of sick leave should be a blessing, but with no near family and no settled plan, it has mostly left you wondering where a wounded soldier belongs."},{"type":"p","text":"Three days ago you ran across John Cavendish, an old acquaintance from boyhood visits to Styles Court. The talk went back to old times, then forward to an invitation: come down to Essex, spend your leave at Styles, and let the quiet country do what doctors and institutional soup could not."},{"type":"p","text":"Now the train has set you down at Styles St. Mary, a little station stranded among green fields and lanes. John waits on the platform beside a motor car, older than you remember, friendly as ever, and not quite able to hide the strain in his household."}],"else":[{"type":"p","text":"John remains beside the motor car, patient but restless, while the little station sits behind you in the afternoon quiet."}]},{"type":"branch","condition":{"type":"state","scope":"global","role":null,"key":"fact-john-invited-hastings"},"then":[{"type":"p","text":"John's invitation no longer feels merely hospitable. There is tension at Styles, and he is glad to have an old friend near enough to notice it."}],"else":[]},{"type":"branch","condition":{"type":"state","scope":"global","role":null,"key":"fact-emily-married-alfred"},"then":[{"type":"p","text":"Mrs. Inglethorp's new marriage already sounds less like romance than a problem everyone else is forced to live with."}],"else":[]},{"type":"choice","label":"Tell John how little plan you have for leave","target":{"type":"sequence","effects":[{"type":"set","target":{"type":"state","scope":"global","role":null,"key":"seen-station-intro"},"value":{"type":"literal","value":true}},{"type":"say","text":{"type":"literal","value":"John says, \"Styles is the very place for you, Hastings. Quiet rooms, green walks, and old memories enough to make you feel at home before we arrive.\""}}]},"id":"styles-hastings-leave","once":true,"condition":null},{"type":"choice","label":"Ask John why he wanted you at Styles","target":{"type":"sequence","effects":[{"type":"set","target":{"type":"state","scope":"global","role":null,"key":"seen-station-intro"},"value":{"type":"literal","value":true}},{"type":"set","target":{"type":"state","scope":"global","role":null,"key":"fact-john-invited-hastings"},"value":{"type":"literal","value":true}},{"type":"say","text":{"type":"literal","value":"\"My mother will be delighted to see you,\" John says quickly. \"We are all delighted, of course.\" He turns to the car with a haste that makes the invitation feel less casual than it sounded in London."}}]},"id":"styles-john-invitation","once":true,"condition":null},{"type":"choice","label":"Ask about Mrs. Inglethorp's new husband","target":{"type":"sequence","effects":[{"type":"set","target":{"type":"state","scope":"global","role":null,"key":"seen-station-intro"},"value":{"type":"literal","value":true}},{"type":"set","target":{"type":"state","scope":"global","role":null,"key":"fact-emily-married-alfred"},"value":{"type":"literal","value":true}},{"type":"set","target":{"type":"state","scope":"global","role":null,"key":"fact-household-dislikes-alfred"},"value":{"type":"literal","value":true}},{"type":"say","text":{"type":"literal","value":"\"Alfred Inglethorp came as my mother's secretary and stayed as her husband,\" John says. \"You may imagine how well we liked the transformation.\" His anger is too immediate to be only snobbery."}}]},"id":"styles-ask-about-alfred","once":true,"condition":null},{"type":"choice","label":"Set out for Styles Court","target":{"type":"sequence","effects":[{"type":"set","target":{"type":"state","scope":"global","role":null,"key":"seen-station-intro"},"value":{"type":"literal","value":true}},{"type":"goto","room":{"type":"literal","value":"village-road"}}]},"id":null,"once":null,"condition":null}]},{"type":"room","id":"village-road","title":"Road to Styles Court","body":[{"type":"branch","condition":{"type":"not","condition":{"type":"state","scope":"global","role":null,"key":"seen-road-intro"}},"then":[{"type":"p","text":"John pilots the motor away from the station, through the village, and out toward Styles Court. The road runs past flat Essex fields bright under the July sun, peaceful enough to make the war feel indecently far away."},{"type":"p","text":"The quiet does not last. \"We do our bit,\" John says, speaking of volunteer drills, farms short of hands, and Mary rising early to work on the land. Somehow every ordinary arrangement at Styles still seems to lead back to Alfred Inglethorp."}],"else":[{"type":"p","text":"The motor carries you closer to Styles Court while John keeps one eye on the road and the other on everything he has not quite said."}]},{"type":"branch","condition":{"type":"state","scope":"global","role":null,"key":"fact-household-dislikes-alfred"},"then":[{"type":"p","text":"What John said at the station settles into a clearer shape: Alfred is not merely disliked. He has changed the air of the house."}],"else":[]},{"type":"choice","label":"Ask about Emily Inglethorp's place in the house","target":{"type":"sequence","effects":[{"type":"set","target":{"type":"state","scope":"global","role":null,"key":"seen-road-intro"},"value":{"type":"literal","value":true}},{"type":"set","target":{"type":"state","scope":"global","role":null,"key":"fact-john-invited-hastings"},"value":{"type":"literal","value":true}},{"type":"say","text":{"type":"literal","value":"\"My mother is generosity itself,\" John says, \"and energy itself too. Styles is hers in money, in habit, and in command. We all move where she places us.\""}}]},"id":"styles-road-emily","once":true,"condition":null},{"type":"choice","label":"Ask how the family bears Alfred","target":{"type":"sequence","effects":[{"type":"set","target":{"type":"state","scope":"global","role":null,"key":"seen-road-intro"},"value":{"type":"literal","value":true}},{"type":"set","target":{"type":"state","scope":"global","role":null,"key":"fact-emily-married-alfred"},"value":{"type":"literal","value":true}},{"type":"set","target":{"type":"state","scope":"global","role":null,"key":"fact-household-dislikes-alfred"},"value":{"type":"literal","value":true}},{"type":"say","text":{"type":"literal","value":"John gives a short laugh without amusement. \"Alfred is useful to my mother, unwelcome to the rest of us, and somehow always present where money, letters, and influence are concerned.\""}}]},"id":"styles-road-alfred","once":true,"condition":null},{"type":"choice","label":"Let the car carry you into Styles","target":{"type":"sequence","effects":[{"type":"set","target":{"type":"state","scope":"global","role":null,"key":"seen-road-intro"},"value":{"type":"literal","value":true}},{"type":"goto","room":{"type":"literal","value":"tea-table"}}]},"id":null,"once":null,"condition":null}]},{"type":"room","id":"tea-table","title":"Lawn and Tea Table","body":[{"type":"p","text":"The motor turns in at the lodge gates and the old house comes into view. Before tea, John introduces you to Evelyn Howard in the garden: blunt, sunburnt, vigorous. \"If you mean to be useful at Styles, Captain Hastings, keep your eyes open and your mouth shut,\" she says."},{"type":"p","text":"She leads you round the house to the lawn, where tea is laid under a wide tree. Mary Cavendish rises from a basket chair with a stillness that catches you off guard; Emily Inglethorp presides kindly but completely; Alfred hovers near her; Cynthia comes bright from hospital work; Evelyn watches Alfred with open contempt."},{"type":"p","text":"You are still only a guest, but the household has begun arranging itself before you like evidence: old affection, new marriage, money, dependence, charm, resentment, and a politeness too thin to hide the cracks."},{"type":"branch","condition":{"type":"state","scope":"global","role":null,"key":"clue-evie-warning"},"then":[{"type":"p","text":"Evelyn's warning hangs in the air: \"That man is dangerous.\" It was blunt enough to seem honest."}],"else":[]},{"type":"branch","condition":{"type":"state","scope":"global","role":null,"key":"clue-cynthia-dispensary"},"then":[{"type":"p","text":"Cynthia's dispensary work gives her brightness a sharper edge: she handles medicines every day."}],"else":[]},{"type":"choice","label":"Ask Evelyn why she distrusts Alfred","target":{"type":"sequence","effects":[{"type":"set","target":{"type":"state","scope":"global","role":null,"key":"clue-evie-warning"},"value":{"type":"literal","value":true}},{"type":"say","text":{"type":"literal","value":"\"Because he is a dangerous man,\" Evelyn says. \"Look at him with Mrs. Inglethorp, Mr. Hastings, and tell me I am wrong if you dare.\""}}]},"id":"styles-ask-evelyn","once":true,"condition":null},{"type":"choice","label":"Ask Cynthia about the dispensary","target":{"type":"sequence","effects":[{"type":"set","target":{"type":"state","scope":"global","role":null,"key":"clue-cynthia-dispensary"},"value":{"type":"literal","value":true}},{"type":"say","text":{"type":"literal","value":"\"Oh, we are tremendously scientific at the dispensary,\" Cynthia says, laughing. \"Bromides, strychnine, bottles with skulls on them. Enough to make one quite important.\" The names come easily to her."}}]},"id":"styles-ask-cynthia-tea","once":true,"condition":null},{"type":"choice","label":"Ask Mary about poisons","target":{"type":"sequence","effects":[{"type":"set","target":{"type":"state","scope":"global","role":null,"key":"clue-mary-poison-talk"},"value":{"type":"literal","value":true}},{"type":"say","text":{"type":"literal","value":"\"Poisons are rather fascinating, are they not?\" Mary says lightly. Then her eyes meet yours. \"You look shocked, Captain Hastings. I promise I am only being idle.\""}}]},"id":"styles-ask-mary-poisons","once":true,"condition":null},{"type":"choice","label":"Retire for the night","target":{"type":"goto","room":{"type":"literal","value":"night-crisis"}},"id":null,"once":null,"condition":null}]},{"type":"room","id":"night-crisis","title":"Landing Outside Emily's Room","body":[{"type":"branch","condition":{"type":"state","scope":"global","role":null,"key":"event-emily-dies"},"then":[{"type":"p","text":"The door has been forced. The house whispers around the fact of Emily Inglethorp's death."}],"else":[{"type":"p","text":"A cry tears through the corridor. Emily's bedroom door is locked from within, and the household gathers in panic."}]},{"type":"branch","condition":{"type":"not","condition":{"type":"state","scope":"global","role":null,"key":"event-emily-dies"}},"then":[{"type":"choice","label":"Force Emily's door","target":{"type":"sequence","effects":[{"type":"set","target":{"type":"state","scope":"global","role":null,"key":"event-emily-dies"},"value":{"type":"literal","value":true}},{"type":"set","target":{"type":"state","scope":"global","role":null,"key":"clue-locked-bedroom"},"value":{"type":"literal","value":true}},{"type":"say","text":{"type":"literal","value":"The lock gives. Emily is beyond help."}}]},"id":"styles-force-door","once":true,"condition":null}],"else":[]},{"type":"branch","condition":{"type":"state","scope":"global","role":null,"key":"event-emily-dies"},"then":[{"type":"choice","label":"Inspect the broken bell","target":{"type":"sequence","effects":[{"type":"set","target":{"type":"state","scope":"global","role":null,"key":"clue-broken-bell"},"value":{"type":"literal","value":true}},{"type":"say","text":{"type":"literal","value":"The bell could not have summoned help. Someone made sure of that."}}]},"id":"styles-inspect-bell","once":true,"condition":null},{"type":"choice","label":"Check Cynthia's room","target":{"type":"sequence","effects":[{"type":"set","target":{"type":"state","scope":"global","role":null,"key":"clue-cynthia-deep-sleep"},"value":{"type":"literal","value":true}},{"type":"say","text":{"type":"literal","value":"Cynthia slept through a crisis she should have heard."}}]},"id":"styles-check-cynthia-room","once":true,"condition":null},{"type":"choice","label":"Enter Emily's bedroom","target":{"type":"goto","room":{"type":"literal","value":"bedroom"}},"id":null,"once":null,"condition":null}],"else":[]}]},{"type":"room","id":"bedroom","title":"Mrs. Inglethorp's Bedroom","body":[{"type":"p","text":"The bedroom is disordered by panic: a fallen table, traces of late-night drinks, a locked purple case, a cold grate, and too many people claiming to have noticed too little."},{"type":"choice","label":"Inspect the grate","target":{"type":"sequence","effects":[{"type":"set","target":{"type":"state","scope":"global","role":null,"key":"clue-charred-will-fragment"},"value":{"type":"literal","value":true}},{"type":"say","text":{"type":"literal","value":"A charred scrap suggests a document was burned here."}}]},"id":"styles-inspect-grate","once":true,"condition":null},{"type":"choice","label":"Inspect the coffee remains","target":{"type":"sequence","effects":[{"type":"set","target":{"type":"state","scope":"global","role":null,"key":"clue-broken-coffee-cup"},"value":{"type":"literal","value":true}},{"type":"say","text":{"type":"literal","value":"The broken cup draws the eye too neatly."}}]},"id":"styles-inspect-coffee","once":true,"condition":null},{"type":"choice","label":"Inspect the cocoa saucepan","target":{"type":"sequence","effects":[{"type":"set","target":{"type":"state","scope":"global","role":null,"key":"clue-cocoa-saucepan"},"value":{"type":"literal","value":true}},{"type":"say","text":{"type":"literal","value":"The cocoa is present, suspicious, and perhaps too convenient."}}]},"id":"styles-inspect-cocoa","once":true,"condition":null},{"type":"choice","label":"Inspect the medicine bottle","target":{"type":"sequence","effects":[{"type":"set","target":{"type":"state","scope":"global","role":null,"key":"clue-medicine-contained-strychnine"},"value":{"type":"literal","value":true}},{"type":"say","text":{"type":"literal","value":"The medicine is not innocent. Its contents point toward strychnine."}}]},"id":"styles-inspect-medicine","once":true,"condition":null},{"type":"choice","label":"Inspect the purple despatch-case","target":{"type":"sequence","effects":[{"type":"set","target":{"type":"state","scope":"global","role":null,"key":"clue-purple-despatch-case"},"value":{"type":"literal","value":true}},{"type":"say","text":{"type":"literal","value":"Emily kept important papers in the purple despatch-case."}}]},"id":"styles-inspect-case","once":true,"condition":null},{"type":"choice","label":"Question the servants","target":{"type":"goto","room":{"type":"literal","value":"servants-hall"}},"id":null,"once":null,"condition":null},{"type":"choice","label":"Take the evidence to Poirot","target":{"type":"goto","room":{"type":"literal","value":"poirot"}},"id":null,"once":null,"condition":null}]},{"type":"room","id":"servants-hall","title":"Servants' Hall","body":[{"type":"p","text":"The servants' hall has its own map of Styles: trays, keys, fires, bells, errands, and the tones of voices behind closed doors."},{"type":"choice","label":"Ask Dorcas about the quarrel","target":{"type":"sequence","effects":[{"type":"set","target":{"type":"state","scope":"global","role":null,"key":"clue-dorcas-heard-quarrel"},"value":{"type":"literal","value":true}},{"type":"say","text":{"type":"literal","value":"Dorcas heard more anger than the family cares to admit."}}]},"id":"styles-dorcas-quarrel","once":true,"condition":null},{"type":"choice","label":"Ask about Emily's fire","target":{"type":"sequence","effects":[{"type":"set","target":{"type":"state","scope":"global","role":null,"key":"clue-fire-in-hot-weather"},"value":{"type":"literal","value":true}},{"type":"say","text":{"type":"literal","value":"Emily ordered a fire on a day too warm for one."}}]},"id":"styles-dorcas-fire","once":true,"condition":null},{"type":"choice","label":"Ask about the coffee and cocoa tray","target":{"type":"sequence","effects":[{"type":"set","target":{"type":"state","scope":"global","role":null,"key":"clue-missing-coffee-cup"},"value":{"type":"literal","value":true}},{"type":"say","text":{"type":"literal","value":"The tray details do not quite match the room."}}]},"id":"styles-dorcas-tray","once":true,"condition":null},{"type":"choice","label":"Return to Poirot","target":{"type":"goto","room":{"type":"literal","value":"poirot"}},"id":null,"once":null,"condition":null}]},{"type":"room","id":"poirot","title":"Poirot's Lodging","body":[{"type":"p","text":"Poirot's room is small, exact, and impossibly neat. \"No, my friend,\" he says when you press him. \"I do not give you the answer. I give you the little road by which you may arrive.\""},{"type":"branch","condition":{"type":"state","scope":"global","role":null,"key":"deduction-poison-in-medicine"},"then":[{"type":"p","text":"The medicine method is now fixed in your notebook."}],"else":[]},{"type":"branch","condition":{"type":"state","scope":"global","role":null,"key":"deduction-chemist-purchase-staged"},"then":[{"type":"p","text":"The chemist purchase no longer looks like proof. It looks like theatre."}],"else":[]},{"type":"branch","condition":{"type":"state","scope":"global","role":null,"key":"deduction-alfred-evelyn-conspiracy"},"then":[{"type":"p","text":"Alfred and Evelyn finally stand together in the pattern of facts."}],"else":[]},{"type":"choice","label":"Open the suspect board","target":{"type":"goto","room":{"type":"literal","value":"suspect-board"}},"id":null,"once":null,"condition":null},{"type":"choice","label":"Visit the village chemist","target":{"type":"goto","room":{"type":"literal","value":"chemist"}},"id":null,"once":null,"condition":null},{"type":"choice","label":"Visit the dispensary","target":{"type":"goto","room":{"type":"literal","value":"dispensary"}},"id":null,"once":null,"condition":null},{"type":"branch","condition":{"type":"and","conditions":[{"type":"state","scope":"global","role":null,"key":"clue-medicine-contained-strychnine"},{"type":"state","scope":"global","role":null,"key":"clue-bromide-powders"},{"type":"state","scope":"global","role":null,"key":"clue-final-dose-danger"},{"type":"not","condition":{"type":"state","scope":"global","role":null,"key":"deduction-poison-in-medicine"}}]},"then":[{"type":"choice","label":"Tell Poirot the medicine was the vehicle","target":{"type":"sequence","effects":[{"type":"set","target":{"type":"state","scope":"global","role":null,"key":"deduction-poison-in-medicine"},"value":{"type":"literal","value":true}},{"type":"say","text":{"type":"literal","value":"\"Precisely, Hastings.\" Poirot nods. \"The fatal dose was prepared before the final cup was ever poured. The poison waited. That is the terrible neatness of it.\""}}]},"id":"styles-deduce-medicine","once":true,"condition":null}],"else":[]},{"type":"branch","condition":{"type":"and","conditions":[{"type":"state","scope":"global","role":null,"key":"clue-chemist-strychnine-sale"},{"type":"state","scope":"global","role":null,"key":"clue-alfred-alibi-sale-time"},{"type":"state","scope":"global","role":null,"key":"clue-evelyn-could-impersonate-alfred"},{"type":"not","condition":{"type":"state","scope":"global","role":null,"key":"deduction-chemist-purchase-staged"}}]},"then":[{"type":"choice","label":"Tell Poirot the chemist purchase was staged","target":{"type":"sequence","effects":[{"type":"set","target":{"type":"state","scope":"global","role":null,"key":"deduction-chemist-purchase-staged"},"value":{"type":"literal","value":true}},{"type":"say","text":{"type":"literal","value":"Poirot smiles. \"The purchase was arranged to be found. A clue too obliging, my friend, is sometimes not a clue but an invitation.\""}}]},"id":"styles-deduce-staged-purchase","once":true,"condition":null}],"else":[]},{"type":"branch","condition":{"type":"and","conditions":[{"type":"state","scope":"global","role":null,"key":"deduction-chemist-purchase-staged"},{"type":"not","condition":{"type":"state","scope":"global","role":null,"key":"deduction-alfred-wanted-arrest"}}]},"then":[{"type":"choice","label":"Ask why Alfred hides his alibi","target":{"type":"sequence","effects":[{"type":"set","target":{"type":"state","scope":"global","role":null,"key":"deduction-alfred-wanted-arrest"},"value":{"type":"literal","value":true}},{"type":"say","text":{"type":"literal","value":"\"An innocent man uses such an alibi,\" Poirot says. \"Alfred hides it because suspicion can protect him, if the suspicion rests upon evidence that is false.\""}}]},"id":"styles-deduce-alfred-wanted-arrest","once":true,"condition":null}],"else":[]},{"type":"branch","condition":{"type":"and","conditions":[{"type":"state","scope":"global","role":null,"key":"deduction-chemist-purchase-staged"},{"type":"state","scope":"global","role":null,"key":"deduction-alfred-wanted-arrest"},{"type":"state","scope":"global","role":null,"key":"clue-evie-warning"},{"type":"not","condition":{"type":"state","scope":"global","role":null,"key":"deduction-alfred-evelyn-conspiracy"}}]},"then":[{"type":"choice","label":"Present the Evelyn connection","target":{"type":"sequence","effects":[{"type":"set","target":{"type":"state","scope":"global","role":null,"key":"clue-incriminating-letter"},"value":{"type":"literal","value":true}},{"type":"set","target":{"type":"state","scope":"global","role":null,"key":"deduction-alfred-evelyn-conspiracy"},"value":{"type":"literal","value":true}},{"type":"say","text":{"type":"literal","value":"Poirot produces the last link. \"Evelyn Howard's hatred was a performance, Hastings, not a barrier. The two who seemed farthest apart were standing side by side all along.\""}}]},"id":"styles-deduce-evelyn-conspiracy","once":true,"condition":null}],"else":[]},{"type":"choice","label":"Begin the final reconstruction","target":{"type":"goto","room":{"type":"literal","value":"final-drawing-room"}},"id":null,"once":null,"condition":null}]},{"type":"room","id":"suspect-board","title":"Suspect Board","body":[{"type":"p","text":"You spread the case across a table: names, motives, means, opportunities, contradictions, and questions that become sharper as the case darkens."},{"type":"branch","condition":{"type":"state","scope":"global","role":null,"key":"clue-evie-warning"},"then":[{"type":"p","text":"Evelyn: warning source, apparent enemy of Alfred, perhaps too forceful in her hatred."}],"else":[{"type":"p","text":"Evelyn: still mostly an impression, not a theory."}]},{"type":"branch","condition":{"type":"state","scope":"global","role":null,"key":"deduction-poison-in-medicine"},"then":[{"type":"p","text":"Method: the regular medicine, not a freshly poisoned drink."}],"else":[{"type":"p","text":"Method: coffee, cocoa, and medicine still compete for attention."}]},{"type":"branch","condition":{"type":"state","scope":"global","role":null,"key":"deduction-chemist-purchase-staged"},"then":[{"type":"p","text":"Alfred: suspicious, but the suspicious evidence is itself suspicious."}],"else":[{"type":"p","text":"Alfred: the obvious suspect, almost too obvious."}]},{"type":"choice","label":"Return to Poirot","target":{"type":"goto","room":{"type":"literal","value":"poirot"}},"id":null,"once":null,"condition":null}]},{"type":"room","id":"chemist","title":"Village Chemist","body":[{"type":"p","text":"The chemist's shop is narrow, glassy, and precise. Every bottle has a label. Every poison has a rule."},{"type":"choice","label":"Ask about strychnine","target":{"type":"sequence","effects":[{"type":"set","target":{"type":"state","scope":"global","role":null,"key":"clue-chemist-strychnine-sale"},"value":{"type":"literal","value":true}},{"type":"say","text":{"type":"literal","value":"The register records strychnine bought in Alfred Inglethorp's name."}}]},"id":"styles-chemist-sale","once":true,"condition":null},{"type":"branch","condition":{"type":"state","scope":"global","role":null,"key":"clue-chemist-strychnine-sale"},"then":[{"type":"choice","label":"Check the time of purchase","target":{"type":"sequence","effects":[{"type":"set","target":{"type":"state","scope":"global","role":null,"key":"clue-alfred-alibi-sale-time"},"value":{"type":"literal","value":true}},{"type":"say","text":{"type":"literal","value":"The time is awkward for Alfred. Too awkward, perhaps."}}]},"id":"styles-chemist-time","once":true,"condition":null},{"type":"choice","label":"Study the purchaser description","target":{"type":"sequence","effects":[{"type":"set","target":{"type":"state","scope":"global","role":null,"key":"clue-evelyn-could-impersonate-alfred"},"value":{"type":"literal","value":true}},{"type":"say","text":{"type":"literal","value":"The assistant remembers a theatrical figure. Evelyn could have made herself fit that memory."}}]},"id":"styles-chemist-description","once":true,"condition":null}],"else":[]},{"type":"choice","label":"Return to Poirot","target":{"type":"goto","room":{"type":"literal","value":"poirot"}},"id":null,"once":null,"condition":null}]},{"type":"room","id":"dispensary","title":"Tadminster Dispensary","body":[{"type":"p","text":"The dispensary is orderly but dangerous, a place where ordinary hands measure extraordinary substances."},{"type":"choice","label":"Ask Cynthia about bromides","target":{"type":"sequence","effects":[{"type":"set","target":{"type":"state","scope":"global","role":null,"key":"clue-bromide-powders"},"value":{"type":"literal","value":true}},{"type":"say","text":{"type":"literal","value":"Bromides can alter a mixture without looking like a dramatic poison."}}]},"id":"styles-dispensary-bromides","once":true,"condition":null},{"type":"choice","label":"Ask how strychnine tastes","target":{"type":"sequence","effects":[{"type":"set","target":{"type":"state","scope":"global","role":null,"key":"clue-strychnine-bitter"},"value":{"type":"literal","value":true}},{"type":"say","text":{"type":"literal","value":"Strychnine is bitter. A sweet cup is not an easy hiding place."}}]},"id":"styles-dispensary-taste","once":true,"condition":null},{"type":"branch","condition":{"type":"state","scope":"global","role":null,"key":"clue-bromide-powders"},"then":[{"type":"choice","label":"Ask whether medicine can change over time","target":{"type":"sequence","effects":[{"type":"set","target":{"type":"state","scope":"global","role":null,"key":"clue-final-dose-danger"},"value":{"type":"literal","value":true}},{"type":"say","text":{"type":"literal","value":"The final dose could become the dangerous one because of what settled before it."}}]},"id":"styles-dispensary-final-dose","once":true,"condition":null}],"else":[]},{"type":"choice","label":"Return to Poirot","target":{"type":"goto","room":{"type":"literal","value":"poirot"}},"id":null,"once":null,"condition":null}]},{"type":"room","id":"final-drawing-room","title":"Final Drawing Room","body":[{"type":"p","text":"Poirot arranges the room like a stage. \"Now, Hastings,\" he says softly, \"we shall see whether the facts consent to stand in one line.\" The facts have not changed, but for the first time they may all point in one direction."},{"type":"branch","condition":{"type":"and","conditions":[{"type":"state","scope":"global","role":null,"key":"deduction-poison-in-medicine"},{"type":"state","scope":"global","role":null,"key":"deduction-chemist-purchase-staged"},{"type":"state","scope":"global","role":null,"key":"deduction-alfred-wanted-arrest"},{"type":"state","scope":"global","role":null,"key":"deduction-alfred-evelyn-conspiracy"}]},"then":[{"type":"choice","label":"Accuse Alfred Inglethorp and Evelyn Howard","target":{"type":"goto","room":{"type":"literal","value":"ending-player-led"}},"id":null,"once":null,"condition":null}],"else":[]},{"type":"branch","condition":{"type":"and","conditions":[{"type":"state","scope":"global","role":null,"key":"deduction-poison-in-medicine"},{"type":"state","scope":"global","role":null,"key":"deduction-chemist-purchase-staged"},{"type":"not","condition":{"type":"state","scope":"global","role":null,"key":"deduction-alfred-evelyn-conspiracy"}}]},"then":[{"type":"choice","label":"Ask Poirot to complete the solution","target":{"type":"goto","room":{"type":"literal","value":"ending-poirot-led"}},"id":null,"once":null,"condition":null}],"else":[]},{"type":"choice","label":"Accuse John Cavendish","target":{"type":"goto","room":{"type":"literal","value":"ending-wrong-accusation"}},"id":null,"once":null,"condition":null},{"type":"choice","label":"Accuse Alfred alone","target":{"type":"goto","room":{"type":"literal","value":"ending-wrong-accusation"}},"id":null,"once":null,"condition":null}]},{"type":"room","id":"ending-player-led","title":"Player-Led Solution","body":[{"type":"p","text":"\"Alfred Inglethorp and Evelyn Howard,\" you say. \"The medicine carried the poison; the chemist's purchase was staged; and Alfred hid the alibi that would have saved him too soon.\" Poirot lets the silence do the rest."},{"type":"p","text":"Rank: Brilliant."}]},{"type":"room","id":"ending-poirot-led","title":"Poirot-Led Solution","body":[{"type":"p","text":"You have the method and the staged purchase. Poirot supplies the last link. \"Evelyn's hatred was camouflage, Hastings. Alfred's obvious guilt was a trap. Together they relied upon justice being too quick.\""},{"type":"p","text":"Rank: Assisted."}]},{"type":"room","id":"ending-wrong-accusation","title":"Wrong Accusation","body":[{"type":"p","text":"The accusation collapses under its own gaps. \"No, Hastings,\" Poirot says, stopping you before private suspicion becomes public disaster. \"We must accuse only when the little facts agree.\""},{"type":"p","text":"Rank: Misled."}]}]};
+if ('undefined' === typeof __PS_MV_REG) {
+    var __PS_MV_REG = [];
+};
+if ('undefined' === typeof GAME) {
+    var GAME = null;
+};
+if ('undefined' === typeof STATE) {
+    var STATE = null;
+};
+if ('undefined' === typeof CURRENTLOCATION) {
+    var CURRENTLOCATION = null;
+};
+if ('undefined' === typeof RETURNSTACK) {
+    var RETURNSTACK = [];
+};
+if ('undefined' === typeof MESSAGES) {
+    var MESSAGES = [];
+};
+if ('undefined' === typeof ROOMINDEX) {
+    var ROOMINDEX = null;
+};
+function byId(id) {
+    return document.getElementById(id);
+};
+function clearElement(element) {
+    return element.innerHTML = '';
+};
+function appendText(parent, tag, className, text) {
+    var element = document.createElement(tag);
+    if (className) {
+        element.className = className;
+    };
+    element.textContent = text;
+    parent.appendChild(element);
+    return element;
+};
+function copyObject(source) {
+    var target = {  };
+    for (var key = null, _js_arrvar2 = Object.keys(source), _js_idx1 = 0; _js_idx1 < _js_arrvar2.length; _js_idx1 += 1) {
+        key = _js_arrvar2[_js_idx1];
+        target[key] = source[key];
+    };
+    return target;
+};
+function keywordP(value) {
+    return value && value.type === 'keyword';
+};
+function valueEqual(left, right) {
+    __PS_MV_REG = [];
+    return keywordP(left) && keywordP(right) ? left.name === right.name : left === right;
+};
+function truthy(value) {
+    return !(value === null || value === false || value === undefined);
+};
+function runtimeError(message) {
+    throw Error(message);
+};
+function initialState(stateData) {
+    __PS_MV_REG = [];
+    return copyObject(stateData.values);
+};
+function roomById(roomId) {
+    var room = ROOMINDEX[roomId];
+    __PS_MV_REG = [];
+    return room ? room : runtimeError('No room named ' + roomId + '.');
+};
+function nodeList(value) {
+    return value || [];
+};
+function pushArray(target, value) {
+    target[target.length] = value;
+    return value;
+};
+function popArray(target) {
+    var index = target.length - 1;
+    var value = target[index];
+    target.length = index;
+    return value;
+};
+function walkNodes(nodes, callback) {
+    for (var node = null, _js_arrvar4 = nodeList(nodes), _js_idx3 = 0; _js_idx3 < _js_arrvar4.length; _js_idx3 += 1) {
+        node = _js_arrvar4[_js_idx3];
+        callback(node);
+        if (node.type === 'entity') {
+            walkNodes(node.body, callback);
+        } else if (node.type === 'branch') {
+            walkNodes(node.then, callback);
+            walkNodes(node['else'], callback);
+        } else if (node.type === 'container') {
+            walkNodes(node.contents, callback);
+        };
+    };
+};
+function prepareRoom(room) {
+    room.sceneIndex = {  };
+    __PS_MV_REG = [];
+    return walkNodes(room.body, function (node) {
+        if (node.type === 'entity' && node.id) {
+            node.state = initialState(node.state);
+            node.resolvedRefs = {  };
+            __PS_MV_REG = [];
+            return room.sceneIndex[node.id] = node;
+        };
+    });
+};
+function resolveRoomRefs(room) {
+    __PS_MV_REG = [];
+    return walkNodes(room.body, function (node) {
+        if (node.type === 'entity') {
+            for (var ref = null, _js_arrvar10 = nodeList(node.refs), _js_idx9 = 0; _js_idx9 < _js_arrvar10.length; _js_idx9 += 1) {
+                ref = _js_arrvar10[_js_idx9];
+                node.resolvedRefs[ref.role] = room.sceneIndex[ref.target];
+            };
+        };
+    });
+};
+function prepareGame() {
+    ROOMINDEX = {  };
+    for (var room = null, _js_arrvar12 = GAME.rooms, _js_idx11 = 0; _js_idx11 < _js_arrvar12.length; _js_idx11 += 1) {
+        room = _js_arrvar12[_js_idx11];
+        ROOMINDEX[room.id] = room;
+        prepareRoom(room);
+    };
+    for (var room = null, _js_arrvar14 = GAME.rooms, _js_idx13 = 0; _js_idx13 < _js_arrvar14.length; _js_idx13 += 1) {
+        room = _js_arrvar14[_js_idx13];
+        resolveRoomRefs(room);
+    };
+    STATE = { 'globals' : initialState(GAME.state), 'taken-choices' : {  } };
+    __PS_MV_REG = [];
+    return CURRENTLOCATION = roomById(GAME.start);
+};
+function resolveState(reference, context) {
+    if (reference.scope === 'global') {
+        return { 'holder' : STATE.globals, 'key' : reference.key };
+    } else if (reference.scope === 'self') {
+        return { 'holder' : context.self.state, 'key' : reference.key };
+    } else if (reference.scope === 'ref') {
+        var target = context.self.resolvedRefs[reference.role];
+        return { 'holder' : target.state, 'key' : reference.key };
+    };
+};
+function evaluateExpression(expression, context) {
+    if (expression.type === 'state') {
+        var resolved = resolveState(expression, context);
+        __PS_MV_REG = [];
+        return resolved.holder[resolved.key];
+    } else {
+        __PS_MV_REG = [];
+        return expression.value;
+    };
+};
+function everyCondition(conditions, context) {
+    var result = true;
+    for (var child = null, _js_arrvar16 = nodeList(conditions), _js_idx15 = 0; _js_idx15 < _js_arrvar16.length; _js_idx15 += 1) {
+        child = _js_arrvar16[_js_idx15];
+        if (!evaluateCondition(child, context)) {
+            result = null;
+        };
+    };
+    __PS_MV_REG = [];
+    return result;
+};
+function someCondition(conditions, context) {
+    var result = null;
+    for (var child = null, _js_arrvar18 = nodeList(conditions), _js_idx17 = 0; _js_idx17 < _js_arrvar18.length; _js_idx17 += 1) {
+        child = _js_arrvar18[_js_idx17];
+        if (evaluateCondition(child, context)) {
+            result = true;
+        };
+    };
+    __PS_MV_REG = [];
+    return result;
+};
+function evaluateCondition(condition, context) {
+    if (condition.type === 'state') {
+        __PS_MV_REG = [];
+        return truthy(evaluateExpression(condition, context));
+    } else if (condition.type === 'eq') {
+        __PS_MV_REG = [];
+        return valueEqual(evaluateExpression(condition.left, context), evaluateExpression(condition.right, context));
+    } else if (condition.type === 'not') {
+        __PS_MV_REG = [];
+        return !evaluateCondition(condition.condition, context);
+    } else if (condition.type === 'and') {
+        __PS_MV_REG = [];
+        return everyCondition(condition.conditions, context);
+    } else if (condition.type === 'or') {
+        __PS_MV_REG = [];
+        return someCondition(condition.conditions, context);
+    } else {
+        __PS_MV_REG = [];
+        return truthy(evaluateExpression(condition, context));
+    };
+};
+function stateValue(reference, context) {
+    var resolved = resolveState(reference, context);
+    __PS_MV_REG = [];
+    return resolved.holder[resolved.key];
+};
+function setStateValue(reference, value, context) {
+    var resolved = resolveState(reference, context);
+    __PS_MV_REG = [];
+    return resolved.holder[resolved.key] = value;
+};
+function numericValue(value) {
+    var number = value === null || value === undefined ? 0 : value;
+    __PS_MV_REG = [];
+    return typeof number === 'number' ? number : runtimeError('Cannot increment or decrement non-numeric state value.');
+};
+function toggleValue(value) {
+    if (valueEqual(value, { 'type' : 'keyword', 'name' : 'on' })) {
+        __PS_MV_REG = [];
+        return { 'type' : 'keyword', 'name' : 'off' };
+    } else if (valueEqual(value, { 'type' : 'keyword', 'name' : 'off' })) {
+        __PS_MV_REG = [];
+        return { 'type' : 'keyword', 'name' : 'on' };
+    } else if (value === true) {
+        __PS_MV_REG = [];
+        return null;
+    } else if (value === null) {
+        __PS_MV_REG = [];
+        return true;
+    } else {
+        __PS_MV_REG = [];
+        return runtimeError('Cannot toggle non-toggleable state value.');
+    };
+};
+function executeEffect(effect, context) {
+    if (effect.type === 'sequence') {
+        var result = null;
+        nilBlock: {
+            for (var child = null, _js_arrvar20 = effect.effects, _js_idx19 = 0; _js_idx19 < _js_arrvar20.length; _js_idx19 += 1) {
+                child = _js_arrvar20[_js_idx19];
+                result = executeEffect(child, context);
+                if (result) {
+                    __PS_MV_REG = [];
+                    result;
+                    break nilBlock;
+                };
+            };
+        };
+        __PS_MV_REG = [];
+        return result;
+    } else if (effect.type === 'set') {
+        setStateValue(effect.target, evaluateExpression(effect.value, context), context);
+        __PS_MV_REG = [];
+        return null;
+    } else if (effect.type === 'clear') {
+        setStateValue(effect.target, null, context);
+        __PS_MV_REG = [];
+        return null;
+    } else if (effect.type === 'inc') {
+        setStateValue(effect.target, numericValue(stateValue(effect.target, context)) + evaluateExpression(effect.amount, context), context);
+        __PS_MV_REG = [];
+        return null;
+    } else if (effect.type === 'dec') {
+        setStateValue(effect.target, numericValue(stateValue(effect.target, context)) - evaluateExpression(effect.amount, context), context);
+        __PS_MV_REG = [];
+        return null;
+    } else if (effect.type === 'toggle') {
+        setStateValue(effect.target, toggleValue(stateValue(effect.target, context)), context);
+        __PS_MV_REG = [];
+        return null;
+    } else if (effect.type === 'say') {
+        pushArray(MESSAGES, evaluateExpression(effect.text, context));
+        __PS_MV_REG = [];
+        return null;
+    } else if (effect.type === 'if') {
+        __PS_MV_REG = [];
+        return executeEffect(evaluateCondition(effect.condition, context) ? effect.then : effect['else'], context);
+    } else if (effect.type === 'goto') {
+        __PS_MV_REG = [];
+        return { 'type' : 'goto', 'room' : evaluateExpression(effect.room, context) };
+    } else if (effect.type === 'gosub') {
+        __PS_MV_REG = [];
+        return { 'type' : 'gosub', 'room' : evaluateExpression(effect.room, context) };
+    } else if (effect.type === 'enter') {
+        __PS_MV_REG = [];
+        return { 'type' : 'enter', 'target' : effect.target };
+    } else if (effect.type === 'back') {
+        __PS_MV_REG = [];
+        return { 'type' : 'back' };
+    } else if (effect.type === 'quit') {
+        __PS_MV_REG = [];
+        return { 'type' : 'quit' };
+    };
+};
+function describeNode(node, context, parent) {
+    if (node.type === 'p') {
+        __PS_MV_REG = [];
+        return appendText(parent, 'p', null, node.text);
+    } else if (node.type === 'entity') {
+        __PS_MV_REG = [];
+        return describeNodes(node.body, { 'scene' : context.scene, 'self' : node }, parent);
+    } else if (node.type === 'branch') {
+        __PS_MV_REG = [];
+        return describeNodes(evaluateCondition(node.condition, context) ? node.then : node['else'], context, parent);
+    } else if (node.type === 'item') {
+        __PS_MV_REG = [];
+        return appendText(parent, 'p', null, node.description || node.name);
+    } else if (node.type === 'container') {
+        __PS_MV_REG = [];
+        return node.description ? appendText(parent, 'p', null, node.description) : null;
+    } else if (node.type === 'placement') {
+        __PS_MV_REG = [];
+        return node.description ? appendText(parent, 'p', null, node.description) : null;
+    };
+};
+function describeNodes(nodes, context, parent) {
+    for (var node = null, _js_arrvar22 = nodeList(nodes), _js_idx21 = 0; _js_idx21 < _js_arrvar22.length; _js_idx21 += 1) {
+        node = _js_arrvar22[_js_idx21];
+        describeNode(node, context, parent);
+    };
+};
+function choiceVisibleP(choice, context) {
+    __PS_MV_REG = [];
+    return !(choice.once && STATE['taken-choices'][choice.id]) && (!choice.condition || evaluateCondition(choice.condition, context));
+};
+function collectNodeChoices(node, context, choices) {
+    if (node.type === 'choice') {
+        if (choiceVisibleP(node, context)) {
+            pushArray(choices, { 'label' : node.label,
+                                 'target' : node.target,
+                                 'id' : node.id,
+                                 'once' : node.once,
+                                 'self' : context.self
+                               });
+        };
+    } else if (node.type === 'choices') {
+        for (var choice = null, _js_arrvar24 = node.options, _js_idx23 = 0; _js_idx23 < _js_arrvar24.length; _js_idx23 += 1) {
+            choice = _js_arrvar24[_js_idx23];
+            collectNodeChoices(choice, context, choices);
+        };
+    } else if (node.type === 'entity') {
+        collectChoicesFrom(node.body, { 'scene' : context.scene, 'self' : node }, choices);
+    } else if (node.type === 'branch') {
+        collectChoicesFrom(evaluateCondition(node.condition, context) ? node.then : node['else'], context, choices);
+    } else if (node.type === 'action') {
+        pushArray(choices, { 'label' : node.label,
+                             'target' : node.effects,
+                             'self' : context.self
+                           });
+    } else if (node.type === 'container') {
+        if (node.openLabel) {
+            pushArray(choices, { 'label' : node.openLabel,
+                                 'target' : { 'type' : 'enter', 'target' : { 'type' : 'container-view', 'container' : node } },
+                                 'self' : context.self
+                               });
+        };
+    } else if (node.type === 'placement') {
+        if (node.label && node.target) {
+            pushArray(choices, { 'label' : node.label,
+                                 'target' : node.target,
+                                 'self' : context.self
+                               });
+        };
+    };
+    __PS_MV_REG = [];
+    return choices;
+};
+function collectChoicesFrom(nodes, context, choices) {
+    for (var node = null, _js_arrvar26 = nodeList(nodes), _js_idx25 = 0; _js_idx25 < _js_arrvar26.length; _js_idx25 += 1) {
+        node = _js_arrvar26[_js_idx25];
+        collectNodeChoices(node, context, choices);
+    };
+    __PS_MV_REG = [];
+    return choices;
+};
+function currentContext() {
+    return { 'scene' : CURRENTLOCATION.type === 'room' ? CURRENTLOCATION : null, 'self' : null };
+};
+function renderMessages(body) {
+    for (var message = null, _js_idx27 = 0; _js_idx27 < MESSAGES.length; _js_idx27 += 1) {
+        message = MESSAGES[_js_idx27];
+        appendText(body, 'p', 'dunge-message', message);
+    };
+    __PS_MV_REG = [];
+    return MESSAGES = [];
+};
+function renderLocation() {
+    var title = byId('dunge-scene-title');
+    var body = byId('dunge-scene-body');
+    var choicesElement = byId('dunge-choices');
+    clearElement(body);
+    clearElement(choicesElement);
+    __PS_MV_REG = [];
+    return CURRENTLOCATION.type === 'container-view' ? renderContainerView(title, body, choicesElement) : renderRoom(title, body, choicesElement);
+};
+function renderRoom(title, body, choicesElement) {
+    var context = currentContext();
+    var choices = [];
+    title.textContent = CURRENTLOCATION.title;
+    renderMessages(body);
+    describeNodes(CURRENTLOCATION.body, context, body);
+    collectChoicesFrom(CURRENTLOCATION.body, context, choices);
+    __PS_MV_REG = [];
+    return renderChoices(choices, choicesElement);
+};
+function renderContainerView(title, body, choicesElement) {
+    var container28 = CURRENTLOCATION.container;
+    var context = { 'scene' : null, 'self' : null };
+    var choices = [];
+    title.textContent = container28.name;
+    renderMessages(body);
+    if (container28.contents.length > 0) {
+        describeNodes(container28.contents, context, body);
+    } else {
+        appendText(body, 'p', null, 'There is nothing here.');
+    };
+    collectChoicesFrom(container28.contents, context, choices);
+    pushArray(choices, { 'label' : container28.closeLabel || 'Back', 'target' : { 'type' : 'back' } });
+    __PS_MV_REG = [];
+    return renderChoices(choices, choicesElement);
+};
+function renderChoiceButton(choice, choicesElement) {
+    var button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'dunge-choice';
+    button.textContent = choice.label;
+    button.addEventListener('click', function () {
+        __PS_MV_REG = [];
+        return choose(choice);
+    });
+    return choicesElement.appendChild(button);
+};
+function renderChoices(choices, choicesElement) {
+    if (choices.length > 0) {
+        for (var choice = null, _js_idx31 = 0; _js_idx31 < choices.length; _js_idx31 += 1) {
+            choice = choices[_js_idx31];
+            renderChoiceButton(choice, choicesElement);
+        };
+    } else {
+        __PS_MV_REG = [];
+        return appendText(choicesElement, 'p', 'dunge-quit', 'The scene rests here.');
+    };
+};
+function choose(choice) {
+    if (choice.once && choice.id) {
+        STATE['taken-choices'][choice.id] = true;
+    };
+    var context = { 'scene' : CURRENTLOCATION.type === 'room' ? CURRENTLOCATION : null, 'self' : choice.self };
+    __PS_MV_REG = [];
+    return handleResult(executeEffect(choice.target, context) || { 'type' : 'refresh' });
+};
+function handleResult(result) {
+    if (result.type === 'quit') {
+        byId('dunge-choices').innerHTML = '';
+        __PS_MV_REG = [];
+        return appendText(byId('dunge-choices'), 'p', 'dunge-quit', 'The game has ended.');
+    } else {
+        if (result.type === 'refresh') {
+        } else if (result.type === 'goto') {
+            CURRENTLOCATION = roomById(result.room);
+        } else if (result.type === 'gosub') {
+            pushArray(RETURNSTACK, CURRENTLOCATION);
+            CURRENTLOCATION = roomById(result.room);
+        } else if (result.type === 'enter') {
+            pushArray(RETURNSTACK, CURRENTLOCATION);
+            CURRENTLOCATION = result.target;
+        } else if (result.type === 'back') {
+            if (RETURNSTACK.length > 0) {
+                CURRENTLOCATION = popArray(RETURNSTACK);
+            };
+        };
+        __PS_MV_REG = [];
+        return renderLocation();
+    };
+};
+function bootDungeGame() {
+    GAME = window['DUNGE_GAME_DATA'];
+    prepareGame();
+    __PS_MV_REG = [];
+    return renderLocation();
+};
+document.addEventListener('DOMContentLoaded', bootDungeGame);</script></head><body><main id='dunge-app'><section id='dunge-scene' aria-live='polite'><h1 id='dunge-scene-title'></h1><div id='dunge-scene-body'></div></section><nav id='dunge-choices' aria-label='Choices'></nav></main></body></html>
