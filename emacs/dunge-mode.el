@@ -66,6 +66,22 @@
     map)
   "Keymap for `dunge-mode'.")
 
+(defvar dunge--command-override-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map (kbd "C-c C-c") #'dunge-compile-load-sexp)
+    (define-key map (kbd "C-c C-k") #'dunge-compile-load-file)
+    map)
+  "High-priority command bindings for `dunge-mode'.")
+
+(defvar-local dunge--command-overrides-active nil
+  "Non-nil when Dunge command overrides are active in the current buffer.")
+
+(defvar dunge--emulation-mode-map-alist
+  `((dunge--command-overrides-active . ,dunge--command-override-map))
+  "Emulation-mode map alist that lets Dunge commands beat Lisp minor modes.")
+
+(add-to-list 'emulation-mode-map-alists 'dunge--emulation-mode-map-alist)
+
 (defun dunge--cl-string (string)
   "Return STRING as a Common Lisp string literal."
   (prin1-to-string string))
@@ -149,25 +165,51 @@
     (funcall evaluator expression)
     (message "Dunge sent %s to %s" label (dunge--backend-display-name backend))))
 
-(defun dunge--bounds-of-sexp-at-point ()
-  "Return bounds of the innermost list expression around point."
+(defun dunge--initial-list-start-at-point ()
+  "Return the start of the nearest list at point, or nil."
+  (condition-case nil
+      (cond
+       ((looking-at-p "\\s(")
+        (point))
+       ((nth 1 (syntax-ppss))
+        (nth 1 (syntax-ppss)))
+       (t
+        (backward-sexp)
+        (and (looking-at-p "\\s(") (point))))
+    (error nil)))
+
+(defun dunge--parent-list-start (start)
+  "Return the parent list start for list START, or nil."
   (save-excursion
     (condition-case nil
-        (let* ((state (syntax-ppss))
-               (start (cond
-                       ((looking-at-p "\\s(")
-                        (point))
-                       ((nth 1 state)
-                        (nth 1 state))
-                       (t
-                        (backward-sexp)
-                        (unless (looking-at-p "\\s(")
-                          (user-error "No Dunge source form at point"))
-                        (point)))))
+        (progn
           (goto-char start)
-          (forward-sexp)
-          (cons start (point)))
+          (backward-up-list)
+          (point))
       (error nil))))
+
+(defun dunge--source-form-start-p (start)
+  "Return non-nil when START begins a known Dunge source form."
+  (save-excursion
+    (goto-char start)
+    (forward-char 1)
+    (skip-syntax-forward " ")
+    (and (looking-at ":[^][()\";[:space:]]+")
+         (member (downcase (match-string-no-properties 0))
+                 dunge--source-tags))))
+
+(defun dunge--bounds-of-sexp-at-point ()
+  "Return bounds of the nearest Dunge source form around point."
+  (save-excursion
+    (let ((start (dunge--initial-list-start-at-point)))
+      (catch 'bounds
+        (while start
+          (when (dunge--source-form-start-p start)
+            (goto-char start)
+            (forward-sexp)
+            (throw 'bounds (cons start (point))))
+          (setq start (dunge--parent-list-start start)))
+        nil))))
 
 ;;;###autoload
 (defun dunge-compile-load-sexp ()
@@ -203,7 +245,8 @@
   (setq-local comment-start ";")
   (setq-local comment-end "")
   (setq-local lisp-indent-function 'common-lisp-indent-function)
-  (setq-local font-lock-defaults '(dunge-font-lock-keywords nil t)))
+  (setq-local font-lock-defaults '(dunge-font-lock-keywords nil t))
+  (setq-local dunge--command-overrides-active t))
 
 ;;;###autoload
 (add-to-list 'auto-mode-alist '("\\.dunge\\'" . dunge-mode))
