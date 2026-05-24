@@ -16,10 +16,10 @@
 
 (require 'lisp-mode)
 
-(declare-function sly-connected-p "ext:sly")
-(declare-function sly-interactive-eval "ext:sly")
-(declare-function slime-connected-p "ext:slime")
-(declare-function slime-interactive-eval "ext:slime")
+(declare-function sly-connected-p "sly")
+(declare-function sly-interactive-eval "sly")
+(declare-function slime-connected-p "slime")
+(declare-function slime-interactive-eval "slime")
 
 (defgroup dunge nil
   "Editing support for Dunge source files."
@@ -99,6 +99,10 @@
     ('sly (or (featurep 'sly) (require 'sly nil t)))
     ('slime (or (featurep 'slime) (require 'slime nil t)))))
 
+(defun dunge--backend-display-name (backend)
+  "Return a display name for BACKEND."
+  (upcase (symbol-name backend)))
+
 (defun dunge--backend-connected-p (backend)
   "Return non-nil when BACKEND has an active connection."
   (when (dunge--maybe-require-backend backend)
@@ -116,12 +120,20 @@
     ('auto
      (or (and (dunge--backend-connected-p 'sly) 'sly)
          (and (dunge--backend-connected-p 'slime) 'slime)
-         (user-error "No connected SLY or SLIME session is available")))
+         (if (or (dunge--maybe-require-backend 'sly)
+                 (dunge--maybe-require-backend 'slime))
+             (user-error "SLY or SLIME is available, but no session is connected")
+           (user-error "Neither SLY nor SLIME is available; install one or add it to `load-path'"))))
     ((or 'sly 'slime)
-     (if (dunge--backend-connected-p dunge-lisp-backend)
-         dunge-lisp-backend
-       (user-error "No connected %s session is available"
-                   (upcase (symbol-name dunge-lisp-backend)))))
+     (cond
+      ((not (dunge--maybe-require-backend dunge-lisp-backend))
+       (user-error "%s is not available; install it or add it to `load-path'"
+                   (dunge--backend-display-name dunge-lisp-backend)))
+      ((dunge--backend-connected-p dunge-lisp-backend)
+       dunge-lisp-backend)
+      (t
+       (user-error "%s is available, but no session is connected"
+                   (dunge--backend-display-name dunge-lisp-backend)))))
     (_
      (user-error "Unknown Dunge Lisp backend: %S" dunge-lisp-backend))))
 
@@ -133,9 +145,9 @@
                       ('slime #'slime-interactive-eval))))
     (unless evaluator
       (user-error "%s interactive evaluation is unavailable"
-                  (upcase (symbol-name backend))))
+                  (dunge--backend-display-name backend)))
     (funcall evaluator expression)
-    (message "Dunge sent %s to %s" label (upcase (symbol-name backend)))))
+    (message "Dunge sent %s to %s" label (dunge--backend-display-name backend))))
 
 (defun dunge--bounds-of-sexp-at-point ()
   "Return bounds of the innermost list expression around point."
