@@ -78,6 +78,27 @@ body {
 .dunge-quit {
   color: #666056;
 }
+#dunge-controls {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 24px;
+}
+#dunge-new-game {
+  min-height: 36px;
+  padding: 6px 10px;
+  border: 1px solid #6f6a5f;
+  border-radius: 6px;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+#dunge-new-game:hover,
+#dunge-new-game:focus {
+  border-color: #211f1c;
+  outline: 2px solid transparent;
+  background: #fffaf0;
+}
 @media (prefers-color-scheme: dark) {
   body { color: #f4efe5; background: #181713; }
   .dunge-choice {
@@ -89,6 +110,8 @@ body {
     border-color: #f4efe5;
     background: #302c24;
   }
+  #dunge-new-game:hover,
+  #dunge-new-game:focus { border-color: #f4efe5; background: #25221c; }
   .dunge-quit { color: #bbb3a6; }
 }")
 
@@ -424,9 +447,25 @@ body {
   (with-output-to-string (stream)
     (write-json value stream)))
 
+(defun fnv1a-32 (string)
+  (let ((hash #x811c9dc5))
+    (loop for char across string
+          do (setf hash
+                   (logand #xffffffff
+                           (* (logxor hash (char-code char))
+                              #x01000193))))
+    (format nil "~8,'0X" hash)))
+
+(defun game-save-key (signature)
+  (format nil "dunge-save:~A" signature))
+
 (defun parenscript-runtime ()
   (ps:ps
     (defvar *|__PS_MV_REG|* (array))
+    (defvar *save-version* 1)
+    (defvar *save-key* nil)
+    (defvar *save-signature* nil)
+    (defvar *progress-made* nil)
     (defvar *game* nil)
     (defvar *state* nil)
     (defvar *current-location* nil)
@@ -471,6 +510,28 @@ body {
     (defun runtime-error (message)
       (throw (-error message)))
 
+    (defun encode-json (value)
+      (chain -j-s-o-n (stringify value)))
+
+    (defun decode-json (text)
+      (chain -j-s-o-n (parse text)))
+
+    (defun storage-get (key)
+      (try (chain window local-storage (get-item key))
+           (:catch (error) nil)))
+
+    (defun storage-set (key value)
+      (try (progn
+             (chain window local-storage (set-item key value))
+             t)
+           (:catch (error) nil)))
+
+    (defun storage-remove (key)
+      (try (progn
+             (chain window local-storage (remove-item key))
+             t)
+           (:catch (error) nil)))
+
     (defun initial-state (state-data)
       (copy-object (@ state-data values)))
 
@@ -493,6 +554,9 @@ body {
         (setf (@ target length) index)
         value))
 
+    (defun object-key-count (object)
+      (@ (chain -object (keys object)) length))
+
     (defun walk-nodes (nodes callback)
       (dolist (node (node-list nodes))
         (callback node)
@@ -512,7 +576,9 @@ body {
        (@ room body)
        (lambda (node)
          (when (and (eql (@ node type) "entity") (@ node id))
-           (setf (@ node state) (initial-state (@ node state)))
+           (unless (@ node state-data)
+             (setf (@ node state-data) (@ node state)))
+           (setf (@ node state) (initial-state (@ node state-data)))
            (setf (@ node resolved-refs) (create))
            (setf (getprop (@ room scene-index) (@ node id)) node)))))
 
@@ -527,6 +593,8 @@ body {
 
     (defun prepare-game ()
       (setf *room-index* (create))
+      (setf *return-stack* (array))
+      (setf *messages* (array))
       (dolist (room (@ *game* rooms))
         (setf (getprop *room-index* (@ room id)) room)
         (prepare-room room))
@@ -535,6 +603,117 @@ body {
       (setf *state* (create :globals (initial-state (@ *game* state))
                             :taken-choices (create)))
       (setf *current-location* (room-by-id (@ *game* start))))
+
+    (defun room-location-id (location)
+      (if (and location (eql (@ location type) "room"))
+          (@ location id)
+          nil))
+
+    (defun return-stack-room-id ()
+      (let ((room-id nil))
+        (dotimes (offset (@ *return-stack* length))
+          (unless room-id
+            (let* ((index (- (- (@ *return-stack* length) 1) offset))
+                   (candidate (room-location-id (aref *return-stack* index))))
+              (when candidate
+                (setf room-id candidate)))))
+        room-id))
+
+    (defun fallback-current-room-id ()
+      (let ((current-room-id (room-location-id *current-location*)))
+        (or current-room-id
+            (return-stack-room-id)
+            (@ *game* start))))
+
+    (defun capture-return-stack ()
+      (let ((ids (array))
+            (limit (@ *return-stack* length)))
+        (unless (room-location-id *current-location*)
+          (setf limit (- limit 1)))
+        (dotimes (index limit)
+          (let ((room-id (room-location-id (aref *return-stack* index))))
+            (when room-id
+              (push-array ids room-id))))
+        ids))
+
+    (defun capture-local-state ()
+      (let ((locals (array)))
+        (dolist (room (@ *game* rooms))
+          (walk-nodes
+           (@ room body)
+           (lambda (node)
+             (when (and (eql (@ node type) "entity")
+                        (@ node id)
+                        (> (object-key-count (@ node state)) 0))
+               (push-array locals
+                           (create :room (@ room id)
+                                   :entity (@ node id)
+                                   :state (copy-object (@ node state))))))))
+        locals))
+
+    (defun capture-runtime-state ()
+      (create "version" *save-version*
+              "signature" *save-signature*
+              "currentRoom" (fallback-current-room-id)
+              "returnStack" (capture-return-stack)
+              "globals" (copy-object (@ *state* globals))
+              "locals" (capture-local-state)
+              "takenChoices" (copy-object (getprop *state* "taken-choices"))))
+
+    (defun restore-return-stack (room-ids)
+      (setf *return-stack* (array))
+      (dolist (room-id (node-list room-ids))
+        (push-array *return-stack* (room-by-id room-id))))
+
+    (defun restore-local-state (locals)
+      (dolist (entry (node-list locals))
+        (let* ((room (room-by-id (@ entry room)))
+               (entity (getprop (@ room scene-index) (@ entry entity))))
+          (if entity
+              (setf (@ entity state) (copy-object (or (@ entry state)
+                                                      (create))))
+              (runtime-error
+               (+ "No saveable entity " (@ entry entity) "."))))))
+
+    (defun valid-save-p (save)
+      (and save
+           (eql (getprop save "version") *save-version*)
+           (eql (getprop save "signature") *save-signature*)
+           (getprop save "currentRoom")))
+
+    (defun restore-saved-game ()
+      (try
+       (let* ((raw (and *save-key* (storage-get *save-key*)))
+              (save (and raw (decode-json raw))))
+         (if (valid-save-p save)
+             (progn
+               (setf (@ *state* globals)
+                     (copy-object (or (getprop save "globals") (create))))
+               (setf (getprop *state* "taken-choices")
+                     (copy-object (or (getprop save "takenChoices") (create))))
+               (restore-local-state (getprop save "locals"))
+               (restore-return-stack (getprop save "returnStack"))
+               (setf *current-location*
+                     (room-by-id (getprop save "currentRoom")))
+               (setf *progress-made* t)
+               t)
+             (progn
+               (when raw
+                 (storage-remove *save-key*))
+               nil)))
+       (:catch (error)
+         (progn
+           (when *save-key*
+             (storage-remove *save-key*))
+           nil))))
+
+    (defun save-game ()
+      (when *save-key*
+        (storage-set *save-key* (encode-json (capture-runtime-state)))))
+
+    (defun clear-save ()
+      (when *save-key*
+        (storage-remove *save-key*)))
 
     (defun resolve-state (reference context)
       (cond
@@ -841,8 +1020,10 @@ body {
                                       *current-location*
                                       nil)
                             :self (@ choice self))))
+        (setf *progress-made* t)
         (handle-result (or (execute-effect (@ choice target) context)
-                           (create :type "refresh")))))
+                           (create :type "refresh")))
+        (save-game)))
 
     (defun handle-result (result)
       (if (eql (@ result type) "quit")
@@ -871,9 +1052,35 @@ body {
                  (setf *current-location* (pop-array *return-stack*)))))
             (render-location))))
 
+    (defun reset-game ()
+      (clear-save)
+      (setf *progress-made* nil)
+      (prepare-game)
+      (render-location))
+
+    (defun bind-new-game-control ()
+      (let ((button (by-id "dunge-new-game")))
+        (when button
+          (chain button
+                 (add-event-listener "click" reset-game)))))
+
+    (defun install-refresh-guard ()
+      (chain window
+             (add-event-listener
+              "beforeunload"
+              (lambda (event)
+                (when *progress-made*
+                  (setf (@ event return-value) "")
+                  "")))))
+
     (defun boot-dunge-game ()
       (setf *game* (getprop window "DUNGE_GAME_DATA"))
+      (setf *save-signature* (getprop window "DUNGE_GAME_SIGNATURE"))
+      (setf *save-key* (getprop window "DUNGE_GAME_SAVE_KEY"))
       (prepare-game)
+      (restore-saved-game)
+      (bind-new-game-control)
+      (install-refresh-guard)
       (render-location))
 
     (chain document
@@ -881,9 +1088,13 @@ body {
 
 (defun compile-game-script (game)
   "Return the embedded JavaScript for GAME."
-  (format nil "window.DUNGE_GAME_DATA = ~A;~%~A"
-          (json-string (compile-game-data game))
-          (parenscript-runtime)))
+  (let* ((data-json (json-string (compile-game-data game)))
+         (signature (fnv1a-32 data-json)))
+    (format nil "window.DUNGE_GAME_DATA = ~A;~%window.DUNGE_GAME_SIGNATURE = ~A;~%window.DUNGE_GAME_SAVE_KEY = ~A;~%~A"
+            data-json
+            (json-string signature)
+            (json-string (game-save-key signature))
+            (parenscript-runtime))))
 
 (defun compile-index-html (game &key (title *default-title*)
                                       (style *default-style*))
@@ -899,6 +1110,8 @@ body {
         (:script (cl-who:fmt "~A" script)))
        (:body
         (:main :id "dunge-app"
+         (:div :id "dunge-controls"
+          (:button :id "dunge-new-game" :type "button" "New game"))
          (:section :id "dunge-scene" :aria-live "polite"
           (:h1 :id "dunge-scene-title")
           (:div :id "dunge-scene-body"))

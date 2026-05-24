@@ -7,6 +7,7 @@
                 #:false
                 #:getprop
                 #:typeof
+                #:try
                 #:undefined)
   (:export
    #:compile-game-data
