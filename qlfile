@@ -1,3 +1,5 @@
 dist https://dist.ultralisp.org/
 ql trivia
 ql fiveam
+ql parenscript
+ql cl-who

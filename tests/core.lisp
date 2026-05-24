@@ -1146,3 +1146,72 @@
     (is (contains-substring-p "You flip the switch." output))
     (is (contains-substring-p "Something heavy slides open nearby." output))
     (is (contains-substring-p "Hidden Room" output))))
+
+(test html-compiler-generates-single-file-index-shell
+  (let* ((game (source-game-with-body
+                '(:p "A compiled room.")
+                '(:choice "Leave" (:quit))))
+         (html (dunge-html:compile-index-html game :title "Compiled Dunge")))
+    (is (contains-substring-p "<!doctype html>" html))
+    (is (contains-substring-p "<body><main id='dunge-app'>" html))
+    (is (contains-substring-p "id='dunge-scene-title'" html))
+    (is (contains-substring-p "id='dunge-scene-body'" html))
+    (is (contains-substring-p "id='dunge-choices'" html))
+    (is (contains-substring-p "window.DUNGE_GAME_DATA = " html))
+    (is (contains-substring-p "document.addEventListener('DOMContentLoaded', bootDungeGame);"
+                              html))
+    (is (not (contains-substring-p "<script src=" html)))
+    (is (not (contains-substring-p "&quot;" html)))))
+
+(test html-compiler-lowers-stateful-ast-data-for-browser-runtime
+  (let* ((game
+           (source-game-with-body
+            '(:entity
+              :name "panel"
+              :id "panel"
+              :state ((:switch :off))
+              :body
+              ((:action
+                :label "Flip"
+                :do
+                ((:toggle
+                  :target (:state :scope :self :key :switch))))))
+            '(:when (:eq
+                     :left (:state :scope :global :key :seen)
+                     :right t)
+              (:p "Seen."))
+            '(:once
+              :id :look
+              (:choice
+               "Look"
+               ((:set
+                 :target (:state :scope :global :key :seen)
+                 :value t)
+                (:say "Noted."))))))
+         (script (dunge-html:compile-game-script game)))
+    (is (contains-substring-p "\"type\":\"keyword\",\"name\":\"off\""
+                              script))
+    (is (contains-substring-p "\"type\":\"toggle\"" script))
+    (is (contains-substring-p "\"type\":\"eq\"" script))
+    (is (contains-substring-p "\"id\":\"look\"" script))
+    (is (contains-substring-p "function executeEffect" script))
+    (is (contains-substring-p "function renderChoices" script))))
+
+(test html-compiler-writes-index-html-file
+  (let* ((game (source-game-with-body
+                '(:p "A written room.")))
+         (path (merge-pathnames
+                (format nil "dunge-html-~A/index.html" (gensym))
+                (uiop:temporary-directory))))
+    (unwind-protect
+         (progn
+           (dunge-html:write-index-html game path :title "Written Dunge")
+           (is (probe-file path))
+           (with-open-file (stream path :direction :input)
+             (let ((contents (make-string (file-length stream))))
+               (read-sequence contents stream)
+               (is (contains-substring-p "Written Dunge" contents))
+               (is (contains-substring-p "window.DUNGE_GAME_DATA" contents)))))
+      (let ((directory (uiop:pathname-directory-pathname path)))
+        (when (probe-file directory)
+          (uiop:delete-directory-tree directory :validate t))))))
