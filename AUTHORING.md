@@ -7,16 +7,16 @@ Dunge as the engine for a choice-based interactive fiction game.
 ## Source Basics
 
 A `.dunge` file contains exactly one top-level form. Each form starts with a
-keyword tag. Some forms use keyword fields, and the author-facing shorthand
+keyword tag. Most full forms use keyword fields, while author-facing shorthand
 forms use positional arguments:
 
 ```lisp
 (:p "A lantern burns beside the locked door.")
 ```
 
-Fields and shorthand arguments are checked against the Dunge source schema.
-Unknown forms, unknown fields, duplicate fields, missing required fields, and
-malformed values are authoring errors.
+Dunge expands shorthand forms into their full keyword-field forms before schema
+validation. Unknown forms, unknown fields, duplicate fields, missing required
+fields, and malformed values are authoring errors.
 
 The current public surface is intentionally small:
 
@@ -845,19 +845,22 @@ Use `:gosub` and `:back` for a room that behaves like an inspection view.
 
 ## Validation Notes
 
-Dunge validates authoring mistakes before play:
+Dunge validates many authoring mistakes before play:
 
 - Room IDs must be strings, and `:go`/`:gosub` targets must exist in the full
   game.
 - Entity IDs must be unique within a room.
 - `:refs` must point to existing entity IDs in the same room.
-- Entity-local state must be declared before it is read or written.
 - If `:game :state`, `:flags`, or `:marked` declares globals, every global
   state key must be declared.
 - Once-only choices must have unique keyword IDs.
 - Actions must be inside entities.
 - Multiple effects in `:placed :do` must be wrapped in `:sequence`; `:choice`
   may use a direct effect list.
+
+Entity-local `:self` state and referenced `:ref` state are checked when the
+condition or effect runs against a specific entity. Declare each local key in
+the owning entity's `:state` field before reading or writing it.
 
 ## Retired And Private Syntax
 
