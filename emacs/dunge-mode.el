@@ -114,13 +114,15 @@
 (defun dunge--load-string-expression (source source-name &optional base-directory)
   "Build a Common Lisp expression that loads SOURCE named SOURCE-NAME."
   (dunge--wrap-loader-expression
-   (format "(funcall (find-symbol \"LOAD-DUNGE-STRING\" \"DUNGE\") %s :source-name %s%s)"
-           (dunge--cl-string source)
-           (dunge--cl-string source-name)
-           (if base-directory
-               (format " :base-directory %s"
-                       (dunge--cl-string base-directory))
-             ""))))
+   (if base-directory
+       (format "(let ((*default-pathname-defaults* (pathname %s)))
+  (funcall (find-symbol \"LOAD-DUNGE-STRING\" \"DUNGE\") %s :source-name %s))"
+               (dunge--cl-string base-directory)
+               (dunge--cl-string source)
+               (dunge--cl-string source-name))
+     (format "(funcall (find-symbol \"LOAD-DUNGE-STRING\" \"DUNGE\") %s :source-name %s)"
+             (dunge--cl-string source)
+             (dunge--cl-string source-name)))))
 
 (defun dunge--load-file-expression (file)
   "Build a Common Lisp expression that loads FILE."
