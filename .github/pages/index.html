@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dunge examples</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+
+    html { color-scheme: light dark; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: ui-serif, Georgia, Cambria, "Times New Roman", serif;
+      line-height: 1.55;
+      color: #211f1c;
+      background: #f7f4ed;
+    }
+
+    main {
+      width: min(760px, calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 48px 0;
+    }
+
+    h1 {
+      margin: 0 0 24px;
+      font-size: clamp(2rem, 7vw, 3.75rem);
+      line-height: 1.05;
+      letter-spacing: 0;
+    }
+
+    ul {
+      display: grid;
+      gap: 12px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    a {
+      display: block;
+      min-height: 44px;
+      padding: 10px 14px;
+      border: 1px solid #6f6a5f;
+      border-radius: 6px;
+      color: inherit;
+      background: #fffaf0;
+      text-decoration: none;
+    }
+
+    a:hover,
+    a:focus {
+      border-color: #211f1c;
+      outline: 2px solid transparent;
+      background: #fffdf8;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      body { color: #f4efe5; background: #181713; }
+
+      a {
+        border-color: #80776a;
+        background: #25221c;
+      }
+
+      a:hover,
+      a:focus {
+        border-color: #f4efe5;
+        background: #302c24;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Dunge examples</h1>
+    <ul>
+      <li><a href="./styles/">The Mysterious Affair at Styles</a></li>
+    </ul>
+  </main>
+</body>
+</html>
