@@ -712,7 +712,8 @@ body {
 
     (defun choice-visible-p (choice context)
       (and (not (and (@ choice once)
-                     (getprop (@ *state* taken-choices) (@ choice id))))
+                     (getprop (getprop *state* "taken-choices")
+                              (@ choice id))))
            (or (not (@ choice condition))
                (evaluate-condition (@ choice condition) context))))
 
@@ -812,24 +813,29 @@ body {
                             :target (create :type "back")))
         (render-choices choices choices-element)))
 
+    (defun render-choice-button (choice choices-element)
+      (let ((button (chain document (create-element "button"))))
+        (setf (@ button type) "button")
+        (setf (@ button class-name) "dunge-choice")
+        (setf (@ button text-content) (@ choice label))
+        (chain button
+               (add-event-listener
+                "click"
+                (lambda ()
+                  (choose choice))))
+        (chain choices-element (append-child button))))
+
     (defun render-choices (choices choices-element)
       (if (> (@ choices length) 0)
           (dolist (choice choices)
-            (let ((button (chain document (create-element "button"))))
-              (setf (@ button type) "button")
-              (setf (@ button class-name) "dunge-choice")
-              (setf (@ button text-content) (@ choice label))
-              (chain button
-                     (add-event-listener
-                      "click"
-                      (lambda ()
-                        (choose choice))))
-              (chain choices-element (append-child button))))
+            (render-choice-button choice choices-element))
           (append-text choices-element "p" "dunge-quit" "The scene rests here.")))
 
     (defun choose (choice)
       (when (and (@ choice once) (@ choice id))
-        (setf (getprop (@ *state* taken-choices) (@ choice id)) t))
+        (setf (getprop (getprop *state* "taken-choices")
+                       (@ choice id))
+              t))
       (let ((context (create :scene (if (eql (@ *current-location* type) "room")
                                       *current-location*
                                       nil)

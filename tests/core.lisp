@@ -1194,7 +1194,10 @@
     (is (contains-substring-p "\"type\":\"toggle\"" script))
     (is (contains-substring-p "\"type\":\"eq\"" script))
     (is (contains-substring-p "\"id\":\"look\"" script))
+    (is (contains-substring-p "STATE['taken-choices']" script))
+    (is (not (contains-substring-p "STATE.takenChoices" script)))
     (is (contains-substring-p "function executeEffect" script))
+    (is (contains-substring-p "function renderChoiceButton" script))
     (is (contains-substring-p "function renderChoices" script))))
 
 (test html-compiler-escapes-script-breaking-game-data
