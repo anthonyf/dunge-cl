@@ -28,7 +28,7 @@
      (:option
       :label "Ask Mary about poisons"
       :do ((:mark :clue-mary-poison-talk)
-           (:say "Mary speaks lightly of poisons, then notices Hastings noticing."))))
+           (:say "Mary speaks lightly of poisons, then notices you noticing."))))
     (:option
      :label "Retire for the night"
      :do (:go "night-crisis"))))))

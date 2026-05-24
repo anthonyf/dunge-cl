@@ -2,7 +2,7 @@
  :id "suspect-board"
  :title "Suspect Board"
  :body
- ((:p "Hastings spreads the case across a table: names, motives, means, opportunities, contradictions, and questions that become sharper as the case darkens.")
+ ((:p "You spread the case across a table: names, motives, means, opportunities, contradictions, and questions that become sharper as the case darkens.")
   (:branch
    :when (:marked? :clue-evie-warning)
    :then ((:p "Evelyn: warning source, apparent enemy of Alfred, perhaps too forceful in her hatred."))
