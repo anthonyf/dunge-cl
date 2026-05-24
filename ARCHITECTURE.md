@@ -320,6 +320,24 @@ authoring errors before play:
 Dynamic values that cannot be statically resolved should be reported as such
 rather than silently accepted as validated.
 
+## HTML Compiler
+
+The `dunge-html` package is the browser backend for the same CLOS AST used by
+the console runtime. It lives in the main `dunge` system but has its own package
+boundary so the compiler-specific API stays isolated from the source loader and
+console evaluator.
+
+The backend emits a single self-contained `index.html` file. Lisp generates the
+static document shell, including the app mount points for scene title, scene
+body, and choices. Parenscript generates the embedded browser runtime script.
+The script owns game state and re-renders those static mount points as the
+player selects choices.
+
+The generated file does not rely on modules, fetches, or a web server. It is
+intended to run directly from `file://` in ordinary browsers. Browser storage,
+refresh guards, and save-game UI are deliberately later phases; the current
+compiler focuses on rendering and executing the existing MVP story primitives.
+
 ## Scope Cuts
 
 Dunge will not have inline links. Choices are enough.
