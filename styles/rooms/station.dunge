@@ -12,30 +12,28 @@
    (:p "John's invitation no longer feels merely hospitable. There is tension at Styles, and he is glad to have an old friend near enough to notice it."))
   (:when (:marked? :fact-emily-married-alfred)
    (:p "Mrs. Inglethorp's new marriage already sounds less like romance than a problem everyone else is forced to live with."))
+  (:once
+   :id :styles-hastings-leave
+   (:choice
+    "Tell John how little plan you have for leave"
+    ((:mark :seen-station-intro)
+     (:say "John says, \"Styles is the very place for you, Hastings. Quiet rooms, green walks, and old memories enough to make you feel at home before we arrive.\""))))
+  (:once
+   :id :styles-john-invitation
+   (:choice
+    "Ask John why he wanted you at Styles"
+    ((:mark :seen-station-intro)
+     (:mark :fact-john-invited-hastings)
+     (:say "\"My mother will be delighted to see you,\" John says quickly. \"We are all delighted, of course.\" He turns to the car with a haste that makes the invitation feel less casual than it sounded in London."))))
+  (:once
+   :id :styles-ask-about-alfred
+   (:choice
+    "Ask about Mrs. Inglethorp's new husband"
+    ((:mark :seen-station-intro)
+     (:mark :fact-emily-married-alfred)
+     (:mark :fact-household-dislikes-alfred)
+     (:say "\"Alfred Inglethorp came as my mother's secretary and stayed as her husband,\" John says. \"You may imagine how well we liked the transformation.\" His anger is too immediate to be only snobbery."))))
   (:choice
-   :options
-   ((:once
-     :id :styles-hastings-leave
-     (:option
-      :label "Tell John how little plan you have for leave"
-      :do ((:mark :seen-station-intro)
-           (:say "John says, \"Styles is the very place for you, Hastings. Quiet rooms, green walks, and old memories enough to make you feel at home before we arrive.\""))))
-    (:once
-     :id :styles-john-invitation
-     (:option
-      :label "Ask John why he wanted you at Styles"
-      :do ((:mark :seen-station-intro)
-           (:mark :fact-john-invited-hastings)
-           (:say "\"My mother will be delighted to see you,\" John says quickly. \"We are all delighted, of course.\" He turns to the car with a haste that makes the invitation feel less casual than it sounded in London."))))
-    (:once
-     :id :styles-ask-about-alfred
-     (:option
-      :label "Ask about Mrs. Inglethorp's new husband"
-      :do ((:mark :seen-station-intro)
-           (:mark :fact-emily-married-alfred)
-           (:mark :fact-household-dislikes-alfred)
-           (:say "\"Alfred Inglethorp came as my mother's secretary and stayed as her husband,\" John says. \"You may imagine how well we liked the transformation.\" His anger is too immediate to be only snobbery."))))
-    (:option
-     :label "Set out for Styles Court"
-     :do ((:mark :seen-station-intro)
-          (:go "village-road")))))))
+   "Set out for Styles Court"
+   ((:mark :seen-station-intro)
+    (:go "village-road")))))

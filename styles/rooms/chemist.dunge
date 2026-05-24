@@ -3,28 +3,23 @@
  :title "Village Chemist"
  :body
  ((:p "The chemist's shop is narrow, glassy, and precise. Every bottle has a label. Every poison has a rule.")
-  (:choice
-   :options
-   ((:once
-     :id :styles-chemist-sale
-     (:option
-      :label "Ask about strychnine"
-      :do ((:mark :clue-chemist-strychnine-sale)
-           (:say "The register records strychnine bought in Alfred Inglethorp's name."))))
-    (:once
-     :id :styles-chemist-time
-     (:option
-      :label "Check the time of purchase"
-      :when (:marked? :clue-chemist-strychnine-sale)
-      :do ((:mark :clue-alfred-alibi-sale-time)
-           (:say "The time is awkward for Alfred. Too awkward, perhaps."))))
-    (:once
-     :id :styles-chemist-description
-     (:option
-      :label "Study the purchaser description"
-      :when (:marked? :clue-chemist-strychnine-sale)
-      :do ((:mark :clue-evelyn-could-impersonate-alfred)
-           (:say "The assistant remembers a theatrical figure. Evelyn could have made herself fit that memory."))))
-    (:option
-     :label "Return to Poirot"
-     :do (:go "poirot"))))))
+  (:once
+   :id :styles-chemist-sale
+   (:choice
+    "Ask about strychnine"
+    ((:mark :clue-chemist-strychnine-sale)
+     (:say "The register records strychnine bought in Alfred Inglethorp's name."))))
+  (:when (:marked? :clue-chemist-strychnine-sale)
+   (:once
+    :id :styles-chemist-time
+    (:choice
+     "Check the time of purchase"
+     ((:mark :clue-alfred-alibi-sale-time)
+      (:say "The time is awkward for Alfred. Too awkward, perhaps."))))
+   (:once
+    :id :styles-chemist-description
+    (:choice
+     "Study the purchaser description"
+     ((:mark :clue-evelyn-could-impersonate-alfred)
+      (:say "The assistant remembers a theatrical figure. Evelyn could have made herself fit that memory.")))))
+  (:choice "Return to Poirot" (:go "poirot"))))

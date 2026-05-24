@@ -15,8 +15,4 @@
    :when (:marked? :deduction-chemist-purchase-staged)
    :then ((:p "Alfred: suspicious, but the suspicious evidence is itself suspicious."))
    :else ((:p "Alfred: the obvious suspect, almost too obvious.")))
-  (:choice
-   :options
-   ((:option
-     :label "Return to Poirot"
-     :do (:go "poirot"))))))
+  (:choice "Return to Poirot" (:go "poirot"))))

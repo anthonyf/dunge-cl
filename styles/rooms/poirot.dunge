@@ -9,60 +9,50 @@
    (:p "The chemist purchase no longer looks like proof. It looks like theatre."))
   (:when (:marked? :deduction-alfred-evelyn-conspiracy)
    (:p "Alfred and Evelyn finally stand together in the pattern of facts."))
-  (:choice
-   :options
-   ((:option
-     :label "Open the suspect board"
-     :do (:go "suspect-board"))
-    (:option
-     :label "Visit the village chemist"
-     :do (:go "chemist"))
-    (:option
-     :label "Visit the dispensary"
-     :do (:go "dispensary"))
-    (:once
-     :id :styles-deduce-medicine
-     (:option
-      :label "Tell Poirot the medicine was the vehicle"
-      :when (:and
-             (:marked? :clue-medicine-contained-strychnine)
-             (:marked? :clue-bromide-powders)
-             (:marked? :clue-final-dose-danger)
-             (:not (:marked? :deduction-poison-in-medicine)))
-      :do ((:mark :deduction-poison-in-medicine)
-           (:say "\"Precisely, Hastings.\" Poirot nods. \"The fatal dose was prepared before the final cup was ever poured. The poison waited. That is the terrible neatness of it.\""))))
-    (:once
-     :id :styles-deduce-staged-purchase
-     (:option
-      :label "Tell Poirot the chemist purchase was staged"
-      :when (:and
-             (:marked? :clue-chemist-strychnine-sale)
-             (:marked? :clue-alfred-alibi-sale-time)
-             (:marked? :clue-evelyn-could-impersonate-alfred)
-             (:not (:marked? :deduction-chemist-purchase-staged)))
-      :do ((:mark :deduction-chemist-purchase-staged)
-           (:say "Poirot smiles. \"The purchase was arranged to be found. A clue too obliging, my friend, is sometimes not a clue but an invitation.\""))))
-    (:once
-     :id :styles-deduce-alfred-wanted-arrest
-     (:option
-      :label "Ask why Alfred hides his alibi"
-      :when (:and
-             (:marked? :deduction-chemist-purchase-staged)
-             (:not (:marked? :deduction-alfred-wanted-arrest)))
-      :do ((:mark :deduction-alfred-wanted-arrest)
-           (:say "\"An innocent man uses such an alibi,\" Poirot says. \"Alfred hides it because suspicion can protect him, if the suspicion rests upon evidence that is false.\""))))
-    (:once
-     :id :styles-deduce-evelyn-conspiracy
-     (:option
-      :label "Present the Evelyn connection"
-      :when (:and
-             (:marked? :deduction-chemist-purchase-staged)
-             (:marked? :deduction-alfred-wanted-arrest)
-             (:marked? :clue-evie-warning)
-             (:not (:marked? :deduction-alfred-evelyn-conspiracy)))
-      :do ((:mark :clue-incriminating-letter)
-           (:mark :deduction-alfred-evelyn-conspiracy)
-           (:say "Poirot produces the last link. \"Evelyn Howard's hatred was a performance, Hastings, not a barrier. The two who seemed farthest apart were standing side by side all along.\""))))
-    (:option
-     :label "Begin the final reconstruction"
-     :do (:go "final-drawing-room"))))))
+  (:choice "Open the suspect board" (:go "suspect-board"))
+  (:choice "Visit the village chemist" (:go "chemist"))
+  (:choice "Visit the dispensary" (:go "dispensary"))
+  (:when (:and
+          (:marked? :clue-medicine-contained-strychnine)
+          (:marked? :clue-bromide-powders)
+          (:marked? :clue-final-dose-danger)
+          (:not (:marked? :deduction-poison-in-medicine)))
+   (:once
+    :id :styles-deduce-medicine
+    (:choice
+     "Tell Poirot the medicine was the vehicle"
+     ((:mark :deduction-poison-in-medicine)
+      (:say "\"Precisely, Hastings.\" Poirot nods. \"The fatal dose was prepared before the final cup was ever poured. The poison waited. That is the terrible neatness of it.\"")))))
+  (:when (:and
+          (:marked? :clue-chemist-strychnine-sale)
+          (:marked? :clue-alfred-alibi-sale-time)
+          (:marked? :clue-evelyn-could-impersonate-alfred)
+          (:not (:marked? :deduction-chemist-purchase-staged)))
+   (:once
+    :id :styles-deduce-staged-purchase
+    (:choice
+     "Tell Poirot the chemist purchase was staged"
+     ((:mark :deduction-chemist-purchase-staged)
+      (:say "Poirot smiles. \"The purchase was arranged to be found. A clue too obliging, my friend, is sometimes not a clue but an invitation.\"")))))
+  (:when (:and
+          (:marked? :deduction-chemist-purchase-staged)
+          (:not (:marked? :deduction-alfred-wanted-arrest)))
+   (:once
+    :id :styles-deduce-alfred-wanted-arrest
+    (:choice
+     "Ask why Alfred hides his alibi"
+     ((:mark :deduction-alfred-wanted-arrest)
+      (:say "\"An innocent man uses such an alibi,\" Poirot says. \"Alfred hides it because suspicion can protect him, if the suspicion rests upon evidence that is false.\"")))))
+  (:when (:and
+          (:marked? :deduction-chemist-purchase-staged)
+          (:marked? :deduction-alfred-wanted-arrest)
+          (:marked? :clue-evie-warning)
+          (:not (:marked? :deduction-alfred-evelyn-conspiracy)))
+   (:once
+    :id :styles-deduce-evelyn-conspiracy
+    (:choice
+     "Present the Evelyn connection"
+     ((:mark :clue-incriminating-letter)
+      (:mark :deduction-alfred-evelyn-conspiracy)
+      (:say "Poirot produces the last link. \"Evelyn Howard's hatred was a performance, Hastings, not a barrier. The two who seemed farthest apart were standing side by side all along.\"")))))
+  (:choice "Begin the final reconstruction" (:go "final-drawing-room"))))

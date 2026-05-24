@@ -65,13 +65,13 @@
 
 (define-dunge-node goto (control-node)
   ((room-name :reader room-name :initarg :room-name :initform nil))
-  (:source :goto
+  (:source :%goto
    (:fields
     (:room :scene-id :required t :to :room-name))))
 
 (define-dunge-node gosub (control-node)
   ((room-name :reader room-name :initarg :room-name :initform nil))
-  (:source :gosub
+  (:source :%gosub
    (:fields
     (:room :scene-id :required t :to :room-name))))
 
@@ -287,7 +287,7 @@
    (id :reader choice-id :initarg :id :initform nil)
    (condition :reader choice-condition :initarg :condition :initform nil)
    (once :reader choice-once-p :initarg :once :initform nil))
-  (:source :option
+  (:source :%choice
    (:fields
     (:label :string :required t)
     (:do :effect-or-block :required t :to :target)
@@ -296,10 +296,7 @@
     (:once :boolean))))
 
 (define-dunge-node choices ()
-  ((options :accessor options :initarg :options :initform nil))
-  (:source :choice
-   (:fields
-    (:options :choice-list :required t))))
+  ((options :accessor options :initarg :options :initform nil)))
 
 (define-dunge-node entity ()
   ((name :reader name :initarg :name :initform nil)

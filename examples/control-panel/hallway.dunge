@@ -15,11 +15,7 @@
             :right t)
      :then
      ((:p "A secret door stands open in the east wall.")
-      (:choice
-       :options
-       ((:option
-         :label "Enter the secret passage"
-         :do (:go "hidden room"))))))))
+      (:choice "Enter the secret passage" (:go "hidden room"))))))
 
   (:entity
    :name "control panel"
@@ -62,6 +58,4 @@
        :else
        ((:say "The button clicks, but nothing happens.")))))))
 
-  (:choice
-   :options
-   ((:option :label "Leave" :do (:quit))))))
+  (:choice "Leave" (:quit))))

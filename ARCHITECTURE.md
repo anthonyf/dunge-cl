@@ -92,31 +92,23 @@ A small game is written as data:
     (:branch
      :when (:marked? :recipe)
      :then
-     ((:choice
-       :options
-       ((:option
-         :label "Cook stew"
-         :do (:go "victory")))))
+     ((:choice "Cook stew" (:go "victory")))
      :else
      ((:p "You'd cook, but you don't know what.")))
-    (:choice
-     :options
-     ((:option :label "Search the cupboard" :do (:gosub :room "cupboard"))
-      (:option :label "Leave" :do (:go "hallway"))))))
+    (:choice "Search the cupboard" (:gosub "cupboard"))
+    (:choice "Leave" (:go "hallway"))))
 
   (:room
    :id "cupboard"
    :title "Cupboard"
    :body
    ((:p "Old shelves, dust.")
-    (:choice
-     :options
-     ((:once
-       :id :take-recipe
-       (:option
-        :label "Take the recipe card"
-        :do ((:mark :recipe)
-             (:back))))))))
+    (:once
+     :id :take-recipe
+     (:choice
+      "Take the recipe card"
+      ((:mark :recipe)
+       (:back)))))))
 
   (:room
    :id "hallway"
@@ -129,9 +121,7 @@ A small game is written as data:
    :title "Victory"
    :body
    ((:p "You cooked. You win.")
-    (:choice
-     :options
-     ((:option :label "Quit" :do (:quit))))))))
+    (:choice "Quit" (:quit)))))
 ```
 
 This source compiles into internal `game`, `room`, `p`, `branch`, `choice`,
@@ -165,8 +155,7 @@ validation catches room-internal authoring errors such as duplicate scene IDs,
 unresolved entity refs, malformed state references, and once-only choices
 without IDs. It deliberately does not reject navigation targets that may be
 declared by another room file. Full game validation remains responsible for
-game-level constraints such as the start room and `:goto`/`:gosub` room
-targets.
+game-level constraints such as the start room and `:go`/`:gosub` room targets.
 
 ## Internal AST
 
@@ -198,24 +187,24 @@ targets point at room IDs:
 
 ```lisp
 (:go "hallway")
-(:goto :room "hallway")
-(:gosub :room "cupboard")
+(:gosub "cupboard")
 ```
 
 Choices remain the only player interaction primitive. Dunge does not need
 Twine-style inline links. Removing links keeps the source schema, AST, renderer,
 validator, and future compiler simpler.
 
-Choice visibility and persistence are data:
+Choice visibility is ordinary body control flow, and persistence is data on the
+choice:
 
 ```lisp
-(:once
- :id :take-recipe
- (:option
-  :label "Take the recipe card"
-  :when (:not (:marked? :recipe))
-  :do ((:mark :recipe)
-       (:back))))
+(:when (:not (:marked? :recipe))
+ (:once
+  :id :take-recipe
+  (:choice
+   "Take the recipe card"
+   ((:mark :recipe)
+    (:back)))))
 ```
 
 Default choices are sticky. A once-only choice is hidden after it is selected.
@@ -280,16 +269,16 @@ scoring flags.
 Choices can target a single effect/control node or a sequence:
 
 ```lisp
-(:option
- :label "Take the recipe card"
- :do ((:mark :recipe)
-      (:back)))
+(:choice
+ "Take the recipe card"
+ ((:mark :recipe)
+  (:back)))
 ```
 
-List-valued option `:do` fields compile to a `sequence` effect/control AST node.
+List-valued choice effect fields compile to a `sequence` effect/control AST node.
 `sequence` is not Lisp `progn`: it executes its children in order and stops when
-a child produces a control result such as `:goto`, `:gosub`, `:back`, or
-`:quit`.
+a child produces a control result from authored forms such as `:go`, `:gosub`,
+`:back`, or `:quit`.
 
 ## Save And Load
 
@@ -320,7 +309,7 @@ state is saved for entities with stable scene IDs.
 Validation is a separate pass over the AST after game construction. It catches
 authoring errors before play:
 
-- missing `:goto` and `:gosub` room targets when statically known;
+- missing `:go` and `:gosub` room targets when statically known;
 - malformed conditions and effects;
 - unknown state scopes;
 - undeclared global state references when game-level state declarations are present;
