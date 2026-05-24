@@ -483,6 +483,7 @@ body {
     (defvar *return-stack* (array))
     (defvar *undo-stack* (array))
     (defvar *messages* (array))
+    (defvar *visible-messages* (array))
     (defvar *room-index* nil)
 
     (defun by-id (id)
@@ -579,6 +580,12 @@ body {
       (setf (aref target (@ target length)) value)
       value)
 
+    (defun copy-array (source)
+      (let ((target (array)))
+        (dolist (value (node-list source))
+          (push-array target value))
+        target))
+
     (defun pop-array (target)
       (let* ((index (- (@ target length) 1))
              (value (aref target index)))
@@ -627,6 +634,7 @@ body {
       (setf *return-stack* (array))
       (setf *undo-stack* (array))
       (setf *messages* (array))
+      (setf *visible-messages* (array))
       (dolist (room (@ *game* rooms))
         (setf (getprop *room-index* (@ room id)) room)
         (prepare-room room))
@@ -688,6 +696,7 @@ body {
               "signature" *save-signature*
               "currentRoom" (fallback-current-room-id)
               "returnStack" (capture-return-stack)
+              "messages" (copy-array *visible-messages*)
               "globals" (copy-object (@ *state* globals))
               "locals" (capture-local-state)
               "takenChoices" (copy-object (getprop *state* "taken-choices"))))
@@ -720,6 +729,7 @@ body {
             (copy-object (or (getprop state "takenChoices") (create))))
       (restore-local-state (getprop state "locals"))
       (restore-return-stack (getprop state "returnStack"))
+      (setf *messages* (copy-array (getprop state "messages")))
       (setf *current-location*
             (room-by-id (getprop state "currentRoom"))))
 
@@ -759,6 +769,7 @@ body {
       (when (> (@ *undo-stack* length) 0)
         (restore-runtime-state (pop-array *undo-stack*))
         (setf *messages* (array))
+        (setf *visible-messages* (array))
         (setf *progress-made* t)
         (save-game)
         (render-location)))
@@ -1003,6 +1014,7 @@ body {
               :self nil))
 
     (defun render-messages (body)
+      (setf *visible-messages* (copy-array *messages*))
       (dolist (message *messages*)
         (append-text body "p" "dunge-message" message))
       (setf *messages* (array)))
@@ -1071,6 +1083,7 @@ body {
                                       nil)
                             :self (@ choice self))))
         (setf *progress-made* t)
+        (setf *visible-messages* (array))
         (handle-result (or (execute-effect (@ choice target) context)
                            (create :type "refresh")))
         (save-game)))

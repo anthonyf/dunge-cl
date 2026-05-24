@@ -145,6 +145,9 @@ if ('undefined' === typeof UNDOSTACK) {
 if ('undefined' === typeof MESSAGES) {
     var MESSAGES = [];
 };
+if ('undefined' === typeof VISIBLEMESSAGES) {
+    var VISIBLEMESSAGES = [];
+};
 if ('undefined' === typeof ROOMINDEX) {
     var ROOMINDEX = null;
 };
@@ -250,6 +253,15 @@ function pushArray(target, value) {
     target[target.length] = value;
     return value;
 };
+function copyArray(source) {
+    var target = [];
+    for (var value = null, _js_arrvar6 = nodeList(source), _js_idx5 = 0; _js_idx5 < _js_arrvar6.length; _js_idx5 += 1) {
+        value = _js_arrvar6[_js_idx5];
+        pushArray(target, value);
+    };
+    __PS_MV_REG = [];
+    return target;
+};
 function popArray(target) {
     var index = target.length - 1;
     var value = target[index];
@@ -260,8 +272,8 @@ function objectKeyCount(object) {
     return Object.keys(object).length;
 };
 function walkNodes(nodes, callback) {
-    for (var node = null, _js_arrvar6 = nodeList(nodes), _js_idx5 = 0; _js_idx5 < _js_arrvar6.length; _js_idx5 += 1) {
-        node = _js_arrvar6[_js_idx5];
+    for (var node = null, _js_arrvar8 = nodeList(nodes), _js_idx7 = 0; _js_idx7 < _js_arrvar8.length; _js_idx7 += 1) {
+        node = _js_arrvar8[_js_idx7];
         callback(node);
         if (node.type === 'entity') {
             walkNodes(node.body, callback);
@@ -292,8 +304,8 @@ function resolveRoomRefs(room) {
     __PS_MV_REG = [];
     return walkNodes(room.body, function (node) {
         if (node.type === 'entity') {
-            for (var ref = null, _js_arrvar12 = nodeList(node.refs), _js_idx11 = 0; _js_idx11 < _js_arrvar12.length; _js_idx11 += 1) {
-                ref = _js_arrvar12[_js_idx11];
+            for (var ref = null, _js_arrvar14 = nodeList(node.refs), _js_idx13 = 0; _js_idx13 < _js_arrvar14.length; _js_idx13 += 1) {
+                ref = _js_arrvar14[_js_idx13];
                 node.resolvedRefs[ref.role] = room.sceneIndex[ref.target];
             };
         };
@@ -304,13 +316,14 @@ function prepareGame() {
     RETURNSTACK = [];
     UNDOSTACK = [];
     MESSAGES = [];
-    for (var room = null, _js_arrvar14 = GAME.rooms, _js_idx13 = 0; _js_idx13 < _js_arrvar14.length; _js_idx13 += 1) {
-        room = _js_arrvar14[_js_idx13];
+    VISIBLEMESSAGES = [];
+    for (var room = null, _js_arrvar16 = GAME.rooms, _js_idx15 = 0; _js_idx15 < _js_arrvar16.length; _js_idx15 += 1) {
+        room = _js_arrvar16[_js_idx15];
         ROOMINDEX[room.id] = room;
         prepareRoom(room);
     };
-    for (var room = null, _js_arrvar16 = GAME.rooms, _js_idx15 = 0; _js_idx15 < _js_arrvar16.length; _js_idx15 += 1) {
-        room = _js_arrvar16[_js_idx15];
+    for (var room = null, _js_arrvar18 = GAME.rooms, _js_idx17 = 0; _js_idx17 < _js_arrvar18.length; _js_idx17 += 1) {
+        room = _js_arrvar18[_js_idx17];
         resolveRoomRefs(room);
     };
     STATE = { 'globals' : initialState(GAME.state), 'taken-choices' : {  } };
@@ -356,8 +369,8 @@ function captureReturnStack() {
 };
 function captureLocalState() {
     var locals = [];
-    for (var room = null, _js_arrvar18 = GAME.rooms, _js_idx17 = 0; _js_idx17 < _js_arrvar18.length; _js_idx17 += 1) {
-        room = _js_arrvar18[_js_idx17];
+    for (var room = null, _js_arrvar20 = GAME.rooms, _js_idx19 = 0; _js_idx19 < _js_arrvar20.length; _js_idx19 += 1) {
+        room = _js_arrvar20[_js_idx19];
         walkNodes(room.body, function (node) {
             __PS_MV_REG = [];
             return node.type === 'entity' && node.id && objectKeyCount(node.state) > 0 ? pushArray(locals, { 'room' : room.id,
@@ -375,6 +388,7 @@ function captureRuntimeState() {
              'signature' : SAVESIGNATURE,
              'currentRoom' : fallbackCurrentRoomId(),
              'returnStack' : captureReturnStack(),
+             'messages' : copyArray(VISIBLEMESSAGES),
              'globals' : copyObject(STATE.globals),
              'locals' : captureLocalState(),
              'takenChoices' : copyObject(STATE['taken-choices'])
@@ -382,18 +396,18 @@ function captureRuntimeState() {
 };
 function restoreReturnStack(roomIds) {
     RETURNSTACK = [];
-    for (var roomId = null, _js_arrvar20 = nodeList(roomIds), _js_idx19 = 0; _js_idx19 < _js_arrvar20.length; _js_idx19 += 1) {
-        roomId = _js_arrvar20[_js_idx19];
+    for (var roomId = null, _js_arrvar22 = nodeList(roomIds), _js_idx21 = 0; _js_idx21 < _js_arrvar22.length; _js_idx21 += 1) {
+        roomId = _js_arrvar22[_js_idx21];
         pushArray(RETURNSTACK, roomById(roomId));
     };
 };
 function restoreLocalState(locals) {
-    for (var entry = null, _js_arrvar22 = nodeList(locals), _js_idx21 = 0; _js_idx21 < _js_arrvar22.length; _js_idx21 += 1) {
-        entry = _js_arrvar22[_js_idx21];
-        var room23 = roomById(entry.room);
-        var entity24 = room23.sceneIndex[entry.entity];
-        if (entity24) {
-            entity24.state = copyObject(entry.state || {  });
+    for (var entry = null, _js_arrvar24 = nodeList(locals), _js_idx23 = 0; _js_idx23 < _js_arrvar24.length; _js_idx23 += 1) {
+        entry = _js_arrvar24[_js_idx23];
+        var room25 = roomById(entry.room);
+        var entity26 = room25.sceneIndex[entry.entity];
+        if (entity26) {
+            entity26.state = copyObject(entry.state || {  });
         } else {
             runtimeError('No saveable entity ' + entry.entity + '.');
         };
@@ -407,6 +421,7 @@ function restoreRuntimeState(state) {
     STATE['taken-choices'] = copyObject(state['takenChoices'] || {  });
     restoreLocalState(state['locals']);
     restoreReturnStack(state['returnStack']);
+    MESSAGES = copyArray(state['messages']);
     __PS_MV_REG = [];
     return CURRENTLOCATION = roomById(state['currentRoom']);
 };
@@ -453,6 +468,7 @@ function undoLastChoice() {
     if (UNDOSTACK.length > 0) {
         restoreRuntimeState(popArray(UNDOSTACK));
         MESSAGES = [];
+        VISIBLEMESSAGES = [];
         PROGRESSMADE = true;
         saveGame();
         __PS_MV_REG = [];
@@ -481,8 +497,8 @@ function evaluateExpression(expression, context) {
 };
 function everyCondition(conditions, context) {
     var result = true;
-    for (var child = null, _js_arrvar24 = nodeList(conditions), _js_idx23 = 0; _js_idx23 < _js_arrvar24.length; _js_idx23 += 1) {
-        child = _js_arrvar24[_js_idx23];
+    for (var child = null, _js_arrvar26 = nodeList(conditions), _js_idx25 = 0; _js_idx25 < _js_arrvar26.length; _js_idx25 += 1) {
+        child = _js_arrvar26[_js_idx25];
         if (!evaluateCondition(child, context)) {
             result = null;
         };
@@ -492,8 +508,8 @@ function everyCondition(conditions, context) {
 };
 function someCondition(conditions, context) {
     var result = null;
-    for (var child = null, _js_arrvar26 = nodeList(conditions), _js_idx25 = 0; _js_idx25 < _js_arrvar26.length; _js_idx25 += 1) {
-        child = _js_arrvar26[_js_idx25];
+    for (var child = null, _js_arrvar28 = nodeList(conditions), _js_idx27 = 0; _js_idx27 < _js_arrvar28.length; _js_idx27 += 1) {
+        child = _js_arrvar28[_js_idx27];
         if (evaluateCondition(child, context)) {
             result = true;
         };
@@ -559,8 +575,8 @@ function executeEffect(effect, context) {
     if (effect.type === 'sequence') {
         var result = null;
         nilBlock: {
-            for (var child = null, _js_arrvar28 = effect.effects, _js_idx27 = 0; _js_idx27 < _js_arrvar28.length; _js_idx27 += 1) {
-                child = _js_arrvar28[_js_idx27];
+            for (var child = null, _js_arrvar30 = effect.effects, _js_idx29 = 0; _js_idx29 < _js_arrvar30.length; _js_idx29 += 1) {
+                child = _js_arrvar30[_js_idx29];
                 result = executeEffect(child, context);
                 if (result) {
                     __PS_MV_REG = [];
@@ -637,8 +653,8 @@ function describeNode(node, context, parent) {
     };
 };
 function describeNodes(nodes, context, parent) {
-    for (var node = null, _js_arrvar30 = nodeList(nodes), _js_idx29 = 0; _js_idx29 < _js_arrvar30.length; _js_idx29 += 1) {
-        node = _js_arrvar30[_js_idx29];
+    for (var node = null, _js_arrvar32 = nodeList(nodes), _js_idx31 = 0; _js_idx31 < _js_arrvar32.length; _js_idx31 += 1) {
+        node = _js_arrvar32[_js_idx31];
         describeNode(node, context, parent);
     };
 };
@@ -657,8 +673,8 @@ function collectNodeChoices(node, context, choices) {
                                });
         };
     } else if (node.type === 'choices') {
-        for (var choice = null, _js_arrvar32 = node.options, _js_idx31 = 0; _js_idx31 < _js_arrvar32.length; _js_idx31 += 1) {
-            choice = _js_arrvar32[_js_idx31];
+        for (var choice = null, _js_arrvar34 = node.options, _js_idx33 = 0; _js_idx33 < _js_arrvar34.length; _js_idx33 += 1) {
+            choice = _js_arrvar34[_js_idx33];
             collectNodeChoices(choice, context, choices);
         };
     } else if (node.type === 'entity') {
@@ -689,8 +705,8 @@ function collectNodeChoices(node, context, choices) {
     return choices;
 };
 function collectChoicesFrom(nodes, context, choices) {
-    for (var node = null, _js_arrvar34 = nodeList(nodes), _js_idx33 = 0; _js_idx33 < _js_arrvar34.length; _js_idx33 += 1) {
-        node = _js_arrvar34[_js_idx33];
+    for (var node = null, _js_arrvar36 = nodeList(nodes), _js_idx35 = 0; _js_idx35 < _js_arrvar36.length; _js_idx35 += 1) {
+        node = _js_arrvar36[_js_idx35];
         collectNodeChoices(node, context, choices);
     };
     __PS_MV_REG = [];
@@ -700,8 +716,9 @@ function currentContext() {
     return { 'scene' : CURRENTLOCATION.type === 'room' ? CURRENTLOCATION : null, 'self' : null };
 };
 function renderMessages(body) {
-    for (var message = null, _js_idx35 = 0; _js_idx35 < MESSAGES.length; _js_idx35 += 1) {
-        message = MESSAGES[_js_idx35];
+    VISIBLEMESSAGES = copyArray(MESSAGES);
+    for (var message = null, _js_idx37 = 0; _js_idx37 < MESSAGES.length; _js_idx37 += 1) {
+        message = MESSAGES[_js_idx37];
         appendText(body, 'p', 'dunge-message', message);
     };
     __PS_MV_REG = [];
@@ -732,18 +749,18 @@ function renderRoom(title, body, choicesElement) {
     return renderChoices(choices, choicesElement);
 };
 function renderContainerView(title, body, choicesElement) {
-    var container36 = CURRENTLOCATION.container;
+    var container38 = CURRENTLOCATION.container;
     var context = { 'scene' : null, 'self' : null };
     var choices = [];
-    title.textContent = container36.name;
+    title.textContent = container38.name;
     renderMessages(body);
-    if (container36.contents.length > 0) {
-        describeNodes(container36.contents, context, body);
+    if (container38.contents.length > 0) {
+        describeNodes(container38.contents, context, body);
     } else {
         appendText(body, 'p', null, 'There is nothing here.');
     };
-    collectChoicesFrom(container36.contents, context, choices);
-    pushArray(choices, { 'label' : container36.closeLabel || 'Back', 'target' : { 'type' : 'back' } });
+    collectChoicesFrom(container38.contents, context, choices);
+    pushArray(choices, { 'label' : container38.closeLabel || 'Back', 'target' : { 'type' : 'back' } });
     __PS_MV_REG = [];
     return renderChoices(choices, choicesElement);
 };
@@ -760,8 +777,8 @@ function renderChoiceButton(choice, choicesElement) {
 };
 function renderChoices(choices, choicesElement) {
     if (choices.length > 0) {
-        for (var choice = null, _js_idx39 = 0; _js_idx39 < choices.length; _js_idx39 += 1) {
-            choice = choices[_js_idx39];
+        for (var choice = null, _js_idx41 = 0; _js_idx41 < choices.length; _js_idx41 += 1) {
+            choice = choices[_js_idx41];
             renderChoiceButton(choice, choicesElement);
         };
     } else {
@@ -776,6 +793,7 @@ function choose(choice) {
     };
     var context = { 'scene' : CURRENTLOCATION.type === 'room' ? CURRENTLOCATION : null, 'self' : choice.self };
     PROGRESSMADE = true;
+    VISIBLEMESSAGES = [];
     handleResult(executeEffect(choice.target, context) || { 'type' : 'refresh' });
     __PS_MV_REG = [];
     return saveGame();
