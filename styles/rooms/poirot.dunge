@@ -2,9 +2,9 @@
  :id "poirot"
  :title "Poirot's Lodging"
  :body
- ((:p "Poirot's room is small, exact, and impossibly neat. He refuses to give Hastings an answer that has not been earned.")
+ ((:p "Poirot's room is small, exact, and impossibly neat. He refuses to give you an answer that has not been earned.")
   (:when (:marked? :deduction-poison-in-medicine)
-   (:p "The medicine method is now fixed in Hastings' notebook."))
+   (:p "The medicine method is now fixed in your notebook."))
   (:when (:marked? :deduction-chemist-purchase-staged)
    (:p "The chemist purchase no longer looks like proof. It looks like theatre."))
   (:when (:marked? :deduction-alfred-evelyn-conspiracy)
