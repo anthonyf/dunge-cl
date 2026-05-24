@@ -26,6 +26,7 @@
    #:compile-dunge-source
    #:container
    #:container-view
+   #:capture-runtime-state
    #:dunge-source-error
    #:dunge-source-error-message
    #:contents
@@ -38,11 +39,15 @@
    #:evaluate-expression
    #:evaluate-condition
    #:evaluate
+   #:evaluate-session
    #:execute-effect
    #:game
+   #:game-global-state
+   #:game-global-state-declarations
    #:game-player
    #:game-rooms
    #:game-start
+   #:game-taken-choices
    #:gosub
    #:goto
    #:interaction-label
@@ -51,6 +56,8 @@
    #:label
    #:load-dunge-file
    #:load-dunge-string
+   #:load-runtime-state-file
+   #:make-runtime-session
    #:name
    #:node-children
    #:node-id
@@ -63,11 +70,19 @@
    #:room
    #:room-title
    #:room-name
+   #:read-runtime-state-file
+   #:restore-runtime-state
    #:make-runtime-context
    #:runtime-context
    #:runtime-context-game
    #:runtime-context-scene
    #:runtime-context-self
+   #:runtime-session
+   #:runtime-session-current-room-name
+   #:runtime-session-game
+   #:runtime-session-location
+   #:runtime-session-return-stack
+   #:runtime-session-return-stack-room-names
    #:say
    #:sequence
    #:state-clear
@@ -82,4 +97,5 @@
    #:validate-node
    #:validate-room
    #:walk-node-tree
-   #:viewed-container))
+   #:viewed-container
+   #:write-runtime-state-file))
