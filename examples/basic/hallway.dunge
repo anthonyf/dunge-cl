@@ -2,4 +2,4 @@
  :id "hallway"
  :title "Hallway"
  :body
- ((:p :text "You are on a long dark hallway.")))
+ ((:p "You are on a long dark hallway.")))

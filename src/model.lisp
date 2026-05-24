@@ -21,6 +21,12 @@
    (global-state-declarations :reader game-global-state-declarations
                               :initarg :state
                               :initform nil)
+   (flag-state-declarations :reader game-flag-state-declarations
+                            :initarg :flags
+                            :initform nil)
+   (marked-state-declarations :reader game-marked-state-declarations
+                              :initarg :marked
+                              :initform nil)
    (taken-choices :reader game-taken-choices
                   :initform (make-hash-table :test 'eql))
    (player :accessor game-player :initarg :player :initform nil)
@@ -31,6 +37,8 @@
    (:fields
     (:start :scene-id)
     (:state :state-declarations :default nil)
+    (:flags :state-key-list :default nil)
+    (:marked :state-key-list :default nil)
     (:rooms :room-list :required t))))
 
 (define-dunge-node room ()
@@ -113,6 +121,12 @@
 (define-dunge-field-type :state-key (value context)
   (declare (ignore context))
   (state-key value))
+
+(define-dunge-field-type :state-key-list (value context)
+  (declare (ignore context))
+  (unless (listp value)
+    (source-error "State key lists must be lists; got ~S." value))
+  (mapcar #'state-key value))
 
 (define-dunge-field-type :state-scope (value context)
   (declare (ignore context))
@@ -276,7 +290,7 @@
   (:source :option
    (:fields
     (:label :string :required t)
-    (:do :effect :required t :to :target)
+    (:do :effect-or-block :required t :to :target)
     (:id :choice-id)
     (:when :condition :to :condition)
     (:once :boolean))))
@@ -388,6 +402,14 @@
    (:fields)))
 
 (defmethod initialize-instance :after ((game game) &key)
+  (setf (slot-value game 'global-state-declarations)
+        (append (game-global-state-declarations game)
+                (mapcar (lambda (key)
+                          (list key nil))
+                        (game-flag-state-declarations game))
+                (mapcar (lambda (key)
+                          (list key t))
+                        (game-marked-state-declarations game))))
   (clrhash (room-index game))
   (dolist (room (game-rooms game))
     (when (nth-value 1 (gethash (name room) (room-index game)))

@@ -728,6 +728,43 @@
       (dunge::mark-choice-taken take-recipe context)
       (is (not (dunge::choice-visible-p take-recipe context))))))
 
+(test author-facing-shorthands-keep-control-flow-composable
+  (let* ((game
+           (source-node
+            '(:game
+              :start "room"
+              :flags (:seen-note)
+              :marked (:knows-recipe)
+              :rooms
+              ((:room
+                :id "room"
+                :body
+                ((:when (:marked? :knows-recipe)
+                   (:p "You know the recipe."))
+                 (:when (:not (:marked? :seen-note))
+                   (:p "The note is still unread."))
+                 (:choice
+                  :options
+                  ((:once
+                    :id :read-note
+                    (:option
+                     :label "Read the note"
+                     :do ((:mark :seen-note)
+                          (:say "The note confirms the recipe."))))
+                   (:option
+                    :label "Forget the recipe"
+                    :do ((:unmark :knows-recipe)
+                         (:say "The recipe slips away.")))
+                   (:option :label "Leave" :do (:quit))))))))))
+         (output (run-game-with-input game (format nil "1~%1~%2~%"))))
+    (is (= 1 (substring-count "Read the note" output)))
+    (is (contains-substring-p "You know the recipe." output))
+    (is (contains-substring-p "The note is still unread." output))
+    (is (state-value (source-state :global :seen-note)
+                     (test-context game)))
+    (is (not (state-value (source-state :global :knows-recipe)
+                          (test-context game))))))
+
 (test bare-effect-choice-target-refreshes
   (let* ((game
            (source-game-with-body

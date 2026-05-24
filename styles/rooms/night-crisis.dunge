@@ -3,48 +3,34 @@
  :title "Landing Outside Emily's Room"
  :body
  ((:branch
-   :when (:state :scope :global :key :event-emily-dies)
-   :then ((:p :text "The door has been forced. The house whispers around the fact of Emily Inglethorp's death."))
-   :else ((:p :text "A cry tears through the corridor. Emily's bedroom door is locked from within, and the household gathers in panic.")))
+   :when (:marked? :event-emily-dies)
+   :then ((:p "The door has been forced. The house whispers around the fact of Emily Inglethorp's death."))
+   :else ((:p "A cry tears through the corridor. Emily's bedroom door is locked from within, and the household gathers in panic.")))
   (:choice
    :options
-   ((:option
-     :label "Force Emily's door"
+   ((:once
      :id :styles-force-door
-     :once t
-     :when (:not :condition (:state :scope :global :key :event-emily-dies))
-     :do (:sequence
-          :effects
-          ((:set
-            :target (:state :scope :global :key :event-emily-dies)
-            :value t)
-           (:set
-            :target (:state :scope :global :key :clue-locked-bedroom)
-            :value t)
-           (:say :text "The lock gives. Emily is beyond help."))))
-    (:option
-     :label "Inspect the broken bell"
+     (:option
+      :label "Force Emily's door"
+      :when (:not (:marked? :event-emily-dies))
+      :do ((:mark :event-emily-dies)
+           (:mark :clue-locked-bedroom)
+           (:say "The lock gives. Emily is beyond help."))))
+    (:once
      :id :styles-inspect-bell
-     :once t
-     :when (:state :scope :global :key :event-emily-dies)
-     :do (:sequence
-          :effects
-          ((:set
-            :target (:state :scope :global :key :clue-broken-bell)
-            :value t)
-           (:say :text "The bell could not have summoned help. Someone made sure of that."))))
-    (:option
-     :label "Check Cynthia's room"
+     (:option
+      :label "Inspect the broken bell"
+      :when (:marked? :event-emily-dies)
+      :do ((:mark :clue-broken-bell)
+           (:say "The bell could not have summoned help. Someone made sure of that."))))
+    (:once
      :id :styles-check-cynthia-room
-     :once t
-     :when (:state :scope :global :key :event-emily-dies)
-     :do (:sequence
-          :effects
-          ((:set
-            :target (:state :scope :global :key :clue-cynthia-deep-sleep)
-            :value t)
-           (:say :text "Cynthia slept through a crisis she should have heard."))))
+     (:option
+      :label "Check Cynthia's room"
+      :when (:marked? :event-emily-dies)
+      :do ((:mark :clue-cynthia-deep-sleep)
+           (:say "Cynthia slept through a crisis she should have heard."))))
     (:option
      :label "Enter Emily's bedroom"
-     :when (:state :scope :global :key :event-emily-dies)
-     :do (:goto :room "bedroom"))))))
+     :when (:marked? :event-emily-dies)
+     :do (:go "bedroom"))))))

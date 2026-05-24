@@ -2,40 +2,28 @@
  :id "dispensary"
  :title "Tadminster Dispensary"
  :body
- ((:p :text "The dispensary is orderly but dangerous, a place where ordinary hands measure extraordinary substances.")
+ ((:p "The dispensary is orderly but dangerous, a place where ordinary hands measure extraordinary substances.")
   (:choice
    :options
-   ((:option
-     :label "Ask Cynthia about bromides"
+   ((:once
      :id :styles-dispensary-bromides
-     :once t
-     :do (:sequence
-          :effects
-          ((:set
-            :target (:state :scope :global :key :clue-bromide-powders)
-            :value t)
-           (:say :text "Bromides can alter a mixture without looking like a dramatic poison."))))
-    (:option
-     :label "Ask how strychnine tastes"
+     (:option
+      :label "Ask Cynthia about bromides"
+      :do ((:mark :clue-bromide-powders)
+           (:say "Bromides can alter a mixture without looking like a dramatic poison."))))
+    (:once
      :id :styles-dispensary-taste
-     :once t
-     :do (:sequence
-          :effects
-          ((:set
-            :target (:state :scope :global :key :clue-strychnine-bitter)
-            :value t)
-           (:say :text "Strychnine is bitter. A sweet cup is not an easy hiding place."))))
-    (:option
-     :label "Ask whether medicine can change over time"
+     (:option
+      :label "Ask how strychnine tastes"
+      :do ((:mark :clue-strychnine-bitter)
+           (:say "Strychnine is bitter. A sweet cup is not an easy hiding place."))))
+    (:once
      :id :styles-dispensary-final-dose
-     :once t
-     :when (:state :scope :global :key :clue-bromide-powders)
-     :do (:sequence
-          :effects
-          ((:set
-            :target (:state :scope :global :key :clue-final-dose-danger)
-            :value t)
-           (:say :text "The final dose could become the dangerous one because of what settled before it."))))
+     (:option
+      :label "Ask whether medicine can change over time"
+      :when (:marked? :clue-bromide-powders)
+      :do ((:mark :clue-final-dose-danger)
+           (:say "The final dose could become the dangerous one because of what settled before it."))))
     (:option
      :label "Return to Poirot"
-     :do (:goto :room "poirot"))))))
+     :do (:go "poirot"))))))

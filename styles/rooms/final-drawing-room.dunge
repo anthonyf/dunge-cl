@@ -2,30 +2,27 @@
  :id "final-drawing-room"
  :title "Final Drawing Room"
  :body
- ((:p :text "Poirot arranges the room like a stage. The facts have not changed, but for the first time they may all point in one direction.")
+ ((:p "Poirot arranges the room like a stage. The facts have not changed, but for the first time they may all point in one direction.")
   (:choice
    :options
    ((:option
      :label "Accuse Alfred Inglethorp and Evelyn Howard"
      :when (:and
-            :conditions
-            ((:state :scope :global :key :deduction-poison-in-medicine)
-             (:state :scope :global :key :deduction-chemist-purchase-staged)
-             (:state :scope :global :key :deduction-alfred-wanted-arrest)
-             (:state :scope :global :key :deduction-alfred-evelyn-conspiracy)))
-     :do (:goto :room "ending-player-led"))
+            (:marked? :deduction-poison-in-medicine)
+            (:marked? :deduction-chemist-purchase-staged)
+            (:marked? :deduction-alfred-wanted-arrest)
+            (:marked? :deduction-alfred-evelyn-conspiracy))
+     :do (:go "ending-player-led"))
     (:option
      :label "Ask Poirot to complete the solution"
      :when (:and
-            :conditions
-            ((:state :scope :global :key :deduction-poison-in-medicine)
-             (:state :scope :global :key :deduction-chemist-purchase-staged)
-             (:not
-              :condition (:state :scope :global :key :deduction-alfred-evelyn-conspiracy))))
-     :do (:goto :room "ending-poirot-led"))
+            (:marked? :deduction-poison-in-medicine)
+            (:marked? :deduction-chemist-purchase-staged)
+            (:not (:marked? :deduction-alfred-evelyn-conspiracy)))
+     :do (:go "ending-poirot-led"))
     (:option
      :label "Accuse John Cavendish"
-     :do (:goto :room "ending-wrong-accusation"))
+     :do (:go "ending-wrong-accusation"))
     (:option
      :label "Accuse Alfred alone"
-     :do (:goto :room "ending-wrong-accusation"))))))
+     :do (:go "ending-wrong-accusation"))))))

@@ -2,5 +2,5 @@
  :id "ending-poirot-led"
  :title "Poirot-Led Solution"
  :body
- ((:p :text "Hastings has the method and the staged purchase. Poirot supplies the last link: Evelyn's hatred was camouflage, and Alfred's obvious guilt was a trap.")
-  (:p :text "Rank: Assisted.")))
+ ((:p "Hastings has the method and the staged purchase. Poirot supplies the last link: Evelyn's hatred was camouflage, and Alfred's obvious guilt was a trap.")
+  (:p "Rank: Assisted.")))

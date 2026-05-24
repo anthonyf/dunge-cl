@@ -2,39 +2,27 @@
  :id "servants-hall"
  :title "Servants' Hall"
  :body
- ((:p :text "The servants' hall has its own map of Styles: trays, keys, fires, bells, errands, and the tones of voices behind closed doors.")
+ ((:p "The servants' hall has its own map of Styles: trays, keys, fires, bells, errands, and the tones of voices behind closed doors.")
   (:choice
    :options
-   ((:option
-     :label "Ask Dorcas about the quarrel"
+   ((:once
      :id :styles-dorcas-quarrel
-     :once t
-     :do (:sequence
-          :effects
-          ((:set
-            :target (:state :scope :global :key :clue-dorcas-heard-quarrel)
-            :value t)
-           (:say :text "Dorcas heard more anger than the family cares to admit."))))
-    (:option
-     :label "Ask about Emily's fire"
+     (:option
+      :label "Ask Dorcas about the quarrel"
+      :do ((:mark :clue-dorcas-heard-quarrel)
+           (:say "Dorcas heard more anger than the family cares to admit."))))
+    (:once
      :id :styles-dorcas-fire
-     :once t
-     :do (:sequence
-          :effects
-          ((:set
-            :target (:state :scope :global :key :clue-fire-in-hot-weather)
-            :value t)
-           (:say :text "Emily ordered a fire on a day too warm for one."))))
-    (:option
-     :label "Ask about the coffee and cocoa tray"
+     (:option
+      :label "Ask about Emily's fire"
+      :do ((:mark :clue-fire-in-hot-weather)
+           (:say "Emily ordered a fire on a day too warm for one."))))
+    (:once
      :id :styles-dorcas-tray
-     :once t
-     :do (:sequence
-          :effects
-          ((:set
-            :target (:state :scope :global :key :clue-missing-coffee-cup)
-            :value t)
-           (:say :text "The tray details do not quite match the room."))))
+     (:option
+      :label "Ask about the coffee and cocoa tray"
+      :do ((:mark :clue-missing-coffee-cup)
+           (:say "The tray details do not quite match the room."))))
     (:option
      :label "Return to Poirot"
-     :do (:goto :room "poirot"))))))
+     :do (:go "poirot"))))))

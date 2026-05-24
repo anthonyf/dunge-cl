@@ -2,49 +2,33 @@
  :id "tea-table"
  :title "Lawn and Tea Table"
  :body
- ((:p :text "The motor turns in at the lodge gates and the old house comes into view. Before tea, John introduces you to Evelyn Howard in the garden: blunt, sunburnt, vigorous, and already warning you that usefulness at Styles comes with thorns.")
-  (:p :text "She leads you round the house to the lawn, where tea is laid under a wide tree. Mary Cavendish rises from a basket chair with a stillness that catches you off guard; Emily Inglethorp presides kindly but completely; Alfred hovers near her; Cynthia comes bright from hospital work; Evelyn watches Alfred with open contempt.")
-  (:p :text "You are still only a guest, but the household has begun arranging itself before you like evidence: old affection, new marriage, money, dependence, charm, resentment, and a politeness too thin to hide the cracks.")
-  (:branch
-   :when (:state :scope :global :key :clue-evie-warning)
-   :then ((:p :text "Evelyn's warning about Alfred hangs in the air, blunt enough to seem honest."))
-   :else nil)
-  (:branch
-   :when (:state :scope :global :key :clue-cynthia-dispensary)
-   :then ((:p :text "Cynthia's dispensary work gives her brightness a sharper edge: she handles medicines every day."))
-   :else nil)
+ ((:p "The motor turns in at the lodge gates and the old house comes into view. Before tea, John introduces you to Evelyn Howard in the garden: blunt, sunburnt, vigorous, and already warning you that usefulness at Styles comes with thorns.")
+  (:p "She leads you round the house to the lawn, where tea is laid under a wide tree. Mary Cavendish rises from a basket chair with a stillness that catches you off guard; Emily Inglethorp presides kindly but completely; Alfred hovers near her; Cynthia comes bright from hospital work; Evelyn watches Alfred with open contempt.")
+  (:p "You are still only a guest, but the household has begun arranging itself before you like evidence: old affection, new marriage, money, dependence, charm, resentment, and a politeness too thin to hide the cracks.")
+  (:when (:marked? :clue-evie-warning)
+   (:p "Evelyn's warning about Alfred hangs in the air, blunt enough to seem honest."))
+  (:when (:marked? :clue-cynthia-dispensary)
+   (:p "Cynthia's dispensary work gives her brightness a sharper edge: she handles medicines every day."))
   (:choice
    :options
-   ((:option
-     :label "Ask Evelyn why she distrusts Alfred"
+   ((:once
      :id :styles-ask-evelyn
-     :once t
-     :do (:sequence
-          :effects
-          ((:set
-            :target (:state :scope :global :key :clue-evie-warning)
-            :value t)
-           (:say :text "Evelyn says Alfred is a dangerous man, and says it as if contradiction would be indecent."))))
-    (:option
-     :label "Ask Cynthia about the dispensary"
+     (:option
+      :label "Ask Evelyn why she distrusts Alfred"
+      :do ((:mark :clue-evie-warning)
+           (:say "Evelyn says Alfred is a dangerous man, and says it as if contradiction would be indecent."))))
+    (:once
      :id :styles-ask-cynthia-tea
-     :once t
-     :do (:sequence
-          :effects
-          ((:set
-            :target (:state :scope :global :key :clue-cynthia-dispensary)
-            :value t)
-           (:say :text "Cynthia laughs about her work, but the names of drugs and poisons come easily to her."))))
-    (:option
-     :label "Ask Mary about poisons"
+     (:option
+      :label "Ask Cynthia about the dispensary"
+      :do ((:mark :clue-cynthia-dispensary)
+           (:say "Cynthia laughs about her work, but the names of drugs and poisons come easily to her."))))
+    (:once
      :id :styles-ask-mary-poisons
-     :once t
-     :do (:sequence
-          :effects
-          ((:set
-            :target (:state :scope :global :key :clue-mary-poison-talk)
-            :value t)
-           (:say :text "Mary speaks lightly of poisons, then notices Hastings noticing."))))
+     (:option
+      :label "Ask Mary about poisons"
+      :do ((:mark :clue-mary-poison-talk)
+           (:say "Mary speaks lightly of poisons, then notices Hastings noticing."))))
     (:option
      :label "Retire for the night"
-     :do (:goto :room "night-crisis"))))))
+     :do (:go "night-crisis"))))))
