@@ -106,12 +106,18 @@ body {
    "type" "keyword"
    "name" (keyword-name keyword)))
 
+(defun compile-runtime-number (value)
+  (unless (integerp value)
+    (error "HTML compiler only supports integer numeric values; got ~S." value))
+  value)
+
 (defun compile-runtime-value (value)
   (cond
     ((keywordp value)
      (compile-keyword-value value))
+    ((numberp value)
+     (compile-runtime-number value))
     ((or (stringp value)
-         (numberp value)
          (eq value t)
          (null value))
      value)
@@ -370,10 +376,15 @@ body {
              (#\Newline (write-string "\\n" stream))
              (#\Return (write-string "\\r" stream))
              (#\Tab (write-string "\\t" stream))
+             (#\< (write-string "\\u003C" stream))
              (otherwise
-              (if (< code 32)
-                  (format stream "\\u~4,'0X" code)
-                  (write-char char stream)))))
+              (cond
+                ((or (= code #x2028) (= code #x2029))
+                 (format stream "\\u~4,'0X" code))
+                ((< code 32)
+                 (format stream "\\u~4,'0X" code))
+                (t
+                 (write-char char stream))))))
   (write-char #\" stream))
 
 (defun write-json (value stream)
@@ -400,7 +411,8 @@ body {
     ((stringp value)
      (json-escape-string value stream))
     ((numberp value)
-     (princ value stream))
+     (compile-runtime-number value)
+     (format stream "~D" value))
     ((eq value t)
      (write-string "true" stream))
     ((null value)
@@ -455,11 +467,17 @@ body {
                (eql value false)
                (eql value undefined))))
 
+    (defun runtime-error (message)
+      (throw (new (-error message))))
+
     (defun initial-state (state-data)
       (copy-object (@ state-data values)))
 
     (defun room-by-id (room-id)
-      (getprop *room-index* room-id))
+      (let ((room (getprop *room-index* room-id)))
+        (if room
+            room
+            (runtime-error (+ "No room named " room-id ".")))))
 
     (defun node-list (value)
       (or value (array)))
@@ -576,7 +594,13 @@ body {
         (setf (getprop (@ resolved holder) (@ resolved key)) value)))
 
     (defun numeric-value (value)
-      (or value 0))
+      (let ((number (if (or (eql value nil)
+                            (eql value undefined))
+                        0
+                        value)))
+        (if (eql (typeof number) "number")
+            number
+            (runtime-error "Cannot increment or decrement non-numeric state value."))))
 
     (defun toggle-value (value)
       (cond
@@ -586,7 +610,8 @@ body {
          (create :type "keyword" :name "on"))
         ((eql value t) nil)
         ((eql value nil) t)
-        (t value)))
+        (t
+         (runtime-error "Cannot toggle non-toggleable state value."))))
 
     (defun execute-effect (effect context)
       (cond

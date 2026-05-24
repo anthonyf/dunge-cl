@@ -6,6 +6,7 @@
                 #:create
                 #:false
                 #:getprop
+                #:typeof
                 #:undefined)
   (:export
    #:compile-game-data
