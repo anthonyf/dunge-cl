@@ -245,7 +245,7 @@ can TYPEP the result against QUIT, BACK, and related classes."))
 
 (defmethod evaluate ((paragraph p) &optional context)
   (declare (ignore context))
-  (format *output* "~A~%" (text paragraph)))
+  (format *output* "~A~%~%" (text paragraph)))
 
 (defmethod describe-entity ((paragraph p) &optional context)
   (evaluate paragraph context))
@@ -689,7 +689,7 @@ can TYPEP the result against QUIT, BACK, and related classes."))
   nil)
 
 (defmethod execute-effect ((effect say) &optional context)
-  (format *output* "~A~%" (evaluate-expression (say-text effect) context))
+  (format *output* "~A~%~%" (evaluate-expression (say-text effect) context))
   nil)
 
 (defmethod execute-effect ((effect conditional-effect) &optional context)

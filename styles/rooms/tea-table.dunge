@@ -2,7 +2,9 @@
  :id "tea-table"
  :title "Lawn and Tea Table"
  :body
- ((:p :text "Tea is laid under a wide tree. Emily Inglethorp rules the table kindly but completely; Alfred hovers near her; Evelyn Howard watches him with open contempt.")
+ ((:p :text "The motor turns in at the lodge gates and the old house comes into view. Before tea, John introduces you to Evelyn Howard in the garden: blunt, sunburnt, vigorous, and already warning you that usefulness at Styles comes with thorns.")
+  (:p :text "She leads you round the house to the lawn, where tea is laid under a wide tree. Mary Cavendish rises from a basket chair with a stillness that catches you off guard; Emily Inglethorp presides kindly but completely; Alfred hovers near her; Cynthia comes bright from hospital work; Evelyn watches Alfred with open contempt.")
+  (:p :text "You are still only a guest, but the household has begun arranging itself before you like evidence: old affection, new marriage, money, dependence, charm, resentment, and a politeness too thin to hide the cracks.")
   (:branch
    :when (:state :scope :global :key :clue-evie-warning)
    :then ((:p :text "Evelyn's warning about Alfred hangs in the air, blunt enough to seem honest."))

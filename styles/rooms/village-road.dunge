@@ -1,0 +1,52 @@
+(:room
+ :id "village-road"
+ :title "Road to Styles Court"
+ :body
+ ((:branch
+   :when (:not :condition (:state :scope :global :key :seen-road-intro))
+   :then ((:p :text "John pilots the motor away from the station, through the village, and out toward Styles Court. The road runs past flat Essex fields bright under the July sun, peaceful enough to make the war feel indecently far away.")
+          (:p :text "The quiet does not last. John talks of volunteer drills, farms short of hands, his wife rising early to work on the land, and the uneasy way every ordinary arrangement at Styles seems to lead back to Alfred Inglethorp."))
+   :else ((:p :text "The motor carries you closer to Styles Court while John keeps one eye on the road and the other on everything he has not quite said.")))
+  (:branch
+   :when (:state :scope :global :key :fact-household-dislikes-alfred)
+   :then ((:p :text "What John said at the station settles into a clearer shape: Alfred is not merely disliked. He has changed the air of the house."))
+   :else nil)
+  (:choice
+   :options
+   ((:option
+     :label "Ask about Emily Inglethorp's place in the house"
+     :id :styles-road-emily
+     :once t
+     :do (:sequence
+          :effects
+          ((:set
+            :target (:state :scope :global :key :seen-road-intro)
+            :value t)
+           (:set
+            :target (:state :scope :global :key :fact-john-invited-hastings)
+            :value t)
+           (:say :text "John says Emily Inglethorp is generous, energetic, and accustomed to arranging everyone around her. Styles is her house in money, habit, and command."))))
+    (:option
+     :label "Ask how the family bears Alfred"
+     :id :styles-road-alfred
+     :once t
+     :do (:sequence
+          :effects
+          ((:set
+            :target (:state :scope :global :key :seen-road-intro)
+            :value t)
+           (:set
+            :target (:state :scope :global :key :fact-emily-married-alfred)
+            :value t)
+           (:set
+            :target (:state :scope :global :key :fact-household-dislikes-alfred)
+            :value t)
+           (:say :text "John gives a short laugh without amusement. Alfred is useful to Emily, unwelcome to everyone else, and somehow always present where money, letters, and influence are concerned."))))
+    (:option
+     :label "Let the car carry you into Styles"
+     :do (:sequence
+          :effects
+          ((:set
+            :target (:state :scope :global :key :seen-road-intro)
+            :value t)
+           (:goto :room "tea-table"))))))))

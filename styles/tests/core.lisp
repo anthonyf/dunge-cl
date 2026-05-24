@@ -21,7 +21,9 @@
 (defparameter *styles-shared-investigation-script*
   (lines
    ;; Station.
-   1
+   1 1 1 1
+   ;; Road to Styles: Emily, Alfred, arrive.
+   1 1 1
    ;; Tea table: Evelyn, Cynthia, Mary, retire.
    1 1 1 1
    ;; Night crisis: force door, bell, Cynthia, bedroom.
@@ -44,6 +46,7 @@
     (is (typep game 'game))
     (is (equal "station" (game-start game)))
     (is (equal '("station"
+                 "village-road"
                  "tea-table"
                  "night-crisis"
                  "bedroom"
@@ -62,8 +65,8 @@
   (let ((output
           (run-styles-script
            (lines
-            ;; Station, then skip interviews and retire.
-            1 4
+            ;; Station, road, then skip tea interviews and retire.
+            4 3 4
             ;; Force door, enter bedroom, take evidence to Poirot.
             1 3 7
             ;; Begin final reconstruction, accuse John.

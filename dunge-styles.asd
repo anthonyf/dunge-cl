@@ -10,6 +10,7 @@
                              (:module "rooms"
                               :components
                               ((:static-file "station.dunge")
+                               (:static-file "village-road.dunge")
                                (:static-file "tea-table.dunge")
                                (:static-file "night-crisis.dunge")
                                (:static-file "bedroom.dunge")

@@ -1,6 +1,8 @@
 (:game
  :start "station"
  :state ((:fact-hastings-on-leave t)
+         (:seen-station-intro nil)
+         (:seen-road-intro nil)
          (:fact-john-invited-hastings nil)
          (:fact-emily-married-alfred nil)
          (:fact-household-dislikes-alfred nil)
@@ -31,6 +33,7 @@
          (:deduction-alfred-wanted-arrest nil)
          (:deduction-alfred-evelyn-conspiracy nil))
  :rooms ("rooms/station.dunge"
+         "rooms/village-road.dunge"
          "rooms/tea-table.dunge"
          "rooms/night-crisis.dunge"
          "rooms/bedroom.dunge"

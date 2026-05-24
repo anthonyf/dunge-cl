@@ -999,6 +999,27 @@
     (is (= 1 (substring-count "Take key" output)))
     (is (= 2 (substring-count "Leave" output)))))
 
+(test paragraph-output-uses-blank-lines
+  (let* ((game (source-game-with-body
+                '(:p :text "First paragraph.")
+                '(:p :text "Second paragraph.")))
+         (output (run-game-with-input game "")))
+    (is (contains-substring-p
+         (format nil "First paragraph.~%~%Second paragraph.")
+         output))))
+
+(test say-output-uses-blank-lines-before-refresh
+  (let* ((game
+           (source-game-with-body
+            '(:choice
+              :options
+              ((:option :label "Speak" :do (:say :text "A spoken beat."))
+               (:option :label "Leave" :do (:quit))))))
+         (output (run-game-with-input game (format nil "1~%2~%"))))
+    (is (contains-substring-p
+         (format nil "A spoken beat.~%~%room")
+         output))))
+
 (test gosub-and-back-return-to-calling-room
   (let* ((game
            (source-node
