@@ -40,6 +40,11 @@ qlot exec sbcl --non-interactive --eval '(asdf:test-system :dunge/tests)'
 qlot exec sbcl --non-interactive --eval '(asdf:test-system :dunge-styles/tests)'
 ```
 
+Enable playtesting controls, including Undo, by binding `dunge:*debug*` for
+console play, passing `:debug t` to `dunge:evaluate-session`, or compiling an
+HTML build with `:debug t`. Browser builds also accept `?debug=1`, `&debug=1`
+when adding to an existing query string, or `#debug`.
+
 ## Design Notes
 
 - [ARCHITECTURE.md](ARCHITECTURE.md) describes the current `.dunge` source

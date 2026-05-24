@@ -9,18 +9,22 @@
 (defvar *input* *standard-input*)
 (defvar *output* *standard-output*)
 (defvar *pause-after-say* nil)
+(defvar *debug* nil
+  "When true, console play exposes debug controls such as Undo.")
 (defvar *pending-choice-spacing* nil)
 
 (defstruct runtime-context
   game
   scene
-  self)
+  self
+  session)
 
 (defstruct (runtime-session
              (:constructor %make-runtime-session (game location return-stack)))
   game
   location
-  return-stack)
+  return-stack
+  undo-stack)
 
 (defgeneric evaluate (thing &optional context)
   (:documentation "Evaluate a Dunge CLOS AST node in CONTEXT.
@@ -146,14 +150,16 @@ can TYPEP the result against QUIT, BACK, and related classes."))
   (make-runtime-context
    :game (runtime-context-game context)
    :scene scene
-   :self nil))
+   :self nil
+   :session (runtime-context-session context)))
 
 (defun runtime-context-for-self (context self)
   (check-type context runtime-context)
   (make-runtime-context
    :game (runtime-context-game context)
    :scene (runtime-context-scene context)
-   :self self))
+   :self self
+   :session (runtime-context-session context)))
 
 (defun runtime-context-for-location (context location)
   (if (typep location 'room)
@@ -168,11 +174,13 @@ can TYPEP the result against QUIT, BACK, and related classes."))
       (when (control-result-p result)
         (return result)))))
 
-(defun evaluate-session (session)
+(defun evaluate-session (session &key (debug *debug*))
   (check-type session runtime-session)
-  (let ((*pending-choice-spacing* nil))
+  (let ((*pending-choice-spacing* nil)
+        (*debug* debug))
     (let* ((game (runtime-session-game session))
-           (game-context (make-runtime-context :game game)))
+           (game-context (make-runtime-context :game game
+                                               :session session)))
       (loop do (let* ((location (runtime-session-location session))
                       (location-context
                         (runtime-context-for-location game-context location))
@@ -223,7 +231,8 @@ can TYPEP the result against QUIT, BACK, and related classes."))
       (when result
         (return-from evaluate result)))
     (let ((collected-options (collect-options-from (entities room) room-context)))
-      (if collected-options
+      (if (or collected-options
+              (runtime-debug-undo-available-p room-context))
           (evaluate (%make-choices :options collected-options) room-context)
           (%make-fall-through)))))
 
@@ -266,6 +275,32 @@ can TYPEP the result against QUIT, BACK, and related classes."))
                    (game-taken-choices (runtime-context-game context)))
           t)))
 
+(defun runtime-debug-undo-available-p (context)
+  (and *debug*
+       context
+       (runtime-context-session context)
+       (runtime-session-undo-stack (runtime-context-session context))))
+
+(defun remember-runtime-undo-state (context)
+  (when (and *debug*
+             context
+             (runtime-context-session context))
+    (let ((session (runtime-context-session context)))
+      (push (capture-runtime-undo-state session)
+            (runtime-session-undo-stack session)))))
+
+(defun undo-runtime-session (context)
+  (let ((session (and context (runtime-context-session context))))
+    (if (and session (runtime-session-undo-stack session))
+        (progn
+          (restore-runtime-undo-state
+           session
+           (pop (runtime-session-undo-stack session)))
+          (%make-refresh))
+        (progn
+          (format *output* "Nothing to undo.~%")
+          (%make-refresh)))))
+
 (defmethod evaluate ((paragraph p) &optional context)
   (declare (ignore context))
   (render-pending-choice-spacing)
@@ -281,12 +316,24 @@ can TYPEP the result against QUIT, BACK, and related classes."))
     (loop for option in options
           for index from 1
           do (format *output* "~D. ~A~%" index (label option)))
-    (let ((index (and options (read-choice-index (length options)))))
-      (if index
-          (let ((option (elt options (1- index))))
-            (mark-choice-taken option context)
-            (evaluate (target option) context))
-          (%make-quit)))))
+    (let* ((story-option-count (length options))
+           (undo-index (and (runtime-debug-undo-available-p context)
+                            (1+ story-option-count)))
+           (option-count (or undo-index story-option-count)))
+      (when undo-index
+        (format *output* "~D. Undo~%" undo-index))
+      (let ((index (and (> option-count 0)
+                        (read-choice-index option-count))))
+        (cond
+          ((null index)
+           (%make-quit))
+          ((and undo-index (= index undo-index))
+           (undo-runtime-session context))
+          (t
+           (let ((option (elt options (1- index))))
+             (remember-runtime-undo-state context)
+             (mark-choice-taken option context)
+             (evaluate (target option) context))))))))
 
 ;;; Effects can be reached as a choice target through EVALUATE, or inside a
 ;;; sequence through EXECUTE-EFFECT directly. This bridge keeps both paths
@@ -495,6 +542,14 @@ can TYPEP the result against QUIT, BACK, and related classes."))
           :locals (collect-runtime-local-state game)
           :taken-choices (sorted-hash-keys (game-taken-choices game)))))
 
+(defun capture-runtime-undo-state (session)
+  (let ((game (runtime-session-game session)))
+    (list :location (runtime-session-location session)
+          :return-stack (copy-list (runtime-session-return-stack session))
+          :globals (sorted-state-alist (game-global-state game))
+          :locals (collect-runtime-local-state game)
+          :taken-choices (sorted-hash-keys (game-taken-choices game)))))
+
 (defun runtime-state-field (state field &optional default)
   (ensure-runtime-property-list state "state")
   (loop for (key value) on state by #'cddr
@@ -564,6 +619,17 @@ can TYPEP the result against QUIT, BACK, and related classes."))
     (make-runtime-session game
                           :current-room current-room
                           :return-stack return-stack)))
+
+(defun restore-runtime-undo-state (session state)
+  (let ((game (runtime-session-game session)))
+    (prepare-game game)
+    (restore-runtime-global-state game (getf state :globals))
+    (restore-runtime-local-state game (getf state :locals))
+    (restore-runtime-taken-choices game (getf state :taken-choices))
+    (setf (runtime-session-location session) (getf state :location))
+    (setf (runtime-session-return-stack session)
+          (copy-list (getf state :return-stack)))
+    session))
 
 (defun read-runtime-state-form (stream source-name)
   (let ((*read-eval* nil)

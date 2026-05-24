@@ -8,6 +8,7 @@
    #:*input*
    #:*output*
    #:*pause-after-say*
+   #:*debug*
    #:action
    #:action-owner
    #:back

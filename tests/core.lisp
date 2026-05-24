@@ -75,13 +75,16 @@
           (*output* output))
       (evaluate game))))
 
-(defun run-session-script (session input)
+(defun run-session-script (session input &key debug)
   (let (result)
     (values
      (with-output-to-string (output)
        (let ((*input* (make-string-input-stream input))
              (*output* output))
-         (setf result (evaluate-session session))))
+         (setf result
+               (if debug
+                   (evaluate-session session :debug t)
+                   (evaluate-session session)))))
      result)))
 
 (defun run-example-with-input (function input)
@@ -553,6 +556,33 @@
         (is (dunge::choice-taken-p
              (second (entities start-room))
              restored-context))))))
+
+(test console-debug-undo-restores-previous-choice-state
+  (let* ((game (build-save-load-fixture))
+         (session (make-runtime-session game)))
+    (multiple-value-bind (output result)
+        (run-session-script session (format nil "2~%4~%4~%") :debug t)
+      (is (typep result 'quit))
+      (is (contains-substring-p "4. Undo" output))
+      (is (= 2 (substring-count "Find clue" output)))
+      (let ((context (test-context game)))
+        (is (not (state-value (source-state :global :clue) context)))
+        (is (= 0 (state-value (source-state :global :visits) context)))
+        (is (not (gethash :find-clue (game-taken-choices game))))))))
+
+(test console-debug-undo-works-from-fall-through-room
+  (let* ((game (build-save-load-fixture))
+         (session (make-runtime-session game)))
+    (multiple-value-bind (output result)
+        (run-session-script session (format nil "2~%2~%1~%4~%4~%") :debug t)
+      (is (typep result 'quit))
+      (is (contains-substring-p "The notes are organized." output))
+      (is (contains-substring-p "1. Undo" output))
+      (is (contains-substring-p "4. Undo" output))
+      (is (equal "start" (runtime-session-current-room-name session)))
+      (let ((context (test-context game)))
+        (is (not (state-value (source-state :global :clue) context)))
+        (is (= 0 (state-value (source-state :global :visits) context)))))))
 
 (test runtime-state-round-trips-through-safe-file-reader
   (let* ((game (build-save-load-fixture))
@@ -1200,9 +1230,21 @@
     (is (contains-substring-p "window.DUNGE_GAME_SIGNATURE = " script))
     (is (contains-substring-p "window.DUNGE_GAME_SAVE_KEY = \"dunge-save:"
                               script))
+    (is (contains-substring-p "window.DUNGE_GAME_DEBUG = false" script))
     (is (contains-substring-p "function captureRuntimeState" script))
     (is (contains-substring-p "function returnStackRoomId" script))
+    (is (contains-substring-p "function restoreRuntimeState" script))
     (is (contains-substring-p "function restoreSavedGame" script))
+    (is (contains-substring-p "function rememberUndoState" script))
+    (is (contains-substring-p "function undoLastChoice" script))
+    (is (contains-substring-p "function bindDebugControls" script))
+    (is (contains-substring-p "function debugQueryFlagP" script))
+    (is (contains-substring-p "part === 'debug=1'" script))
+    (is (contains-substring-p "function debugHashFlagP" script))
+    (is (contains-substring-p "hash === '#debug'" script))
+    (is (contains-substring-p "debugQueryFlagP(window.location.search)"
+                              script))
+    (is (not (contains-substring-p "containsTextP" script)))
     (is (contains-substring-p "node.stateData" script))
     (is (contains-substring-p "window.localStorage.setItem" script))
     (is (contains-substring-p "currentRoom" script))
@@ -1212,6 +1254,14 @@
     (is (contains-substring-p "function executeEffect" script))
     (is (contains-substring-p "function renderChoiceButton" script))
     (is (contains-substring-p "function renderChoices" script))))
+
+(test html-compiler-can-enable-debug-controls
+  (let* ((game (source-game-with-body
+                '(:choice "Leave" (:quit))))
+         (script (dunge-html:compile-game-script game :debug t))
+         (html (dunge-html:compile-index-html game :debug t)))
+    (is (contains-substring-p "window.DUNGE_GAME_DEBUG = true" script))
+    (is (contains-substring-p "window.DUNGE_GAME_DEBUG = true" html))))
 
 (test html-compiler-escapes-script-breaking-game-data
   (let* ((separator (string (code-char #x2028)))
