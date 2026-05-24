@@ -999,6 +999,18 @@
     (is (= 1 (substring-count "Take key" output)))
     (is (= 2 (substring-count "Leave" output)))))
 
+(test room-title-output-is-underlined
+  (let* ((game
+           (source-node
+            '(:game
+              :start "start"
+              :rooms
+              ((:room :id "start" :title "Scene Title")))))
+         (output (run-game-with-input game "")))
+    (is (contains-substring-p
+         (format nil "Scene Title~%===========~%~%")
+         output))))
+
 (test paragraph-output-uses-blank-lines
   (let* ((game (source-game-with-body
                 '(:p :text "First paragraph.")

@@ -193,9 +193,14 @@ can TYPEP the result against QUIT, BACK, and related classes."))
   (declare (ignore context))
   (evaluate-session (make-runtime-session game)))
 
+(defun render-scene-title (title)
+  (format *output* "~&~A~%~A~%~%"
+          title
+          (make-string (length title) :initial-element #\=)))
+
 (defmethod evaluate ((room room) &optional context)
   (let ((room-context (runtime-context-for-scene context room)))
-    (format *output* "~&~A~%" (or (room-title room) (name room)))
+    (render-scene-title (or (room-title room) (name room)))
     (let ((result (describe-children (entities room) room-context)))
       (when result
         (return-from evaluate result)))
@@ -338,7 +343,7 @@ can TYPEP the result against QUIT, BACK, and related classes."))
 (defmethod evaluate ((view container-view) &optional context)
   (let* ((container (viewed-container view))
          (collected-options nil))
-    (format *output* "~&~A~%" (name container))
+    (render-scene-title (name container))
     (if (contents container)
         (let ((result (describe-children (contents container) context)))
           (when result
