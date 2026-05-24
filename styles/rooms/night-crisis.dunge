@@ -6,31 +6,25 @@
    :when (:marked? :event-emily-dies)
    :then ((:p "The door has been forced. The house whispers around the fact of Emily Inglethorp's death."))
    :else ((:p "A cry tears through the corridor. Emily's bedroom door is locked from within, and the household gathers in panic.")))
-  (:choice
-   :options
-   ((:once
-     :id :styles-force-door
-     (:option
-      :label "Force Emily's door"
-      :when (:not (:marked? :event-emily-dies))
-      :do ((:mark :event-emily-dies)
-           (:mark :clue-locked-bedroom)
-           (:say "The lock gives. Emily is beyond help."))))
-    (:once
-     :id :styles-inspect-bell
-     (:option
-      :label "Inspect the broken bell"
-      :when (:marked? :event-emily-dies)
-      :do ((:mark :clue-broken-bell)
-           (:say "The bell could not have summoned help. Someone made sure of that."))))
-    (:once
-     :id :styles-check-cynthia-room
-     (:option
-      :label "Check Cynthia's room"
-      :when (:marked? :event-emily-dies)
-      :do ((:mark :clue-cynthia-deep-sleep)
-           (:say "Cynthia slept through a crisis she should have heard."))))
-    (:option
-     :label "Enter Emily's bedroom"
-     :when (:marked? :event-emily-dies)
-     :do (:go "bedroom"))))))
+  (:when (:not (:marked? :event-emily-dies))
+   (:once
+    :id :styles-force-door
+    (:choice
+     "Force Emily's door"
+     ((:mark :event-emily-dies)
+      (:mark :clue-locked-bedroom)
+      (:say "The lock gives. Emily is beyond help.")))))
+  (:when (:marked? :event-emily-dies)
+   (:once
+    :id :styles-inspect-bell
+    (:choice
+     "Inspect the broken bell"
+     ((:mark :clue-broken-bell)
+      (:say "The bell could not have summoned help. Someone made sure of that."))))
+   (:once
+    :id :styles-check-cynthia-room
+    (:choice
+     "Check Cynthia's room"
+     ((:mark :clue-cynthia-deep-sleep)
+      (:say "Cynthia slept through a crisis she should have heard."))))
+   (:choice "Enter Emily's bedroom" (:go "bedroom")))))

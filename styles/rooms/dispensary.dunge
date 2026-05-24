@@ -3,27 +3,23 @@
  :title "Tadminster Dispensary"
  :body
  ((:p "The dispensary is orderly but dangerous, a place where ordinary hands measure extraordinary substances.")
-  (:choice
-   :options
-   ((:once
-     :id :styles-dispensary-bromides
-     (:option
-      :label "Ask Cynthia about bromides"
-      :do ((:mark :clue-bromide-powders)
-           (:say "Bromides can alter a mixture without looking like a dramatic poison."))))
-    (:once
-     :id :styles-dispensary-taste
-     (:option
-      :label "Ask how strychnine tastes"
-      :do ((:mark :clue-strychnine-bitter)
-           (:say "Strychnine is bitter. A sweet cup is not an easy hiding place."))))
-    (:once
-     :id :styles-dispensary-final-dose
-     (:option
-      :label "Ask whether medicine can change over time"
-      :when (:marked? :clue-bromide-powders)
-      :do ((:mark :clue-final-dose-danger)
-           (:say "The final dose could become the dangerous one because of what settled before it."))))
-    (:option
-     :label "Return to Poirot"
-     :do (:go "poirot"))))))
+  (:once
+   :id :styles-dispensary-bromides
+   (:choice
+    "Ask Cynthia about bromides"
+    ((:mark :clue-bromide-powders)
+     (:say "Bromides can alter a mixture without looking like a dramatic poison."))))
+  (:once
+   :id :styles-dispensary-taste
+   (:choice
+    "Ask how strychnine tastes"
+    ((:mark :clue-strychnine-bitter)
+     (:say "Strychnine is bitter. A sweet cup is not an easy hiding place."))))
+  (:when (:marked? :clue-bromide-powders)
+   (:once
+    :id :styles-dispensary-final-dose
+    (:choice
+     "Ask whether medicine can change over time"
+     ((:mark :clue-final-dose-danger)
+      (:say "The final dose could become the dangerous one because of what settled before it.")))))
+  (:choice "Return to Poirot" (:go "poirot"))))

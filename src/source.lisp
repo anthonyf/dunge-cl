@@ -152,6 +152,11 @@
           do (return value)
         finally (return marker)))
 
+(defun private-source-tag-p (tag)
+  (let ((name (symbol-name tag)))
+    (and (plusp (length name))
+         (char= (char name 0) #\%))))
+
 (defun parse-source-plist (tag arguments)
   (unless (evenp (length arguments))
     (source-error "~S expects keyword fields, got ~S." tag arguments))
@@ -176,33 +181,29 @@
                   arguments))
   (first arguments))
 
+(defun expand-choice-source-form (arguments)
+  (unless (and (= 2 (length arguments))
+               (stringp (first arguments)))
+    (source-error
+     ":CHOICE expects (:CHOICE label effect); got ~S."
+     arguments))
+  `(:%choice
+    :label ,(first arguments)
+    :do ,(second arguments)))
+
 (defun expand-once-source-form (arguments)
-  (labels ((ensure-option-form (form)
-             (unless (and (consp form)
-                          (eq (first form) :option))
-               (source-error ":ONCE wraps an :OPTION form; got ~S." form))
-             form)
-           (option-has-field-p (form field)
-             (member field (rest form) :test #'eq)))
-    (cond
-      ((and (= 3 (length arguments))
-            (eq (first arguments) :id))
-       (let ((id (second arguments))
-             (option (ensure-option-form (third arguments))))
-         (when (option-has-field-p option :id)
-           (source-error ":ONCE supplies :ID, but wrapped option already has :ID."))
-         (when (option-has-field-p option :once)
-           (source-error ":ONCE wraps once-only behavior; omit :ONCE on the option."))
-         (append option (list :id id :once t))))
-      ((= 1 (length arguments))
-       (let ((option (ensure-option-form (first arguments))))
-         (when (option-has-field-p option :once)
-           (source-error ":ONCE wraps once-only behavior; omit :ONCE on the option."))
-         (append option (list :once t))))
-      (t
-       (source-error
-        ":ONCE expects (:ONCE :ID choice-id (:OPTION ...)) or (:ONCE (:OPTION ...)); got ~S."
-        arguments)))))
+  (unless (and (= 3 (length arguments))
+               (eq (first arguments) :id))
+    (source-error
+     ":ONCE expects (:ONCE :ID choice-id (:CHOICE ...)); got ~S."
+     arguments))
+  (let ((choice (third arguments)))
+    (unless (and (consp choice)
+                 (eq (first choice) :choice))
+      (source-error ":ONCE wraps a :CHOICE form; got ~S." choice))
+    (append (expand-choice-source-form (rest choice))
+            (list :id (second arguments)
+                  :once t))))
 
 (defun expand-dunge-source-form (form)
   (let ((tag (first form))
@@ -219,7 +220,13 @@
            `(:say :text ,(first arguments))
            form))
       (:go
-       `(:goto :room ,(exactly-one-shorthand-argument tag arguments)))
+       `(:%goto :room ,(exactly-one-shorthand-argument tag arguments)))
+      (:gosub
+       `(:%gosub :room ,(exactly-one-shorthand-argument tag arguments)))
+      (:choice
+       (expand-choice-source-form arguments))
+      (:once
+       (expand-once-source-form arguments))
       (:mark
        `(:set
          :target ,(global-state-source-form
@@ -253,8 +260,6 @@
          (source-error ":WHEN expects a condition and at least one body form; got ~S."
                        arguments))
        `(:branch :when ,(first arguments) :then ,(rest arguments)))
-      (:once
-       (expand-once-source-form arguments))
       (otherwise
        form))))
 
@@ -310,13 +315,17 @@
       (unless (and (consp form) (keywordp (first form)))
         (source-error "Expected a source form beginning with a keyword, got ~S."
                       form))
-      (let* ((form (expand-dunge-source-form form))
+      (let* ((source-tag (first form))
+             (form-context (source-context-with-frame context :form source-tag))
+             (*dunge-source-context* form-context)
+             (form (expand-dunge-source-form form))
              (tag (first form))
              (descriptor (gethash tag *dunge-source-forms*)))
+        (when (private-source-tag-p source-tag)
+          (source-error "Unknown source form ~S." source-tag))
         (unless descriptor
           (source-error "Unknown source form ~S." tag))
-        (let* ((form-context (source-context-with-frame context :form tag))
-               (*dunge-source-context* form-context))
+        (let ((*dunge-source-context* form-context))
           (with-source-error-wrapping
             (let ((node (apply (dunge-source-form-builder descriptor)
                                (compile-source-fields descriptor
@@ -472,14 +481,6 @@
   (mapcar (lambda (form)
             (compile-dunge-room-source form context))
           (ensure-source-list :room-list value)))
-
-(define-dunge-field-type :choice-list (value context)
-  (mapcar (lambda (form)
-            (let ((node (compile-dunge-source-form form context)))
-              (unless (typep node 'choice)
-                (source-error "Expected an option source form, got ~S." form))
-              node))
-          (ensure-source-list :choice-list value)))
 
 (define-dunge-field-type :condition (value context)
   (compile-dunge-condition value context))

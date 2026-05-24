@@ -41,16 +41,16 @@
   :group 'dunge)
 
 (defconst dunge--source-tags
-  '(":game" ":room" ":goto" ":gosub" ":back" ":state" ":eq" ":not" ":and"
+  '(":game" ":room" ":go" ":gosub" ":back" ":state" ":eq" ":not" ":and"
     ":or" ":sequence" ":set" ":clear" ":inc" ":dec" ":toggle" ":say" ":if"
-    ":option" ":choice" ":entity" ":branch" ":action" ":placed" ":item"
+    ":choice" ":once" ":entity" ":branch" ":action" ":placed" ":item"
     ":container" ":p" ":quit")
   "Dunge source form tags.")
 
 (defconst dunge--source-fields
   '(":amount" ":body" ":close" ":condition" ":contents" ":description" ":do"
-    ":effects" ":else" ":id" ":key" ":label" ":left" ":name" ":once"
-    ":open" ":options" ":refs" ":right" ":role" ":room" ":rooms" ":scope"
+    ":effects" ":else" ":id" ":key" ":label" ":left" ":name"
+    ":open" ":refs" ":right" ":role" ":rooms" ":scope"
     ":start" ":state" ":target" ":text" ":then" ":thing" ":title" ":value"
     ":when")
   "Dunge source field names.")

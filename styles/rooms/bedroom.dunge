@@ -3,41 +3,35 @@
  :title "Mrs. Inglethorp's Bedroom"
  :body
  ((:p "The bedroom is disordered by panic: a fallen table, traces of late-night drinks, a locked purple case, a cold grate, and too many people claiming to have noticed too little.")
-  (:choice
-   :options
-   ((:once
-     :id :styles-inspect-grate
-     (:option
-      :label "Inspect the grate"
-      :do ((:mark :clue-charred-will-fragment)
-           (:say "A charred scrap suggests a document was burned here."))))
-    (:once
-     :id :styles-inspect-coffee
-     (:option
-      :label "Inspect the coffee remains"
-      :do ((:mark :clue-broken-coffee-cup)
-           (:say "The broken cup draws the eye too neatly."))))
-    (:once
-     :id :styles-inspect-cocoa
-     (:option
-      :label "Inspect the cocoa saucepan"
-      :do ((:mark :clue-cocoa-saucepan)
-           (:say "The cocoa is present, suspicious, and perhaps too convenient."))))
-    (:once
-     :id :styles-inspect-medicine
-     (:option
-      :label "Inspect the medicine bottle"
-      :do ((:mark :clue-medicine-contained-strychnine)
-           (:say "The medicine is not innocent. Its contents point toward strychnine."))))
-    (:once
-     :id :styles-inspect-case
-     (:option
-      :label "Inspect the purple despatch-case"
-      :do ((:mark :clue-purple-despatch-case)
-           (:say "Emily kept important papers in the purple despatch-case."))))
-    (:option
-     :label "Question the servants"
-     :do (:go "servants-hall"))
-    (:option
-     :label "Take the evidence to Poirot"
-     :do (:go "poirot"))))))
+  (:once
+   :id :styles-inspect-grate
+   (:choice
+    "Inspect the grate"
+    ((:mark :clue-charred-will-fragment)
+     (:say "A charred scrap suggests a document was burned here."))))
+  (:once
+   :id :styles-inspect-coffee
+   (:choice
+    "Inspect the coffee remains"
+    ((:mark :clue-broken-coffee-cup)
+     (:say "The broken cup draws the eye too neatly."))))
+  (:once
+   :id :styles-inspect-cocoa
+   (:choice
+    "Inspect the cocoa saucepan"
+    ((:mark :clue-cocoa-saucepan)
+     (:say "The cocoa is present, suspicious, and perhaps too convenient."))))
+  (:once
+   :id :styles-inspect-medicine
+   (:choice
+    "Inspect the medicine bottle"
+    ((:mark :clue-medicine-contained-strychnine)
+     (:say "The medicine is not innocent. Its contents point toward strychnine."))))
+  (:once
+   :id :styles-inspect-case
+   (:choice
+    "Inspect the purple despatch-case"
+    ((:mark :clue-purple-despatch-case)
+     (:say "Emily kept important papers in the purple despatch-case."))))
+  (:choice "Question the servants" (:go "servants-hall"))
+  (:choice "Take the evidence to Poirot" (:go "poirot"))))

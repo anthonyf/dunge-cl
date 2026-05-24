@@ -147,6 +147,19 @@
   (signals error
     (source-node '(:p :text 42)))
   (signals error
+    (source-node '(:option :label "Retired" :do (:quit))))
+  (signals error
+    (source-game-with-body
+     '(:choice
+       :options
+       ((:option :label "Retired" :do (:quit))))))
+  (signals error
+    (source-node '(:goto :room "retired")))
+  (signals error
+    (source-node '(:gosub :room "retired")))
+  (signals error
+    (source-node '(:%choice :label "Private" :do (:quit))))
+  (signals error
     (load-dunge-string "#.(error \"read eval leaked\")"))
   (is (contains-substring-p
        "Room entries must be room source forms or string file paths"
@@ -186,7 +199,7 @@
          (progn
            (write-test-file
             start-room
-            "(:room :id \"start\" :body ((:choice :options ((:option :do (:quit))))))")
+            "(:room :id \"start\" :body ((:choice (:quit))))")
            (write-test-file
             manifest
             "(:game :start \"start\" :rooms (\"rooms/start.dunge\"))")
@@ -198,9 +211,9 @@
                           (namestring (truename start-room)))
                   message))
              (is (contains-substring-p
-                  "while compiling :ROOM -> field :BODY -> :CHOICE -> field :OPTIONS -> :OPTION -> field :LABEL"
+                  "while compiling :ROOM -> field :BODY -> :CHOICE"
                   message))
-             (is (contains-substring-p ":OPTION requires field :LABEL"
+             (is (contains-substring-p ":CHOICE expects"
                                        message))
              (is (contains-substring-p
                   (format nil "included from ~A"
@@ -421,12 +434,10 @@
   (let ((game
           (source-game-with-body
            '(:choice
-             :options
-             ((:option
-               :label "Set declared"
-               :do (:set
-                    :target (:state :scope :global :key :known)
-                    :value t)))))))
+             "Set declared"
+             (:set
+              :target (:state :scope :global :key :known)
+              :value t)))))
     (is (not (dunge::global-state-declared-p game))))
   (let ((game
           (source-node
@@ -438,12 +449,10 @@
                :id "room"
                :body
                ((:choice
-                 :options
-                 ((:option
-                   :label "Set declared"
-                   :do (:set
-                        :target (:state :scope :global :key :known)
-                        :value t)))))))))))
+                 "Set declared"
+                 (:set
+                  :target (:state :scope :global :key :known)
+                  :value t)))))))))
     (is (equal '(:known) (dunge::declared-global-state-keys game)))
     (is (not (state-value (source-state :global :known)
                           (test-context game)))))
@@ -460,12 +469,10 @@
                :id "room"
                :body
                ((:choice
-                 :options
-                 ((:option
-                   :label "Set undeclared"
-                   :do (:set
-                        :target (:state :scope :global :key :missing)
-                        :value t)))))))))))))
+                 "Set undeclared"
+                 (:set
+                  :target (:state :scope :global :key :missing)
+                  :value t)))))))))))
   (is (contains-substring-p
        "declares state key :KNOWN more than once"
        (error-message-from
@@ -499,25 +506,19 @@
            ((:set
              :target (:state :scope :self :key :open)
              :value t)))))
-        (:choice
-         :options
-         ((:option
-           :label "Find clue"
-           :id :find-clue
-           :once t
-           :do (:sequence
-                :effects
-                ((:set
-                  :target (:state :scope :global :key :clue)
-                  :value t)
-                 (:inc
-                  :target (:state :scope :global :key :visits)))))
-          (:option
-           :label "Go to notes"
-           :do (:goto :room "notes"))
-          (:option
-           :label "Quit"
-           :do (:quit))))))
+        (:once
+         :id :find-clue
+         (:choice
+          "Find clue"
+          (:sequence
+           :effects
+           ((:set
+             :target (:state :scope :global :key :clue)
+             :value t)
+            (:inc
+             :target (:state :scope :global :key :visits))))))
+        (:choice "Go to notes" (:go "notes"))
+        (:choice "Quit" (:quit))))
       (:room
        :id "notes"
        :title "Notes"
@@ -550,9 +551,7 @@
         (is (state-value (source-state :self :open)
                          (test-context fresh-game :self panel)))
         (is (dunge::choice-taken-p
-             (first
-              (options
-               (second (entities start-room))))
+             (second (entities start-room))
              restored-context))))))
 
 (test runtime-state-round-trips-through-safe-file-reader
@@ -611,9 +610,7 @@
        :then ((:p :text "bad")))))
   (signals error
     (source-game-with-body
-     '(:choice
-       :options
-       ((:option :label "Bad" :do (:quit) :when 42)))))
+     '(:choice "Bad" (:quit) :when 42)))
   (signals error
     (source-game-with-body
      '(:branch
@@ -706,27 +703,22 @@
 (test once-and-conditional-choices
   (let* ((game
            (source-game-with-body
-            '(:choice
-              :options
-              ((:option
-                :label "Take the recipe"
-                :do (:quit)
-                :id :take-recipe
-                :once t
-                :when (:state :scope :global :key :recipe))))))
-         (choice-node (first (entities (first (game-rooms game)))))
-         (take-recipe (first (options choice-node))))
+            '(:when (:state :scope :global :key :recipe)
+              (:once :id :take-recipe
+               (:choice "Take the recipe" (:quit))))))
+         (branch-node (first (entities (first (game-rooms game))))))
     (let ((context (test-context game)))
-      (is (not (dunge::choice-visible-p take-recipe context)))
+      (is (null (collect-choices branch-node context)))
       (execute-effect
        (source-node
         '(:set
           :target (:state :scope :global :key :recipe)
           :value t))
        context)
-      (is (dunge::choice-visible-p take-recipe context))
-      (dunge::mark-choice-taken take-recipe context)
-      (is (not (dunge::choice-visible-p take-recipe context))))))
+      (let ((take-recipe (first (collect-choices branch-node context))))
+        (is (dunge::choice-visible-p take-recipe context))
+        (dunge::mark-choice-taken take-recipe context)
+        (is (null (collect-choices branch-node context)))))))
 
 (test author-facing-shorthands-keep-control-flow-composable
   (let* ((game
@@ -743,19 +735,17 @@
                    (:p "You know the recipe."))
                  (:when (:not (:marked? :seen-note))
                    (:p "The note is still unread."))
+                 (:once
+                  :id :read-note
+                  (:choice
+                   "Read the note"
+                   ((:mark :seen-note)
+                    (:say "The note confirms the recipe."))))
                  (:choice
-                  :options
-                  ((:once
-                    :id :read-note
-                    (:option
-                     :label "Read the note"
-                     :do ((:mark :seen-note)
-                          (:say "The note confirms the recipe."))))
-                   (:option
-                    :label "Forget the recipe"
-                    :do ((:unmark :knows-recipe)
-                         (:say "The recipe slips away.")))
-                   (:option :label "Leave" :do (:quit))))))))))
+                  "Forget the recipe"
+                  ((:unmark :knows-recipe)
+                   (:say "The recipe slips away.")))
+                 (:choice "Leave" (:quit))))))))
          (output (run-game-with-input game (format nil "1~%1~%2~%"))))
     (is (= 1 (substring-count "Read the note" output)))
     (is (contains-substring-p "You know the recipe." output))
@@ -769,13 +759,11 @@
   (let* ((game
            (source-game-with-body
             '(:choice
-              :options
-              ((:option
-                :label "Set flag"
-                :do (:set
-                     :target (:state :scope :global :key :flag)
-                     :value t))
-               (:option :label "Quit" :do (:quit))))))
+              "Set flag"
+              (:set
+               :target (:state :scope :global :key :flag)
+               :value t))
+            '(:choice "Quit" (:quit))))
          (result (let ((*input* (make-string-input-stream (format nil "1~%2~%")))
                        (*output* (make-string-output-stream)))
                    (evaluate game))))
@@ -862,7 +850,7 @@
 
 (test room-validation-allows-unresolved-navigation-targets
   (let ((room (load-dunge-string
-               "(:room :id \"start\" :body ((:choice :options ((:option :label \"Next\" :do (:goto :room \"missing\"))))))")))
+               "(:room :id \"start\" :body ((:choice \"Next\" (:go \"missing\"))))")))
     (is (typep room 'room))
     (is (eq room (validate-room room)))))
 
@@ -875,19 +863,18 @@
      "(:room :id \"start\" :body ((:entity :name \"panel\" :refs ((:door \"missing-door\")))))"))
   (signals error
     (load-dunge-string
-     "(:room :id \"start\" :body ((:choice :options ((:option :label \"Once\" :do (:quit) :once t)))))")))
+     "(:room :id \"start\" :body ((:choice \"Once\" (:quit) :once t)))")))
 
 (test validator-catches-authoring-errors
   (signals error
     (source-game-with-body
-     '(:choice
-       :options
-       ((:option :label "Missing room" :do (:goto :room "missing"))))))
+     '(:choice "Missing room" (:go "missing"))))
   (signals error
     (source-game-with-body
-     '(:choice
-       :options
-       ((:option :label "Once without id" :do (:quit) :once t)))))
+     '(:choice "Once without id" (:quit) :once t)))
+  (signals error
+    (source-game-with-body
+     '(:once (:choice "Once without id" (:quit)))))
   (signals error
     (source-node
      '(:game
@@ -918,10 +905,8 @@
 (test validator-catches-duplicate-ids-and-malformed-state-refs
   (signals error
     (source-game-with-body
-     '(:choice
-       :options
-       ((:option :label "First" :do (:quit) :id :same)
-        (:option :label "Second" :do (:quit) :id :same)))))
+     '(:once :id :same (:choice "First" (:quit)))
+     '(:once :id :same (:choice "Second" (:quit)))))
   (signals error
     (source-game-with-body
      '(:entity :name "first" :id "same")
@@ -961,9 +946,7 @@
        :refs ((:door :door)))))
   (signals error
     (source-game-with-body
-     '(:choice
-       :options
-       ((:option :label "Take" :do (:quit) :id "take" :once t)))))
+     '(:once :id "take" (:choice "Take" (:quit)))))
   (signals error
     (source-node '(:state :scope :self :key "switch")))
   (signals error
@@ -1007,7 +990,7 @@
                ((:set
                  :target (:state :scope :global :key :before-control)
                  :value t)
-                (:goto :room "next")
+                (:go "next")
                 (:set
                  :target (:state :scope :global :key :after-control)
                  :value t))))
@@ -1020,18 +1003,16 @@
 (test once-choice-disappears-in-scripted-game
   (let* ((game
            (source-game-with-body
-            '(:choice
-              :options
-              ((:option
-                :label "Take key"
-                :do (:sequence
-                     :effects
-                     ((:set
-                       :target (:state :scope :global :key :key)
-                       :value t)))
-                :id :take-key
-                :once t)
-               (:option :label "Leave" :do (:quit))))))
+            '(:once
+              :id :take-key
+              (:choice
+               "Take key"
+               (:sequence
+                :effects
+                ((:set
+                  :target (:state :scope :global :key :key)
+                  :value t)))))
+            '(:choice "Leave" (:quit))))
          (output (run-game-with-input game (format nil "1~%1~%"))))
     (is (= 1 (substring-count "Take key" output)))
     (is (= 2 (substring-count "Leave" output)))))
@@ -1070,10 +1051,8 @@
 (test say-output-uses-blank-lines-before-refresh
   (let* ((game
            (source-game-with-body
-            '(:choice
-              :options
-              ((:option :label "Speak" :do (:say :text "A spoken beat."))
-               (:option :label "Leave" :do (:quit))))))
+            '(:choice "Speak" (:say :text "A spoken beat."))
+            '(:choice "Leave" (:quit))))
          (output (run-game-with-input game (format nil "1~%2~%"))))
     (is (contains-substring-p
          (format nil "A spoken beat.~%~%room")
@@ -1082,10 +1061,8 @@
 (test say-output-can-pause-before-refresh
   (let* ((game
            (source-game-with-body
-            '(:choice
-              :options
-              ((:option :label "Speak" :do (:say :text "A spoken beat."))
-               (:option :label "Leave" :do (:quit))))))
+            '(:choice "Speak" (:say :text "A spoken beat."))
+            '(:choice "Leave" (:quit))))
          (output
            (with-output-to-string (stream)
              (let ((*input* (make-string-input-stream
@@ -1100,10 +1077,8 @@
 (test choice-submit-adds-spacing-before-next-output
   (let* ((game
            (source-game-with-body
-            '(:choice
-              :options
-              ((:option :label "Speak" :do (:say :text "A spoken beat."))
-               (:option :label "Leave" :do (:quit))))))
+            '(:choice "Speak" (:say :text "A spoken beat."))
+            '(:choice "Leave" (:quit))))
          (output (run-game-with-input game (format nil "1~%2~%"))))
     (is (contains-substring-p
          (format nil "2. Leave~%> ~%A spoken beat.")
@@ -1118,9 +1093,7 @@
               ((:room
                 :id "start"
                 :body
-                ((:choice
-                  :options
-                  ((:option :label "Go" :do (:goto :room "next"))))))
+                ((:choice "Go" (:go "next"))))
                (:room :id "next" :title "Next Room")))))
          (output (run-game-with-input game (format nil "1~%"))))
     (is (contains-substring-p
@@ -1140,17 +1113,13 @@
                 :id "start"
                 :body
                 ((:p :text "The start chamber waits.")
-                 (:choice
-                  :options
-                  ((:option :label "Visit alcove" :do (:gosub :room "alcove"))
-                   (:option :label "Leave" :do (:quit))))))
+                 (:choice "Visit alcove" (:gosub "alcove"))
+                 (:choice "Leave" (:quit))))
                (:room
                 :id "alcove"
                 :body
                 ((:p :text "The alcove hums.")
-                 (:choice
-                  :options
-                  ((:option :label "Back" :do (:back))))))))))
+                 (:choice "Back" (:back))))))))
          (output (run-game-with-input game (format nil "1~%1~%2~%"))))
     (is (= 2 (substring-count "The start chamber waits." output)))
     (is (= 1 (substring-count "The alcove hums." output)))))

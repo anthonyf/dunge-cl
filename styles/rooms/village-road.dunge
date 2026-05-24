@@ -9,24 +9,22 @@
    :else ((:p "The motor carries you closer to Styles Court while John keeps one eye on the road and the other on everything he has not quite said.")))
   (:when (:marked? :fact-household-dislikes-alfred)
    (:p "What John said at the station settles into a clearer shape: Alfred is not merely disliked. He has changed the air of the house."))
+  (:once
+   :id :styles-road-emily
+   (:choice
+    "Ask about Emily Inglethorp's place in the house"
+    ((:mark :seen-road-intro)
+     (:mark :fact-john-invited-hastings)
+     (:say "\"My mother is generosity itself,\" John says, \"and energy itself too. Styles is hers in money, in habit, and in command. We all move where she places us.\""))))
+  (:once
+   :id :styles-road-alfred
+   (:choice
+    "Ask how the family bears Alfred"
+    ((:mark :seen-road-intro)
+     (:mark :fact-emily-married-alfred)
+     (:mark :fact-household-dislikes-alfred)
+     (:say "John gives a short laugh without amusement. \"Alfred is useful to my mother, unwelcome to the rest of us, and somehow always present where money, letters, and influence are concerned.\""))))
   (:choice
-   :options
-   ((:once
-     :id :styles-road-emily
-     (:option
-      :label "Ask about Emily Inglethorp's place in the house"
-      :do ((:mark :seen-road-intro)
-           (:mark :fact-john-invited-hastings)
-           (:say "\"My mother is generosity itself,\" John says, \"and energy itself too. Styles is hers in money, in habit, and in command. We all move where she places us.\""))))
-    (:once
-     :id :styles-road-alfred
-     (:option
-      :label "Ask how the family bears Alfred"
-      :do ((:mark :seen-road-intro)
-           (:mark :fact-emily-married-alfred)
-           (:mark :fact-household-dislikes-alfred)
-           (:say "John gives a short laugh without amusement. \"Alfred is useful to my mother, unwelcome to the rest of us, and somehow always present where money, letters, and influence are concerned.\""))))
-    (:option
-     :label "Let the car carry you into Styles"
-     :do ((:mark :seen-road-intro)
-          (:go "tea-table")))))))
+   "Let the car carry you into Styles"
+   ((:mark :seen-road-intro)
+    (:go "tea-table")))))

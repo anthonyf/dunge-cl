@@ -3,26 +3,22 @@
  :title "Servants' Hall"
  :body
  ((:p "The servants' hall has its own map of Styles: trays, keys, fires, bells, errands, and the tones of voices behind closed doors.")
-  (:choice
-   :options
-   ((:once
-     :id :styles-dorcas-quarrel
-     (:option
-      :label "Ask Dorcas about the quarrel"
-      :do ((:mark :clue-dorcas-heard-quarrel)
-           (:say "Dorcas heard more anger than the family cares to admit."))))
-    (:once
-     :id :styles-dorcas-fire
-     (:option
-      :label "Ask about Emily's fire"
-      :do ((:mark :clue-fire-in-hot-weather)
-           (:say "Emily ordered a fire on a day too warm for one."))))
-    (:once
-     :id :styles-dorcas-tray
-     (:option
-      :label "Ask about the coffee and cocoa tray"
-      :do ((:mark :clue-missing-coffee-cup)
-           (:say "The tray details do not quite match the room."))))
-    (:option
-     :label "Return to Poirot"
-     :do (:go "poirot"))))))
+  (:once
+   :id :styles-dorcas-quarrel
+   (:choice
+    "Ask Dorcas about the quarrel"
+    ((:mark :clue-dorcas-heard-quarrel)
+     (:say "Dorcas heard more anger than the family cares to admit."))))
+  (:once
+   :id :styles-dorcas-fire
+   (:choice
+    "Ask about Emily's fire"
+    ((:mark :clue-fire-in-hot-weather)
+     (:say "Emily ordered a fire on a day too warm for one."))))
+  (:once
+   :id :styles-dorcas-tray
+   (:choice
+    "Ask about the coffee and cocoa tray"
+    ((:mark :clue-missing-coffee-cup)
+     (:say "The tray details do not quite match the room."))))
+  (:choice "Return to Poirot" (:go "poirot"))))

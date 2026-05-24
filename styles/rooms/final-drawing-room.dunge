@@ -3,26 +3,16 @@
  :title "Final Drawing Room"
  :body
  ((:p "Poirot arranges the room like a stage. \"Now, Hastings,\" he says softly, \"we shall see whether the facts consent to stand in one line.\" The facts have not changed, but for the first time they may all point in one direction.")
-  (:choice
-   :options
-   ((:option
-     :label "Accuse Alfred Inglethorp and Evelyn Howard"
-     :when (:and
-            (:marked? :deduction-poison-in-medicine)
-            (:marked? :deduction-chemist-purchase-staged)
-            (:marked? :deduction-alfred-wanted-arrest)
-            (:marked? :deduction-alfred-evelyn-conspiracy))
-     :do (:go "ending-player-led"))
-    (:option
-     :label "Ask Poirot to complete the solution"
-     :when (:and
-            (:marked? :deduction-poison-in-medicine)
-            (:marked? :deduction-chemist-purchase-staged)
-            (:not (:marked? :deduction-alfred-evelyn-conspiracy)))
-     :do (:go "ending-poirot-led"))
-    (:option
-     :label "Accuse John Cavendish"
-     :do (:go "ending-wrong-accusation"))
-    (:option
-     :label "Accuse Alfred alone"
-     :do (:go "ending-wrong-accusation"))))))
+  (:when (:and
+          (:marked? :deduction-poison-in-medicine)
+          (:marked? :deduction-chemist-purchase-staged)
+          (:marked? :deduction-alfred-wanted-arrest)
+          (:marked? :deduction-alfred-evelyn-conspiracy))
+   (:choice "Accuse Alfred Inglethorp and Evelyn Howard" (:go "ending-player-led")))
+  (:when (:and
+          (:marked? :deduction-poison-in-medicine)
+          (:marked? :deduction-chemist-purchase-staged)
+          (:not (:marked? :deduction-alfred-evelyn-conspiracy)))
+   (:choice "Ask Poirot to complete the solution" (:go "ending-poirot-led")))
+  (:choice "Accuse John Cavendish" (:go "ending-wrong-accusation"))
+  (:choice "Accuse Alfred alone" (:go "ending-wrong-accusation"))))

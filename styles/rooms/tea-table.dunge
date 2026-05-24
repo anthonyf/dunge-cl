@@ -9,26 +9,22 @@
    (:p "Evelyn's warning hangs in the air: \"That man is dangerous.\" It was blunt enough to seem honest."))
   (:when (:marked? :clue-cynthia-dispensary)
    (:p "Cynthia's dispensary work gives her brightness a sharper edge: she handles medicines every day."))
-  (:choice
-   :options
-   ((:once
-     :id :styles-ask-evelyn
-     (:option
-      :label "Ask Evelyn why she distrusts Alfred"
-      :do ((:mark :clue-evie-warning)
-           (:say "\"Because he is a dangerous man,\" Evelyn says. \"Look at him with Mrs. Inglethorp, Mr. Hastings, and tell me I am wrong if you dare.\""))))
-    (:once
-     :id :styles-ask-cynthia-tea
-     (:option
-      :label "Ask Cynthia about the dispensary"
-      :do ((:mark :clue-cynthia-dispensary)
-           (:say "\"Oh, we are tremendously scientific at the dispensary,\" Cynthia says, laughing. \"Bromides, strychnine, bottles with skulls on them. Enough to make one quite important.\" The names come easily to her."))))
-    (:once
-     :id :styles-ask-mary-poisons
-     (:option
-      :label "Ask Mary about poisons"
-      :do ((:mark :clue-mary-poison-talk)
-           (:say "\"Poisons are rather fascinating, are they not?\" Mary says lightly. Then her eyes meet yours. \"You look shocked, Captain Hastings. I promise I am only being idle.\""))))
-    (:option
-     :label "Retire for the night"
-     :do (:go "night-crisis"))))))
+  (:once
+   :id :styles-ask-evelyn
+   (:choice
+    "Ask Evelyn why she distrusts Alfred"
+    ((:mark :clue-evie-warning)
+     (:say "\"Because he is a dangerous man,\" Evelyn says. \"Look at him with Mrs. Inglethorp, Mr. Hastings, and tell me I am wrong if you dare.\""))))
+  (:once
+   :id :styles-ask-cynthia-tea
+   (:choice
+    "Ask Cynthia about the dispensary"
+    ((:mark :clue-cynthia-dispensary)
+     (:say "\"Oh, we are tremendously scientific at the dispensary,\" Cynthia says, laughing. \"Bromides, strychnine, bottles with skulls on them. Enough to make one quite important.\" The names come easily to her."))))
+  (:once
+   :id :styles-ask-mary-poisons
+   (:choice
+    "Ask Mary about poisons"
+    ((:mark :clue-mary-poison-talk)
+     (:say "\"Poisons are rather fascinating, are they not?\" Mary says lightly. Then her eyes meet yours. \"You look shocked, Captain Hastings. I promise I am only being idle.\""))))
+  (:choice "Retire for the night" (:go "night-crisis"))))

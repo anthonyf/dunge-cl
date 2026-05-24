@@ -11,7 +11,5 @@
    :contents
    ((:item :name "A brass key")
     (:item :name "A sword")))
-  (:choice
-   :options
-   ((:option :label "Enter the dungeon" :do (:go "hallway"))
-    (:option :label "Leave" :do (:quit))))))
+  (:choice "Enter the dungeon" (:go "hallway"))
+  (:choice "Leave" (:quit))))
