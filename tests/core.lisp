@@ -999,6 +999,100 @@
     (is (= 1 (substring-count "Take key" output)))
     (is (= 2 (substring-count "Leave" output)))))
 
+(test room-title-output-is-underlined
+  (let* ((game
+           (source-node
+            '(:game
+              :start "start"
+              :rooms
+              ((:room :id "start" :title "Scene Title")))))
+         (output (run-game-with-input game "")))
+    (is (contains-substring-p
+         (format nil "Scene Title~%===========~%~%")
+         output))))
+
+(test game-output-starts-with-blank-line
+  (let* ((game
+           (source-node
+            '(:game
+              :start "start"
+              :rooms
+              ((:room :id "start" :title "Scene Title")))))
+         (output (run-game-with-input game "")))
+    (is (char= #\Newline (char output 0)))))
+
+(test paragraph-output-uses-blank-lines
+  (let* ((game (source-game-with-body
+                '(:p :text "First paragraph.")
+                '(:p :text "Second paragraph.")))
+         (output (run-game-with-input game "")))
+    (is (contains-substring-p
+         (format nil "First paragraph.~%~%Second paragraph.")
+         output))))
+
+(test say-output-uses-blank-lines-before-refresh
+  (let* ((game
+           (source-game-with-body
+            '(:choice
+              :options
+              ((:option :label "Speak" :do (:say :text "A spoken beat."))
+               (:option :label "Leave" :do (:quit))))))
+         (output (run-game-with-input game (format nil "1~%2~%"))))
+    (is (contains-substring-p
+         (format nil "A spoken beat.~%~%room")
+         output))))
+
+(test say-output-can-pause-before-refresh
+  (let* ((game
+           (source-game-with-body
+            '(:choice
+              :options
+              ((:option :label "Speak" :do (:say :text "A spoken beat."))
+               (:option :label "Leave" :do (:quit))))))
+         (output
+           (with-output-to-string (stream)
+             (let ((*input* (make-string-input-stream
+                             (format nil "1~%~%2~%")))
+                   (*output* stream)
+                   (*pause-after-say* t))
+               (evaluate game)))))
+    (is (contains-substring-p
+         (format nil "A spoken beat.~%~%Press Enter to continue.~%room")
+         output))))
+
+(test choice-submit-adds-spacing-before-next-output
+  (let* ((game
+           (source-game-with-body
+            '(:choice
+              :options
+              ((:option :label "Speak" :do (:say :text "A spoken beat."))
+               (:option :label "Leave" :do (:quit))))))
+         (output (run-game-with-input game (format nil "1~%2~%"))))
+    (is (contains-substring-p
+         (format nil "2. Leave~%> ~%A spoken beat.")
+         output))))
+
+(test choice-submit-keeps-next-scene-heading-tight
+  (let* ((game
+           (source-node
+            '(:game
+              :start "start"
+              :rooms
+              ((:room
+                :id "start"
+                :body
+                ((:choice
+                  :options
+                  ((:option :label "Go" :do (:goto :room "next"))))))
+               (:room :id "next" :title "Next Room")))))
+         (output (run-game-with-input game (format nil "1~%"))))
+    (is (contains-substring-p
+         (format nil "1. Go~%> ~%Next Room~%=========~%~%")
+         output))
+    (is (not (contains-substring-p
+              (format nil "Next Room~%~%=========")
+              output)))))
+
 (test gosub-and-back-return-to-calling-room
   (let* ((game
            (source-node

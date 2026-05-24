@@ -1,0 +1,42 @@
+(:room
+ :id "chemist"
+ :title "Village Chemist"
+ :body
+ ((:p :text "The chemist's shop is narrow, glassy, and precise. Every bottle has a label. Every poison has a rule.")
+  (:choice
+   :options
+   ((:option
+     :label "Ask about strychnine"
+     :id :styles-chemist-sale
+     :once t
+     :do (:sequence
+          :effects
+          ((:set
+            :target (:state :scope :global :key :clue-chemist-strychnine-sale)
+            :value t)
+           (:say :text "The register records strychnine bought in Alfred Inglethorp's name."))))
+    (:option
+     :label "Check the time of purchase"
+     :id :styles-chemist-time
+     :once t
+     :when (:state :scope :global :key :clue-chemist-strychnine-sale)
+     :do (:sequence
+          :effects
+          ((:set
+            :target (:state :scope :global :key :clue-alfred-alibi-sale-time)
+            :value t)
+           (:say :text "The time is awkward for Alfred. Too awkward, perhaps."))))
+    (:option
+     :label "Study the purchaser description"
+     :id :styles-chemist-description
+     :once t
+     :when (:state :scope :global :key :clue-chemist-strychnine-sale)
+     :do (:sequence
+          :effects
+          ((:set
+            :target (:state :scope :global :key :clue-evelyn-could-impersonate-alfred)
+            :value t)
+           (:say :text "The assistant remembers a theatrical figure. Evelyn could have made herself fit that memory."))))
+    (:option
+     :label "Return to Poirot"
+     :do (:goto :room "poirot"))))))

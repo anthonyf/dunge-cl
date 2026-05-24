@@ -58,4 +58,6 @@ jobs:
         run: qlot install
 
       - name: Run tests
-        run: qlot exec sbcl --non-interactive --eval '(asdf:test-system :dunge/tests)'
+        run: |
+          qlot exec sbcl --non-interactive --eval '(asdf:test-system :dunge/tests)'
+          qlot exec sbcl --non-interactive --eval '(asdf:test-system :dunge-styles/tests)'

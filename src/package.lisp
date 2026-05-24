@@ -7,6 +7,7 @@
   (:export
    #:*input*
    #:*output*
+   #:*pause-after-say*
    #:action
    #:action-owner
    #:back

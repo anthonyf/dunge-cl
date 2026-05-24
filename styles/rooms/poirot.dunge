@@ -1,0 +1,100 @@
+(:room
+ :id "poirot"
+ :title "Poirot's Lodging"
+ :body
+ ((:p :text "Poirot's room is small, exact, and impossibly neat. He refuses to give Hastings an answer that has not been earned.")
+  (:branch
+   :when (:state :scope :global :key :deduction-poison-in-medicine)
+   :then ((:p :text "The medicine method is now fixed in Hastings' notebook."))
+   :else nil)
+  (:branch
+   :when (:state :scope :global :key :deduction-chemist-purchase-staged)
+   :then ((:p :text "The chemist purchase no longer looks like proof. It looks like theatre."))
+   :else nil)
+  (:branch
+   :when (:state :scope :global :key :deduction-alfred-evelyn-conspiracy)
+   :then ((:p :text "Alfred and Evelyn finally stand together in the pattern of facts."))
+   :else nil)
+  (:choice
+   :options
+   ((:option
+     :label "Open the suspect board"
+     :do (:goto :room "suspect-board"))
+    (:option
+     :label "Visit the village chemist"
+     :do (:goto :room "chemist"))
+    (:option
+     :label "Visit the dispensary"
+     :do (:goto :room "dispensary"))
+    (:option
+     :label "Tell Poirot the medicine was the vehicle"
+     :id :styles-deduce-medicine
+     :once t
+     :when (:and
+            :conditions
+            ((:state :scope :global :key :clue-medicine-contained-strychnine)
+             (:state :scope :global :key :clue-bromide-powders)
+             (:state :scope :global :key :clue-final-dose-danger)
+             (:not
+              :condition (:state :scope :global :key :deduction-poison-in-medicine))))
+     :do (:sequence
+          :effects
+          ((:set
+            :target (:state :scope :global :key :deduction-poison-in-medicine)
+            :value t)
+           (:say :text "Poirot nods. The fatal dose was prepared before the final cup was ever poured."))))
+    (:option
+     :label "Tell Poirot the chemist purchase was staged"
+     :id :styles-deduce-staged-purchase
+     :once t
+     :when (:and
+            :conditions
+            ((:state :scope :global :key :clue-chemist-strychnine-sale)
+             (:state :scope :global :key :clue-alfred-alibi-sale-time)
+             (:state :scope :global :key :clue-evelyn-could-impersonate-alfred)
+             (:not
+              :condition (:state :scope :global :key :deduction-chemist-purchase-staged))))
+     :do (:sequence
+          :effects
+          ((:set
+            :target (:state :scope :global :key :deduction-chemist-purchase-staged)
+            :value t)
+           (:say :text "Poirot smiles. The purchase was arranged to be found."))))
+    (:option
+     :label "Ask why Alfred hides his alibi"
+     :id :styles-deduce-alfred-wanted-arrest
+     :once t
+     :when (:and
+            :conditions
+            ((:state :scope :global :key :deduction-chemist-purchase-staged)
+             (:not
+              :condition (:state :scope :global :key :deduction-alfred-wanted-arrest))))
+     :do (:sequence
+          :effects
+          ((:set
+            :target (:state :scope :global :key :deduction-alfred-wanted-arrest)
+            :value t)
+           (:say :text "An innocent man would use the alibi. Alfred hides it because suspicion can protect him if it is built on false evidence."))))
+    (:option
+     :label "Present the Evelyn connection"
+     :id :styles-deduce-evelyn-conspiracy
+     :once t
+     :when (:and
+            :conditions
+            ((:state :scope :global :key :deduction-chemist-purchase-staged)
+             (:state :scope :global :key :deduction-alfred-wanted-arrest)
+             (:state :scope :global :key :clue-evie-warning)
+             (:not
+              :condition (:state :scope :global :key :deduction-alfred-evelyn-conspiracy))))
+     :do (:sequence
+          :effects
+          ((:set
+            :target (:state :scope :global :key :clue-incriminating-letter)
+            :value t)
+           (:set
+            :target (:state :scope :global :key :deduction-alfred-evelyn-conspiracy)
+            :value t)
+           (:say :text "Poirot produces the last link: Evelyn's hatred of Alfred was a performance, not a barrier."))))
+    (:option
+     :label "Begin the final reconstruction"
+     :do (:goto :room "final-drawing-room"))))))

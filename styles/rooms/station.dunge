@@ -1,0 +1,67 @@
+(:room
+ :id "station"
+ :title "Styles St. Mary Station"
+ :body
+ ((:branch
+   :when (:not :condition (:state :scope :global :key :seen-station-intro))
+   :then ((:p :text "You are Captain Arthur Hastings, invalided home from the Front after months in a convalescent home. A month of sick leave should be a blessing, but with no near family and no settled plan, it has mostly left you wondering where a wounded soldier belongs.")
+          (:p :text "Three days ago you ran across John Cavendish, an old acquaintance from boyhood visits to Styles Court. The talk went back to old times, then forward to an invitation: come down to Essex, spend your leave at Styles, and let the quiet country do what doctors and institutional soup could not.")
+          (:p :text "Now the train has set you down at Styles St. Mary, a little station stranded among green fields and lanes. John waits on the platform beside a motor car, older than you remember, friendly as ever, and not quite able to hide the strain in his household."))
+   :else ((:p :text "John remains beside the motor car, patient but restless, while the little station sits behind you in the afternoon quiet.")))
+  (:branch
+   :when (:state :scope :global :key :fact-john-invited-hastings)
+   :then ((:p :text "John's invitation no longer feels merely hospitable. There is tension at Styles, and he is glad to have an old friend near enough to notice it."))
+   :else nil)
+  (:branch
+   :when (:state :scope :global :key :fact-emily-married-alfred)
+   :then ((:p :text "Mrs. Inglethorp's new marriage already sounds less like romance than a problem everyone else is forced to live with."))
+   :else nil)
+  (:choice
+   :options
+   ((:option
+     :label "Tell John how little plan you have for leave"
+     :id :styles-hastings-leave
+     :once t
+     :do (:sequence
+          :effects
+          ((:set
+            :target (:state :scope :global :key :seen-station-intro)
+            :value t)
+           (:say :text "John says that Styles will suit you perfectly: quiet rooms, green walks, and enough old memories to make the place feel half familiar before you arrive."))))
+    (:option
+     :label "Ask John why he wanted you at Styles"
+     :id :styles-john-invitation
+     :once t
+     :do (:sequence
+          :effects
+          ((:set
+            :target (:state :scope :global :key :seen-station-intro)
+            :value t)
+           (:set
+            :target (:state :scope :global :key :fact-john-invited-hastings)
+            :value t)
+           (:say :text "John says his mother will be delighted to see you, but the quickness with which he changes the subject makes the invitation feel less casual than it sounded in London."))))
+    (:option
+     :label "Ask about Mrs. Inglethorp's new husband"
+     :id :styles-ask-about-alfred
+     :once t
+     :do (:sequence
+          :effects
+          ((:set
+            :target (:state :scope :global :key :seen-station-intro)
+            :value t)
+           (:set
+            :target (:state :scope :global :key :fact-emily-married-alfred)
+            :value t)
+           (:set
+            :target (:state :scope :global :key :fact-household-dislikes-alfred)
+            :value t)
+           (:say :text "John describes Alfred Inglethorp as an outsider who arrived as a secretary and somehow became his mother's husband. His anger is too immediate to be only snobbery."))))
+    (:option
+     :label "Set out for Styles Court"
+     :do (:sequence
+          :effects
+          ((:set
+            :target (:state :scope :global :key :seen-station-intro)
+            :value t)
+           (:goto :room "village-road"))))))))
