@@ -1,0 +1,63 @@
+(:room
+ :id "bedroom"
+ :title "Mrs. Inglethorp's Bedroom"
+ :body
+ ((:p :text "The bedroom is disordered by panic: a fallen table, traces of late-night drinks, a locked purple case, a cold grate, and too many people claiming to have noticed too little.")
+  (:choice
+   :options
+   ((:option
+     :label "Inspect the grate"
+     :id :styles-inspect-grate
+     :once t
+     :do (:sequence
+          :effects
+          ((:set
+            :target (:state :scope :global :key :clue-charred-will-fragment)
+            :value t)
+           (:say :text "A charred scrap suggests a document was burned here."))))
+    (:option
+     :label "Inspect the coffee remains"
+     :id :styles-inspect-coffee
+     :once t
+     :do (:sequence
+          :effects
+          ((:set
+            :target (:state :scope :global :key :clue-broken-coffee-cup)
+            :value t)
+           (:say :text "The broken cup draws the eye too neatly."))))
+    (:option
+     :label "Inspect the cocoa saucepan"
+     :id :styles-inspect-cocoa
+     :once t
+     :do (:sequence
+          :effects
+          ((:set
+            :target (:state :scope :global :key :clue-cocoa-saucepan)
+            :value t)
+           (:say :text "The cocoa is present, suspicious, and perhaps too convenient."))))
+    (:option
+     :label "Inspect the medicine bottle"
+     :id :styles-inspect-medicine
+     :once t
+     :do (:sequence
+          :effects
+          ((:set
+            :target (:state :scope :global :key :clue-medicine-contained-strychnine)
+            :value t)
+           (:say :text "The medicine is not innocent. Its contents point toward strychnine."))))
+    (:option
+     :label "Inspect the purple despatch-case"
+     :id :styles-inspect-case
+     :once t
+     :do (:sequence
+          :effects
+          ((:set
+            :target (:state :scope :global :key :clue-purple-despatch-case)
+            :value t)
+           (:say :text "Emily kept important papers in the purple despatch-case."))))
+    (:option
+     :label "Question the servants"
+     :do (:goto :room "servants-hall"))
+    (:option
+     :label "Take the evidence to Poirot"
+     :do (:goto :room "poirot"))))))

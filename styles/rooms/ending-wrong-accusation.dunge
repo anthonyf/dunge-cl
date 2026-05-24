@@ -1,0 +1,6 @@
+(:room
+ :id "ending-wrong-accusation"
+ :title "Wrong Accusation"
+ :body
+ ((:p :text "The accusation collapses under its own gaps. Poirot stops Hastings before private suspicion becomes public disaster.")
+  (:p :text "Rank: Misled.")))

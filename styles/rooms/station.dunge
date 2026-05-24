@@ -1,0 +1,21 @@
+(:room
+ :id "station"
+ :title "Styles St. Mary Station"
+ :body
+ ((:p :text "The station is small, bright, and too peaceful for a man newly returned from war. John Cavendish waits beside a motor car, glad to see Hastings and eager to talk about Styles.")
+  (:choice
+   :options
+   ((:option
+     :label "Ride with John to Styles"
+     :do (:sequence
+          :effects
+          ((:set
+            :target (:state :scope :global :key :fact-john-invited-hastings)
+            :value t)
+           (:set
+            :target (:state :scope :global :key :fact-emily-married-alfred)
+            :value t)
+           (:set
+            :target (:state :scope :global :key :fact-household-dislikes-alfred)
+            :value t)
+           (:goto :room "tea-table"))))))))

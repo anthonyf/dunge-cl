@@ -1,0 +1,45 @@
+(:game
+ :start "station"
+ :state ((:fact-hastings-on-leave t)
+         (:fact-john-invited-hastings nil)
+         (:fact-emily-married-alfred nil)
+         (:fact-household-dislikes-alfred nil)
+         (:clue-evie-warning nil)
+         (:clue-cynthia-dispensary nil)
+         (:clue-mary-poison-talk nil)
+         (:event-emily-dies nil)
+         (:clue-locked-bedroom nil)
+         (:clue-broken-bell nil)
+         (:clue-cynthia-deep-sleep nil)
+         (:clue-charred-will-fragment nil)
+         (:clue-broken-coffee-cup nil)
+         (:clue-cocoa-saucepan nil)
+         (:clue-medicine-contained-strychnine nil)
+         (:clue-purple-despatch-case nil)
+         (:clue-dorcas-heard-quarrel nil)
+         (:clue-fire-in-hot-weather nil)
+         (:clue-missing-coffee-cup nil)
+         (:clue-chemist-strychnine-sale nil)
+         (:clue-alfred-alibi-sale-time nil)
+         (:clue-evelyn-could-impersonate-alfred nil)
+         (:clue-bromide-powders nil)
+         (:clue-strychnine-bitter nil)
+         (:clue-final-dose-danger nil)
+         (:clue-incriminating-letter nil)
+         (:deduction-poison-in-medicine nil)
+         (:deduction-chemist-purchase-staged nil)
+         (:deduction-alfred-wanted-arrest nil)
+         (:deduction-alfred-evelyn-conspiracy nil))
+ :rooms ("rooms/station.dunge"
+         "rooms/tea-table.dunge"
+         "rooms/night-crisis.dunge"
+         "rooms/bedroom.dunge"
+         "rooms/servants-hall.dunge"
+         "rooms/poirot.dunge"
+         "rooms/suspect-board.dunge"
+         "rooms/chemist.dunge"
+         "rooms/dispensary.dunge"
+         "rooms/final-drawing-room.dunge"
+         "rooms/ending-player-led.dunge"
+         "rooms/ending-poirot-led.dunge"
+         "rooms/ending-wrong-accusation.dunge"))
