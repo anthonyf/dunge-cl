@@ -2,5 +2,5 @@
  :id "ending-wrong-accusation"
  :title "Wrong Accusation"
  :body
- ((:p "The accusation collapses under its own gaps. Poirot stops you before private suspicion becomes public disaster.")
+ ((:p "The accusation collapses under its own gaps. \"No, Hastings,\" Poirot says, stopping you before private suspicion becomes public disaster. \"We must accuse only when the little facts agree.\"")
   (:p "Rank: Misled.")))
