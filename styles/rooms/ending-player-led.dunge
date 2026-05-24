@@ -2,5 +2,5 @@
  :id "ending-player-led"
  :title "Player-Led Solution"
  :body
- ((:p :text "Hastings names Alfred Inglethorp and Evelyn Howard, explains the medicine, the staged purchase, and Alfred's hidden alibi. Poirot lets the silence do the rest.")
-  (:p :text "Rank: Brilliant.")))
+ ((:p "Hastings names Alfred Inglethorp and Evelyn Howard, explains the medicine, the staged purchase, and Alfred's hidden alibi. Poirot lets the silence do the rest.")
+  (:p "Rank: Brilliant.")))

@@ -2,21 +2,21 @@
  :id "suspect-board"
  :title "Suspect Board"
  :body
- ((:p :text "Hastings spreads the case across a table: names, motives, means, opportunities, contradictions, and questions that become sharper as the case darkens.")
+ ((:p "Hastings spreads the case across a table: names, motives, means, opportunities, contradictions, and questions that become sharper as the case darkens.")
   (:branch
-   :when (:state :scope :global :key :clue-evie-warning)
-   :then ((:p :text "Evelyn: warning source, apparent enemy of Alfred, perhaps too forceful in her hatred."))
-   :else ((:p :text "Evelyn: still mostly an impression, not a theory.")))
+   :when (:marked? :clue-evie-warning)
+   :then ((:p "Evelyn: warning source, apparent enemy of Alfred, perhaps too forceful in her hatred."))
+   :else ((:p "Evelyn: still mostly an impression, not a theory.")))
   (:branch
-   :when (:state :scope :global :key :deduction-poison-in-medicine)
-   :then ((:p :text "Method: the regular medicine, not a freshly poisoned drink."))
-   :else ((:p :text "Method: coffee, cocoa, and medicine still compete for attention.")))
+   :when (:marked? :deduction-poison-in-medicine)
+   :then ((:p "Method: the regular medicine, not a freshly poisoned drink."))
+   :else ((:p "Method: coffee, cocoa, and medicine still compete for attention.")))
   (:branch
-   :when (:state :scope :global :key :deduction-chemist-purchase-staged)
-   :then ((:p :text "Alfred: suspicious, but the suspicious evidence is itself suspicious."))
-   :else ((:p :text "Alfred: the obvious suspect, almost too obvious.")))
+   :when (:marked? :deduction-chemist-purchase-staged)
+   :then ((:p "Alfred: suspicious, but the suspicious evidence is itself suspicious."))
+   :else ((:p "Alfred: the obvious suspect, almost too obvious.")))
   (:choice
    :options
    ((:option
      :label "Return to Poirot"
-     :do (:goto :room "poirot"))))))
+     :do (:go "poirot"))))))

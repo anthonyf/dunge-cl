@@ -2,8 +2,8 @@
  :id "hidden room"
  :title "Hidden Room"
  :body
- ((:p :text "Dust hangs in the still air beyond the secret door.")
+ ((:p "Dust hangs in the still air beyond the secret door.")
   (:choice
    :options
-   ((:option :label "Return to the hallway" :do (:goto :room "hallway"))
+   ((:option :label "Return to the hallway" :do (:go "hallway"))
     (:option :label "Quit" :do (:quit))))))

@@ -2,7 +2,7 @@
  :id "hallway"
  :title "Hallway"
  :body
- ((:p :text "You are in a long hallway.")
+ ((:p "You are in a long hallway.")
 
   (:entity
    :name "secret door"
@@ -14,12 +14,12 @@
             :left (:state :scope :self :key :open)
             :right t)
      :then
-     ((:p :text "A secret door stands open in the east wall.")
+     ((:p "A secret door stands open in the east wall.")
       (:choice
        :options
        ((:option
          :label "Enter the secret passage"
-         :do (:goto :room "hidden room"))))))))
+         :do (:go "hidden room"))))))))
 
   (:entity
    :name "control panel"
@@ -28,25 +28,25 @@
            (:count 0))
    :refs ((:door "secret-door"))
    :body
-   ((:p :text "A metal control panel is mounted beside the wall.")
+   ((:p "A metal control panel is mounted beside the wall.")
     (:branch
      :when (:eq
             :left (:state :scope :self :key :switch)
             :right :off)
      :then
-     ((:p :text "The switch is down.")))
+     ((:p "The switch is down.")))
     (:branch
      :when (:eq
             :left (:state :scope :self :key :switch)
             :right :on)
      :then
-     ((:p :text "The switch is up.")))
+     ((:p "The switch is up.")))
     (:action
      :label "Flip the switch"
      :do
      ((:toggle
        :target (:state :scope :self :key :switch))
-      (:say :text "You flip the switch.")))
+      (:say "You flip the switch.")))
     (:action
      :label "Press the button"
      :do
@@ -58,9 +58,9 @@
        ((:set
          :target (:state :scope :ref :role :door :key :open)
          :value t)
-        (:say :text "Something heavy slides open nearby."))
+        (:say "Something heavy slides open nearby."))
        :else
-       ((:say :text "The button clicks, but nothing happens.")))))))
+       ((:say "The button clicks, but nothing happens.")))))))
 
   (:choice
    :options

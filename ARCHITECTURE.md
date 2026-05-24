@@ -82,57 +82,53 @@ A small game is written as data:
 ```lisp
 (:game
  :start "kitchen"
- :state ((:recipe nil))
+ :flags (:recipe)
  :rooms
  ((:room
    :id "kitchen"
    :title "Kitchen"
    :body
-   ((:p :text "It's a kitchen. A pot sits on the stove.")
+   ((:p "It's a kitchen. A pot sits on the stove.")
     (:branch
-     :when (:state :scope :global :key :recipe)
+     :when (:marked? :recipe)
      :then
      ((:choice
        :options
        ((:option
          :label "Cook stew"
-         :do (:goto :room "victory")))))
+         :do (:go "victory")))))
      :else
-     ((:p :text "You'd cook, but you don't know what.")))
+     ((:p "You'd cook, but you don't know what.")))
     (:choice
      :options
      ((:option :label "Search the cupboard" :do (:gosub :room "cupboard"))
-      (:option :label "Leave" :do (:goto :room "hallway"))))))
+      (:option :label "Leave" :do (:go "hallway"))))))
 
   (:room
    :id "cupboard"
    :title "Cupboard"
    :body
-   ((:p :text "Old shelves, dust.")
+   ((:p "Old shelves, dust.")
     (:choice
      :options
-     ((:option
-       :label "Take the recipe card"
-       :do (:sequence
-            :effects
-            ((:set
-              :target (:state :scope :global :key :recipe)
-              :value t)
-             (:back)))
-       :once t
-       :id :take-recipe)))))
+     ((:once
+       :id :take-recipe
+       (:option
+        :label "Take the recipe card"
+        :do ((:mark :recipe)
+             (:back))))))))
 
   (:room
    :id "hallway"
    :title "Hallway"
    :body
-   ((:p :text "A hallway.")))
+   ((:p "A hallway.")))
 
   (:room
    :id "victory"
    :title "Victory"
    :body
-   ((:p :text "You cooked. You win.")
+   ((:p "You cooked. You win.")
     (:choice
      :options
      ((:option :label "Quit" :do (:quit))))))))
@@ -141,6 +137,14 @@ A small game is written as data:
 This source compiles into internal `game`, `room`, `p`, `branch`, `choice`,
 `state-ref`, `state-set`, `goto`, and related CLOS objects. Authors do not call
 the private builders directly.
+
+Use `:branch` when conditional body content needs an `:else`. For the common
+no-else case, `:when` keeps control flow separate from the content it guards:
+
+```lisp
+(:when (:marked? :recipe)
+  (:p "The recipe card is tucked safely into your notes."))
+```
 
 A game can also keep rooms in separate files:
 
@@ -193,6 +197,7 @@ Rooms use stable string IDs. A room may also have a display title. Navigation
 targets point at room IDs:
 
 ```lisp
+(:go "hallway")
 (:goto :room "hallway")
 (:gosub :room "cupboard")
 ```
@@ -204,18 +209,13 @@ validator, and future compiler simpler.
 Choice visibility and persistence are data:
 
 ```lisp
-(:option
- :label "Take the recipe card"
- :do (:sequence
-      :effects
-      ((:set
-        :target (:state :scope :global :key :recipe)
-        :value t)
-       (:back)))
- :when (:not
-        :condition (:state :scope :global :key :recipe))
- :once t
- :id :take-recipe)
+(:once
+ :id :take-recipe
+ (:option
+  :label "Take the recipe card"
+  :when (:not (:marked? :recipe))
+  :do ((:mark :recipe)
+       (:back))))
 ```
 
 Default choices are sticky. A once-only choice is hidden after it is selected.
@@ -231,9 +231,19 @@ for scene-local mechanisms.
 Source state references are explicit:
 
 ```lisp
+(:marked? :recipe)
 (:state :scope :global :key :recipe)
 (:state :scope :self :key :switch)
 (:state :scope :ref :role :door :key :open)
+```
+
+`:marked?` is the author-facing predicate for global story flags. It expands to
+the explicit global state reference above. `:mark` and `:unmark` are the matching
+effects:
+
+```lisp
+(:mark :recipe)
+(:unmark :recipe)
 ```
 
 State keys, state scopes, entity reference roles, and choice IDs are explicit
@@ -251,32 +261,35 @@ Game-level global state can also be declared:
 ```lisp
 (:game
  :start "kitchen"
- :state ((:recipe nil)
-         (:phase :prologue))
+ :flags (:recipe)
+ :marked (:knows-town-secret)
+ :state ((:phase :prologue))
  :rooms ...)
 ```
 
 When a game declares any global state, every global state read or write must use
-one of those declared keys. Small experiments may omit game-level `:state` and
-continue using unrestricted globals, but authored mystery content should declare
-its clue, fact, phase, deduction, and scoring flags.
+one of those declared keys. `:flags` declares initially unmarked story flags,
+`:marked` declares initially marked story flags, and `:state` remains available
+for non-flag values such as phases or counters. Small experiments may omit
+game-level state declarations and continue using unrestricted globals, but
+authored mystery content should declare its clue, fact, phase, deduction, and
+scoring flags.
 
 ## Effects And Sequences
 
 Choices can target a single effect/control node or a sequence:
 
 ```lisp
-(:sequence
- :effects
- ((:set
-   :target (:state :scope :global :key :recipe)
-   :value t)
-  (:back)))
+(:option
+ :label "Take the recipe card"
+ :do ((:mark :recipe)
+      (:back)))
 ```
 
-`sequence` is an effect/control AST node, not Lisp `progn`. It executes its
-children in order and stops when a child produces a control result such as
-`:goto`, `:gosub`, `:back`, or `:quit`.
+List-valued option `:do` fields compile to a `sequence` effect/control AST node.
+`sequence` is not Lisp `progn`: it executes its children in order and stops when
+a child produces a control result such as `:goto`, `:gosub`, `:back`, or
+`:quit`.
 
 ## Save And Load
 
@@ -310,7 +323,7 @@ authoring errors before play:
 - missing `:goto` and `:gosub` room targets when statically known;
 - malformed conditions and effects;
 - unknown state scopes;
-- undeclared global state references when game-level `:state` is present;
+- undeclared global state references when game-level state declarations are present;
 - once-only choices without stable IDs;
 - duplicate room IDs and duplicate scene IDs;
 - unresolved entity refs.
