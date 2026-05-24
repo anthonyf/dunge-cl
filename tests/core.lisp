@@ -1042,6 +1042,24 @@
          (format nil "A spoken beat.~%~%room")
          output))))
 
+(test say-output-can-pause-before-refresh
+  (let* ((game
+           (source-game-with-body
+            '(:choice
+              :options
+              ((:option :label "Speak" :do (:say :text "A spoken beat."))
+               (:option :label "Leave" :do (:quit))))))
+         (output
+           (with-output-to-string (stream)
+             (let ((*input* (make-string-input-stream
+                             (format nil "1~%~%2~%")))
+                   (*output* stream)
+                   (*pause-after-say* t))
+               (evaluate game)))))
+    (is (contains-substring-p
+         (format nil "A spoken beat.~%~%Press Enter to continue.~%room")
+         output))))
+
 (test choice-submit-adds-spacing-before-next-output
   (let* ((game
            (source-game-with-body

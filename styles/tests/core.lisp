@@ -13,6 +13,12 @@
             (*output* output))
         (evaluate game)))))
 
+(defun run-styles-launcher-script (input)
+  (with-output-to-string (output)
+    (let ((*input* (make-string-input-stream input))
+          (*output* output))
+      (play-styles))))
+
 (defun lines (&rest choices)
   (with-output-to-string (stream)
     (dolist (choice choices)
@@ -73,6 +79,14 @@
             4 1))))
     (is (contains-substring-p "Wrong Accusation" output))
     (is (contains-substring-p "Rank: Misled." output))))
+
+(test styles-launcher-pauses-after-say
+  (let ((output
+          (run-styles-launcher-script
+           (lines
+            ;; Station, road, Evelyn, continue, then retire.
+            4 3 1 "" 3))))
+    (is (contains-substring-p "Press Enter to continue." output))))
 
 (test styles-poirot-led-ending-is-playable
   (let ((output

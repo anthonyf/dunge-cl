@@ -8,6 +8,7 @@
 
 (defvar *input* *standard-input*)
 (defvar *output* *standard-output*)
+(defvar *pause-after-say* nil)
 (defvar *pending-choice-spacing* nil)
 
 (defstruct runtime-context
@@ -132,6 +133,13 @@ can TYPEP the result against QUIT, BACK, and related classes."))
   (when *pending-choice-spacing*
     (terpri *output*)
     (setf *pending-choice-spacing* nil)))
+
+(defun pause-after-say ()
+  (when *pause-after-say*
+    (format *output* "Press Enter to continue.")
+    (finish-output *output*)
+    (read-line *input* nil nil)
+    (terpri *output*)))
 
 (defun runtime-context-for-scene (context scene)
   (check-type context runtime-context)
@@ -707,6 +715,7 @@ can TYPEP the result against QUIT, BACK, and related classes."))
 (defmethod execute-effect ((effect say) &optional context)
   (render-pending-choice-spacing)
   (format *output* "~A~%~%" (evaluate-expression (say-text effect) context))
+  (pause-after-say)
   nil)
 
 (defmethod execute-effect ((effect conditional-effect) &optional context)

@@ -7,4 +7,5 @@
   (load-dunge-file (styles-game-path)))
 
 (defun play-styles ()
-  (evaluate (load-styles-game)))
+  (let ((dunge:*pause-after-say* t))
+    (evaluate (load-styles-game))))
