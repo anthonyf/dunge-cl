@@ -1249,6 +1249,13 @@
     (is (contains-substring-p "window.localStorage.setItem" script))
     (is (contains-substring-p "currentRoom" script))
     (is (contains-substring-p "takenChoices" script))
+    (is (contains-substring-p "'messages' : copyArray(VISIBLEMESSAGES)"
+                              script))
+    (is (contains-substring-p "MESSAGES = copyArray(state['messages']);"
+                              script))
+    (is (contains-substring-p "VISIBLEMESSAGES = copyArray(MESSAGES);"
+                              script))
+    (is (contains-substring-p "VISIBLEMESSAGES = [];" script))
     (is (contains-substring-p "beforeunload" script))
     (is (contains-substring-p "var __PS_MV_REG = [];" script))
     (is (contains-substring-p "function executeEffect" script))
