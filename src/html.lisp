@@ -426,6 +426,7 @@ body {
 
 (defun parenscript-runtime ()
   (ps:ps
+    (defvar *|__PS_MV_REG|* (array))
     (defvar *game* nil)
     (defvar *state* nil)
     (defvar *current-location* nil)
@@ -468,7 +469,7 @@ body {
                (eql value undefined))))
 
     (defun runtime-error (message)
-      (throw (new (-error message))))
+      (throw (-error message)))
 
     (defun initial-state (state-data)
       (copy-object (@ state-data values)))

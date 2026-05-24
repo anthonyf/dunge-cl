@@ -1196,6 +1196,7 @@
     (is (contains-substring-p "\"id\":\"look\"" script))
     (is (contains-substring-p "STATE['taken-choices']" script))
     (is (not (contains-substring-p "STATE.takenChoices" script)))
+    (is (contains-substring-p "var __PS_MV_REG = [];" script))
     (is (contains-substring-p "function executeEffect" script))
     (is (contains-substring-p "function renderChoiceButton" script))
     (is (contains-substring-p "function renderChoices" script))))
@@ -1237,6 +1238,8 @@
     (is (contains-substring-p
          "Cannot increment or decrement non-numeric state value."
          script))
+    (is (contains-substring-p "throw Error(message);" script))
+    (is (not (contains-substring-p "new(Error(message))" script)))
     (is (contains-substring-p "Cannot toggle non-toggleable state value."
                               script))
     (is (contains-substring-p "No room named " script))))
