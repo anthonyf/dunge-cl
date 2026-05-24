@@ -209,9 +209,9 @@
     (goto-char start)
     (forward-char 1)
     (skip-syntax-forward " ")
-    (and (looking-at ":[^][()\";[:space:]]+")
-         (member (downcase (match-string-no-properties 0))
-                 dunge--source-tags))))
+    (let ((tag (thing-at-point 'symbol t)))
+      (and tag
+           (member (downcase tag) dunge--source-tags)))))
 
 (defun dunge--bounds-of-sexp-at-point ()
   "Return bounds of the nearest Dunge source form around point."
