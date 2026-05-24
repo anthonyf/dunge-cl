@@ -519,13 +519,24 @@ body {
                (eql value false)
                (eql value undefined))))
 
-    (defun contains-text-p (text needle)
-      (>= (chain text (index-of needle)) 0))
+    (defun debug-query-flag-p (search)
+      (let ((query (or search ""))
+            (matched nil))
+        (when (and (> (@ query length) 0)
+                   (eql (chain query (char-at 0)) "?"))
+          (setf query (chain query (slice 1))))
+        (dolist (part (chain query (split "&")))
+          (when (eql part "debug=1")
+            (setf matched t)))
+        matched))
+
+    (defun debug-hash-flag-p (hash)
+      (eql hash "#debug"))
 
     (defun debug-requested-p ()
       (or (truthy (getprop window "DUNGE_GAME_DEBUG"))
-          (contains-text-p (@ window location search) "debug=1")
-          (contains-text-p (@ window location hash) "debug")))
+          (debug-query-flag-p (@ window location search))
+          (debug-hash-flag-p (@ window location hash))))
 
     (defun runtime-error (message)
       (throw (-error message)))

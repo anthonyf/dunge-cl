@@ -181,12 +181,26 @@ function valueEqual(left, right) {
 function truthy(value) {
     return !(value === null || value === false || value === undefined);
 };
-function containsTextP(text, needle) {
-    return text.indexOf(needle) >= 0;
+function debugQueryFlagP(search) {
+    var query = search || '';
+    var matched = null;
+    if (query.length > 0 && query.charAt(0) === '?') {
+        query = query.slice(1);
+    };
+    for (var part = null, _js_arrvar4 = query.split('&'), _js_idx3 = 0; _js_idx3 < _js_arrvar4.length; _js_idx3 += 1) {
+        part = _js_arrvar4[_js_idx3];
+        if (part === 'debug=1') {
+            matched = true;
+        };
+    };
+    return matched;
+};
+function debugHashFlagP(hash) {
+    return hash === '#debug';
 };
 function debugRequestedP() {
     __PS_MV_REG = [];
-    return truthy(window['DUNGE_GAME_DEBUG']) || containsTextP(window.location.search, 'debug=1') || containsTextP(window.location.hash, 'debug');
+    return truthy(window['DUNGE_GAME_DEBUG']) || debugQueryFlagP(window.location.search) || debugHashFlagP(window.location.hash);
 };
 function runtimeError(message) {
     throw Error(message);
@@ -246,8 +260,8 @@ function objectKeyCount(object) {
     return Object.keys(object).length;
 };
 function walkNodes(nodes, callback) {
-    for (var node = null, _js_arrvar4 = nodeList(nodes), _js_idx3 = 0; _js_idx3 < _js_arrvar4.length; _js_idx3 += 1) {
-        node = _js_arrvar4[_js_idx3];
+    for (var node = null, _js_arrvar6 = nodeList(nodes), _js_idx5 = 0; _js_idx5 < _js_arrvar6.length; _js_idx5 += 1) {
+        node = _js_arrvar6[_js_idx5];
         callback(node);
         if (node.type === 'entity') {
             walkNodes(node.body, callback);
@@ -278,8 +292,8 @@ function resolveRoomRefs(room) {
     __PS_MV_REG = [];
     return walkNodes(room.body, function (node) {
         if (node.type === 'entity') {
-            for (var ref = null, _js_arrvar10 = nodeList(node.refs), _js_idx9 = 0; _js_idx9 < _js_arrvar10.length; _js_idx9 += 1) {
-                ref = _js_arrvar10[_js_idx9];
+            for (var ref = null, _js_arrvar12 = nodeList(node.refs), _js_idx11 = 0; _js_idx11 < _js_arrvar12.length; _js_idx11 += 1) {
+                ref = _js_arrvar12[_js_idx11];
                 node.resolvedRefs[ref.role] = room.sceneIndex[ref.target];
             };
         };
@@ -290,13 +304,13 @@ function prepareGame() {
     RETURNSTACK = [];
     UNDOSTACK = [];
     MESSAGES = [];
-    for (var room = null, _js_arrvar12 = GAME.rooms, _js_idx11 = 0; _js_idx11 < _js_arrvar12.length; _js_idx11 += 1) {
-        room = _js_arrvar12[_js_idx11];
+    for (var room = null, _js_arrvar14 = GAME.rooms, _js_idx13 = 0; _js_idx13 < _js_arrvar14.length; _js_idx13 += 1) {
+        room = _js_arrvar14[_js_idx13];
         ROOMINDEX[room.id] = room;
         prepareRoom(room);
     };
-    for (var room = null, _js_arrvar14 = GAME.rooms, _js_idx13 = 0; _js_idx13 < _js_arrvar14.length; _js_idx13 += 1) {
-        room = _js_arrvar14[_js_idx13];
+    for (var room = null, _js_arrvar16 = GAME.rooms, _js_idx15 = 0; _js_idx15 < _js_arrvar16.length; _js_idx15 += 1) {
+        room = _js_arrvar16[_js_idx15];
         resolveRoomRefs(room);
     };
     STATE = { 'globals' : initialState(GAME.state), 'taken-choices' : {  } };
@@ -342,8 +356,8 @@ function captureReturnStack() {
 };
 function captureLocalState() {
     var locals = [];
-    for (var room = null, _js_arrvar16 = GAME.rooms, _js_idx15 = 0; _js_idx15 < _js_arrvar16.length; _js_idx15 += 1) {
-        room = _js_arrvar16[_js_idx15];
+    for (var room = null, _js_arrvar18 = GAME.rooms, _js_idx17 = 0; _js_idx17 < _js_arrvar18.length; _js_idx17 += 1) {
+        room = _js_arrvar18[_js_idx17];
         walkNodes(room.body, function (node) {
             __PS_MV_REG = [];
             return node.type === 'entity' && node.id && objectKeyCount(node.state) > 0 ? pushArray(locals, { 'room' : room.id,
@@ -368,18 +382,18 @@ function captureRuntimeState() {
 };
 function restoreReturnStack(roomIds) {
     RETURNSTACK = [];
-    for (var roomId = null, _js_arrvar18 = nodeList(roomIds), _js_idx17 = 0; _js_idx17 < _js_arrvar18.length; _js_idx17 += 1) {
-        roomId = _js_arrvar18[_js_idx17];
+    for (var roomId = null, _js_arrvar20 = nodeList(roomIds), _js_idx19 = 0; _js_idx19 < _js_arrvar20.length; _js_idx19 += 1) {
+        roomId = _js_arrvar20[_js_idx19];
         pushArray(RETURNSTACK, roomById(roomId));
     };
 };
 function restoreLocalState(locals) {
-    for (var entry = null, _js_arrvar20 = nodeList(locals), _js_idx19 = 0; _js_idx19 < _js_arrvar20.length; _js_idx19 += 1) {
-        entry = _js_arrvar20[_js_idx19];
-        var room21 = roomById(entry.room);
-        var entity22 = room21.sceneIndex[entry.entity];
-        if (entity22) {
-            entity22.state = copyObject(entry.state || {  });
+    for (var entry = null, _js_arrvar22 = nodeList(locals), _js_idx21 = 0; _js_idx21 < _js_arrvar22.length; _js_idx21 += 1) {
+        entry = _js_arrvar22[_js_idx21];
+        var room23 = roomById(entry.room);
+        var entity24 = room23.sceneIndex[entry.entity];
+        if (entity24) {
+            entity24.state = copyObject(entry.state || {  });
         } else {
             runtimeError('No saveable entity ' + entry.entity + '.');
         };
@@ -467,8 +481,8 @@ function evaluateExpression(expression, context) {
 };
 function everyCondition(conditions, context) {
     var result = true;
-    for (var child = null, _js_arrvar22 = nodeList(conditions), _js_idx21 = 0; _js_idx21 < _js_arrvar22.length; _js_idx21 += 1) {
-        child = _js_arrvar22[_js_idx21];
+    for (var child = null, _js_arrvar24 = nodeList(conditions), _js_idx23 = 0; _js_idx23 < _js_arrvar24.length; _js_idx23 += 1) {
+        child = _js_arrvar24[_js_idx23];
         if (!evaluateCondition(child, context)) {
             result = null;
         };
@@ -478,8 +492,8 @@ function everyCondition(conditions, context) {
 };
 function someCondition(conditions, context) {
     var result = null;
-    for (var child = null, _js_arrvar24 = nodeList(conditions), _js_idx23 = 0; _js_idx23 < _js_arrvar24.length; _js_idx23 += 1) {
-        child = _js_arrvar24[_js_idx23];
+    for (var child = null, _js_arrvar26 = nodeList(conditions), _js_idx25 = 0; _js_idx25 < _js_arrvar26.length; _js_idx25 += 1) {
+        child = _js_arrvar26[_js_idx25];
         if (evaluateCondition(child, context)) {
             result = true;
         };
@@ -545,8 +559,8 @@ function executeEffect(effect, context) {
     if (effect.type === 'sequence') {
         var result = null;
         nilBlock: {
-            for (var child = null, _js_arrvar26 = effect.effects, _js_idx25 = 0; _js_idx25 < _js_arrvar26.length; _js_idx25 += 1) {
-                child = _js_arrvar26[_js_idx25];
+            for (var child = null, _js_arrvar28 = effect.effects, _js_idx27 = 0; _js_idx27 < _js_arrvar28.length; _js_idx27 += 1) {
+                child = _js_arrvar28[_js_idx27];
                 result = executeEffect(child, context);
                 if (result) {
                     __PS_MV_REG = [];
@@ -623,8 +637,8 @@ function describeNode(node, context, parent) {
     };
 };
 function describeNodes(nodes, context, parent) {
-    for (var node = null, _js_arrvar28 = nodeList(nodes), _js_idx27 = 0; _js_idx27 < _js_arrvar28.length; _js_idx27 += 1) {
-        node = _js_arrvar28[_js_idx27];
+    for (var node = null, _js_arrvar30 = nodeList(nodes), _js_idx29 = 0; _js_idx29 < _js_arrvar30.length; _js_idx29 += 1) {
+        node = _js_arrvar30[_js_idx29];
         describeNode(node, context, parent);
     };
 };
@@ -643,8 +657,8 @@ function collectNodeChoices(node, context, choices) {
                                });
         };
     } else if (node.type === 'choices') {
-        for (var choice = null, _js_arrvar30 = node.options, _js_idx29 = 0; _js_idx29 < _js_arrvar30.length; _js_idx29 += 1) {
-            choice = _js_arrvar30[_js_idx29];
+        for (var choice = null, _js_arrvar32 = node.options, _js_idx31 = 0; _js_idx31 < _js_arrvar32.length; _js_idx31 += 1) {
+            choice = _js_arrvar32[_js_idx31];
             collectNodeChoices(choice, context, choices);
         };
     } else if (node.type === 'entity') {
@@ -675,8 +689,8 @@ function collectNodeChoices(node, context, choices) {
     return choices;
 };
 function collectChoicesFrom(nodes, context, choices) {
-    for (var node = null, _js_arrvar32 = nodeList(nodes), _js_idx31 = 0; _js_idx31 < _js_arrvar32.length; _js_idx31 += 1) {
-        node = _js_arrvar32[_js_idx31];
+    for (var node = null, _js_arrvar34 = nodeList(nodes), _js_idx33 = 0; _js_idx33 < _js_arrvar34.length; _js_idx33 += 1) {
+        node = _js_arrvar34[_js_idx33];
         collectNodeChoices(node, context, choices);
     };
     __PS_MV_REG = [];
@@ -686,8 +700,8 @@ function currentContext() {
     return { 'scene' : CURRENTLOCATION.type === 'room' ? CURRENTLOCATION : null, 'self' : null };
 };
 function renderMessages(body) {
-    for (var message = null, _js_idx33 = 0; _js_idx33 < MESSAGES.length; _js_idx33 += 1) {
-        message = MESSAGES[_js_idx33];
+    for (var message = null, _js_idx35 = 0; _js_idx35 < MESSAGES.length; _js_idx35 += 1) {
+        message = MESSAGES[_js_idx35];
         appendText(body, 'p', 'dunge-message', message);
     };
     __PS_MV_REG = [];
@@ -718,18 +732,18 @@ function renderRoom(title, body, choicesElement) {
     return renderChoices(choices, choicesElement);
 };
 function renderContainerView(title, body, choicesElement) {
-    var container34 = CURRENTLOCATION.container;
+    var container36 = CURRENTLOCATION.container;
     var context = { 'scene' : null, 'self' : null };
     var choices = [];
-    title.textContent = container34.name;
+    title.textContent = container36.name;
     renderMessages(body);
-    if (container34.contents.length > 0) {
-        describeNodes(container34.contents, context, body);
+    if (container36.contents.length > 0) {
+        describeNodes(container36.contents, context, body);
     } else {
         appendText(body, 'p', null, 'There is nothing here.');
     };
-    collectChoicesFrom(container34.contents, context, choices);
-    pushArray(choices, { 'label' : container34.closeLabel || 'Back', 'target' : { 'type' : 'back' } });
+    collectChoicesFrom(container36.contents, context, choices);
+    pushArray(choices, { 'label' : container36.closeLabel || 'Back', 'target' : { 'type' : 'back' } });
     __PS_MV_REG = [];
     return renderChoices(choices, choicesElement);
 };
@@ -746,8 +760,8 @@ function renderChoiceButton(choice, choicesElement) {
 };
 function renderChoices(choices, choicesElement) {
     if (choices.length > 0) {
-        for (var choice = null, _js_idx37 = 0; _js_idx37 < choices.length; _js_idx37 += 1) {
-            choice = choices[_js_idx37];
+        for (var choice = null, _js_idx39 = 0; _js_idx39 < choices.length; _js_idx39 += 1) {
+            choice = choices[_js_idx39];
             renderChoiceButton(choice, choicesElement);
         };
     } else {
