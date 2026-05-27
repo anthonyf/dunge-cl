@@ -260,6 +260,7 @@ Common Lisp at runtime.
 ```lisp
 (:game
  :start "kitchen"
+ :seed 12345
  :tables
  ((:table
    :id :cupboard-loot
@@ -288,9 +289,16 @@ nested table roll. The engine deliberately does not interpret all result shapes
 yet; later systems such as loot, encounters, shops, and dungeon generation will
 define the meanings of their own result data.
 
-Stateful table progress, such as sequence position and deck draws, is part of
-runtime save/load. This lets future generated dungeons roll a room, encounter,
-or loot result once and keep it stable when the player returns.
+Games may declare an initial `:seed`. The seed is authored data; the Common
+Lisp runtime owns the deterministic pseudo-random generator, current RNG state,
+and roll log. Table rolls advance the game RNG by default and append a
+structured roll record containing the table id, mode, selected entry, roll
+details, and resolved result.
+
+Stateful table progress, such as sequence position, deck draws, current RNG
+state, and the roll log, is part of runtime save/load. This lets future
+generated dungeons roll a room, encounter, or loot result once and keep it
+stable when the player returns.
 
 ## State
 

@@ -55,7 +55,10 @@
    #:game-global-state
    #:game-global-state-declarations
    #:game-player
+   #:game-random-seed
+   #:game-random-state
    #:game-rooms
+   #:game-roll-log
    #:game-start
    #:game-tables
    #:game-taken-choices
@@ -108,6 +111,7 @@
    #:state-toggle
    #:tagged-mixin
    #:roll-table
+   #:game-random
    #:table-entries
    #:table-entry
    #:table-entry-id

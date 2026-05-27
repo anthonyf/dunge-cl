@@ -38,6 +38,15 @@
      :rooms
      ((:room :id "room" :body ,body)))))
 
+(defun source-game-with-seeded-tables (seed tables &rest body)
+  (source-node
+   `(:game
+     :start "room"
+     :seed ,seed
+     :tables ,tables
+     :rooms
+     ((:room :id "room" :body ,body)))))
+
 (defun sorted-keywords (keywords)
   (sort (copy-list keywords)
         #'string<
@@ -948,6 +957,80 @@
       (let ((deck-next (roll-table fresh-game :deck)))
         (is (member deck-next '(:left :right)))
         (is (not (eq deck-first deck-next)))))))
+
+(defun build-seeded-table-fixture (&optional (seed 17))
+  (source-game-with-seeded-tables
+   seed
+   '((:table
+      :id :weighted
+      :mode :weighted
+      :entries
+      ((:table-entry :weight 1 :result :first)
+       (:table-entry :weight 1 :result :second)
+       (:table-entry :weight 1 :result :third)))
+     (:table
+      :id :certain-roll
+      :mode :roll
+      :entries
+      ((:table-entry :range 1 :result :only)))
+     (:table
+      :id :ordered
+      :mode :sequence
+      :entries
+      ((:table-entry :result :first)
+       (:table-entry :result :second))))))
+
+(test table-rolls-use-game-seed-and-record-roll-log
+  (let ((first-game (build-seeded-table-fixture 314))
+        (second-game (build-seeded-table-fixture 314)))
+    (is (= 314 (game-random-seed first-game)))
+    (let ((first-results (loop repeat 5
+                               collect (roll-table first-game :weighted)))
+          (second-results (loop repeat 5
+                                collect (roll-table second-game :weighted))))
+      (is (equal first-results second-results)))
+    (is (= 5 (length (game-roll-log first-game)))))
+  (let ((game (build-seeded-table-fixture 9)))
+    (is (eq :only (roll-table game :certain-roll)))
+    (is (equal (list (list :table :certain-roll
+                           :mode :roll
+                           :entry 0
+                           :roll 1
+                           :die 1
+                           :result :only))
+               (game-roll-log game))))
+  (let ((game (build-seeded-table-fixture 9)))
+    (is (eq :first (roll-table game :ordered)))
+    (is (eq :second (roll-table game :ordered)))
+    (is (equal '(:first :second)
+               (mapcar (lambda (entry)
+                         (getf entry :result))
+                       (game-roll-log game))))
+    (is (equal '(0 1)
+               (mapcar (lambda (entry)
+                         (getf entry :entry))
+                       (game-roll-log game))))))
+
+(test game-seed-must-be-non-negative
+  (signals error
+    (source-game-with-seeded-tables
+     -1
+     nil)))
+
+(test runtime-state-captures-and-restores-rng-state-and-roll-log
+  (let* ((game (build-seeded-table-fixture 123))
+         (session (make-runtime-session game)))
+    (roll-table game :weighted)
+    (let* ((state (capture-runtime-state session))
+           (expected-next (roll-table game :weighted))
+           (fresh-game (build-seeded-table-fixture 123))
+           (restored-session (restore-runtime-state fresh-game state)))
+      (declare (ignore restored-session))
+      (is (getf state :rng-state))
+      (is (= 1 (length (getf state :roll-log))))
+      (is (= 1 (length (game-roll-log fresh-game))))
+      (is (eq expected-next (roll-table fresh-game :weighted)))
+      (is (= 2 (length (game-roll-log fresh-game)))))))
 
 (test author-facing-shorthands-keep-control-flow-composable
   (let* ((game

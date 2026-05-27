@@ -63,6 +63,11 @@ selection. Current modes are `:weighted`, `:roll`, `:deck`, `:sequence`,
 `:first-match`, and `:bundle`.
 
 ```lisp
+(:game
+ :seed 12345
+ :tables
+ ...)
+
 (:table
  :id :barrow-loot
  :mode :weighted
@@ -76,7 +81,9 @@ selection. Current modes are `:weighted`, `:roll`, `:deck`, `:sequence`,
 ```
 
 Tables describe possible results; CL decides how to roll, draw, save progress,
-and interpret results for a specific subsystem.
+log outcomes, and interpret results for a specific subsystem. Table rolls use
+the game's deterministic seed by default, and save/load preserves the current
+RNG state, roll log, sequence positions, and deck draws.
 
 ---
 

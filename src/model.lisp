@@ -17,6 +17,9 @@
 (define-dunge-node game ()
   ((rooms :reader game-rooms :initarg :rooms :initform nil)
    (tables :reader game-tables :initarg :tables :initform nil)
+   (random-seed :reader game-random-seed :initarg :seed :initform 1)
+   (random-state :accessor game-random-state :initform 1)
+   (roll-log :accessor game-roll-log-reversed :initform nil)
    (global-state :reader game-global-state
                  :initform (make-hash-table :test 'eql))
    (global-state-declarations :reader game-global-state-declarations
@@ -42,8 +45,16 @@
     (:state :state-declarations :default nil)
     (:flags :state-key-list :default nil)
     (:marked :state-key-list :default nil)
+    (:seed :non-negative-integer :default 1)
     (:tables :table-list :default nil)
     (:rooms :room-list :required t))))
+
+(defun game-roll-log (game)
+  (reverse (copy-list (game-roll-log-reversed game))))
+
+(defun (setf game-roll-log) (roll-log game)
+  (setf (game-roll-log-reversed game) (reverse (copy-list roll-log)))
+  roll-log)
 
 (define-dunge-node room ()
   ((name :reader name :initarg :name :initform nil)
@@ -601,6 +612,7 @@
    (:fields)))
 
 (defmethod initialize-instance :after ((game game) &key)
+  (setf (game-random-state game) (game-random-seed game))
   (setf (slot-value game 'global-state-declarations)
         (append (game-global-state-declarations game)
                 (mapcar (lambda (key)
@@ -700,6 +712,8 @@
 (defun prepare-game (game)
   (reset-global-state game)
   (clrhash (game-taken-choices game))
+  (setf (game-random-state game) (game-random-seed game)
+        (game-roll-log-reversed game) nil)
   (dolist (table (game-tables game))
     (reset-table-state table))
   (dolist (room (game-rooms game))
