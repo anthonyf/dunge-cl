@@ -262,9 +262,7 @@ can TYPEP the result against QUIT, BACK, and related classes."))
                 (game-taken-choices (runtime-context-game context)))))
 
 (defun choice-visible-p (choice context)
-  (and (not (choice-taken-p choice context))
-       (or (null (choice-condition choice))
-           (evaluate-condition (choice-condition choice) context))))
+  (available-p choice context))
 
 (defun mark-choice-taken (choice context)
   (when (choice-once-p choice)
@@ -274,6 +272,134 @@ can TYPEP the result against QUIT, BACK, and related classes."))
     (setf (gethash (choice-state-key choice)
                    (game-taken-choices (runtime-context-game context)))
           t)))
+
+(defmethod consumed-p ((choice choice) context)
+  (choice-taken-p choice context))
+
+(defmethod consume-node ((choice choice) context)
+  (mark-choice-taken choice context))
+
+(defun find-table (game table-id)
+  (multiple-value-bind (table present-p) (gethash (table-id-key table-id)
+                                                  (table-index game))
+    (if present-p
+        table
+        (error "No table named ~S." table-id))))
+
+(defun runtime-context-for-table (game context)
+  (or context
+      (make-runtime-context :game game)))
+
+(defun table-available-entries (table context)
+  (let ((entries (remove-if-not (lambda (entry)
+                                  (available-p entry context))
+                                (table-entries table))))
+    (unless entries
+      (error "Table ~S has no available entries." (table-id table)))
+    entries))
+
+(defun choose-indexed-entry (entries index)
+  (elt entries index))
+
+(defun choose-random-entry (entries random-state)
+  (choose-indexed-entry entries (random (length entries) random-state)))
+
+(defun choose-weighted-entry (entries random-state)
+  (let ((total (reduce #'+ entries :key #'table-entry-weight)))
+    (loop with roll = (random total random-state)
+          for entry in entries
+          for weight = (table-entry-weight entry)
+          do (if (< roll weight)
+                 (return entry)
+                 (decf roll weight)))))
+
+(defun table-range-contains-p (range value)
+  (and (<= (car range) value)
+       (<= value (cdr range))))
+
+(defun choose-roll-entry (table entries random-state)
+  (let* ((highest (reduce #'max entries
+                          :key (lambda (entry)
+                                 (table-range-high (table-entry-range entry)))))
+         (roll (1+ (random highest random-state))))
+    (or (find-if (lambda (entry)
+                   (table-range-contains-p (table-entry-range entry) roll))
+                 entries)
+        (error "Roll table ~S rolled ~D, but no entry covers that result."
+               (table-id table)
+               roll))))
+
+(defun choose-sequence-entry (table entries)
+  (let* ((last-index (1- (length entries)))
+         (index (min (table-sequence-index table)
+                     last-index))
+         (entry (choose-indexed-entry entries index)))
+    (setf (table-sequence-index table)
+          (min (1+ index) last-index))
+    entry))
+
+(defun deck-entry-drawn-p (table entry)
+  (gethash (table-entry-ordinal entry) (table-deck-drawn table)))
+
+(defun choose-deck-entry (table entries random-state)
+  (let ((remaining (remove-if (lambda (entry)
+                                (deck-entry-drawn-p table entry))
+                              entries)))
+    (unless remaining
+      (clrhash (table-deck-drawn table))
+      (setf remaining entries))
+    (let ((entry (choose-random-entry remaining random-state)))
+      (setf (gethash (table-entry-ordinal entry) (table-deck-drawn table))
+            t)
+      entry)))
+
+(defun choose-table-entry (table context random-state)
+  (let ((entries (table-available-entries table context)))
+    (ecase (table-mode table)
+      (:weighted
+       (choose-weighted-entry entries random-state))
+      (:roll
+       (choose-roll-entry table entries random-state))
+      (:deck
+       (choose-deck-entry table entries random-state))
+      (:sequence
+       (choose-sequence-entry table entries))
+      (:first-match
+       (first entries)))))
+
+(defun table-reference-result-id (result)
+  (when (and (consp result)
+             (eq (first result) :table)
+             (consp (rest result))
+             (null (cddr result)))
+    (second result)))
+
+(defun resolve-table-result (game result context random-state)
+  (let ((nested-table-id (table-reference-result-id result)))
+    (if nested-table-id
+        (roll-table game nested-table-id
+                    :context context
+                    :random-state random-state)
+        result)))
+
+(defun roll-table (game table-id &key context (random-state *random-state*))
+  (let* ((table (find-table game table-id))
+         (context (runtime-context-for-table game context)))
+    (if (eq (table-mode table) :bundle)
+        (values
+         (mapcar (lambda (entry)
+                   (resolve-table-result game
+                                         (table-entry-result entry)
+                                         context
+                                         random-state))
+                 (table-available-entries table context))
+         nil)
+        (let ((entry (choose-table-entry table context random-state)))
+          (values (resolve-table-result game
+                                        (table-entry-result entry)
+                                        context
+                                        random-state)
+                  entry)))))
 
 (defun runtime-debug-undo-available-p (context)
   (and *debug*
@@ -332,7 +458,7 @@ can TYPEP the result against QUIT, BACK, and related classes."))
           (t
            (let ((option (elt options (1- index))))
              (remember-runtime-undo-state context)
-             (mark-choice-taken option context)
+             (consume-node option context)
              (evaluate (target option) context))))))))
 
 ;;; Effects can be reached as a choice target through EVALUATE, or inside a
@@ -519,6 +645,13 @@ can TYPEP the result against QUIT, BACK, and related classes."))
         #'string<
         :key #'prin1-to-string))
 
+(defun collect-runtime-table-state (game)
+  (mapcar (lambda (table)
+            (list :table (table-id table)
+                  :sequence-index (table-sequence-index table)
+                  :deck-drawn (sorted-hash-keys (table-deck-drawn table))))
+          (game-tables game)))
+
 (defun collect-runtime-local-state (game)
   (let (entries)
     (dolist (room (game-rooms game))
@@ -540,6 +673,7 @@ can TYPEP the result against QUIT, BACK, and related classes."))
           :return-stack (runtime-session-return-stack-room-names session)
           :globals (sorted-state-alist (game-global-state game))
           :locals (collect-runtime-local-state game)
+          :tables (collect-runtime-table-state game)
           :taken-choices (sorted-hash-keys (game-taken-choices game)))))
 
 (defun capture-runtime-undo-state (session)
@@ -548,6 +682,7 @@ can TYPEP the result against QUIT, BACK, and related classes."))
           :return-stack (copy-list (runtime-session-return-stack session))
           :globals (sorted-state-alist (game-global-state game))
           :locals (collect-runtime-local-state game)
+          :tables (collect-runtime-table-state game)
           :taken-choices (sorted-hash-keys (game-taken-choices game)))))
 
 (defun runtime-state-field (state field &optional default)
@@ -606,15 +741,37 @@ can TYPEP the result against QUIT, BACK, and related classes."))
   (dolist (entry locals)
     (restore-runtime-local-state-entry game entry)))
 
+(defun restore-runtime-table-state-entry (game entry)
+  (ensure-runtime-property-list entry "table state entry")
+  (let* ((table-id (runtime-state-required-field entry :table))
+         (sequence-index (runtime-state-field entry :sequence-index 0))
+         (deck-drawn (runtime-state-field entry :deck-drawn nil))
+         (table (find-table game table-id)))
+    (setf (table-sequence-index table)
+          (non-negative-integer-value sequence-index "Table sequence index"))
+    (ensure-runtime-list deck-drawn "table :DECK-DRAWN")
+    (clrhash (table-deck-drawn table))
+    (dolist (ordinal deck-drawn)
+      (setf (gethash (non-negative-integer-value ordinal "Deck drawn ordinal")
+                     (table-deck-drawn table))
+            t))))
+
+(defun restore-runtime-table-state (game tables)
+  (ensure-runtime-list tables ":TABLES")
+  (dolist (entry tables)
+    (restore-runtime-table-state-entry game entry)))
+
 (defun restore-runtime-state (game state)
   (let ((current-room (runtime-state-required-field state :current-room))
         (return-stack (runtime-state-field state :return-stack nil))
         (globals (runtime-state-field state :globals nil))
         (locals (runtime-state-field state :locals nil))
+        (tables (runtime-state-field state :tables nil))
         (taken-choices (runtime-state-field state :taken-choices nil)))
     (prepare-game game)
     (restore-runtime-global-state game globals)
     (restore-runtime-local-state game locals)
+    (restore-runtime-table-state game tables)
     (restore-runtime-taken-choices game taken-choices)
     (make-runtime-session game
                           :current-room current-room
@@ -625,6 +782,7 @@ can TYPEP the result against QUIT, BACK, and related classes."))
     (prepare-game game)
     (restore-runtime-global-state game (getf state :globals))
     (restore-runtime-local-state game (getf state :locals))
+    (restore-runtime-table-state game (getf state :tables))
     (restore-runtime-taken-choices game (getf state :taken-choices))
     (setf (runtime-session-location session) (getf state :location))
     (setf (runtime-session-return-stack session)

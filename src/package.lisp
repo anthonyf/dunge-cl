@@ -13,6 +13,9 @@
    #:action-owner
    #:back
    #:branch
+   #:availability-condition
+   #:availability-mixin
+   #:available-p
    #:choice
    #:choice-condition
    #:choice-id
@@ -24,6 +27,11 @@
    #:condition-not
    #:condition-or
    #:conditional-effect
+   #:consumable-id
+   #:consumable-mixin
+   #:consumable-once-p
+   #:consume-node
+   #:consumed-p
    #:collect-choices
    #:compile-dunge-source
    #:container
@@ -49,6 +57,7 @@
    #:game-player
    #:game-rooms
    #:game-start
+   #:game-tables
    #:game-taken-choices
    #:gosub
    #:goto
@@ -63,6 +72,8 @@
    #:name
    #:node-children
    #:node-id
+   #:node-priority
+   #:node-tags
    #:open-choice
    #:options
    #:p
@@ -75,6 +86,8 @@
    #:read-runtime-state-file
    #:restore-runtime-state
    #:make-runtime-context
+   #:prioritized-mixin
+   #:random-table
    #:runtime-context
    #:runtime-context-game
    #:runtime-context-scene
@@ -93,6 +106,17 @@
    #:state-ref
    #:state-set
    #:state-toggle
+   #:tagged-mixin
+   #:roll-table
+   #:table-entries
+   #:table-entry
+   #:table-entry-id
+   #:table-entry-range
+   #:table-entry-result
+   #:table-entry-weight
+   #:table-id
+   #:table-index
+   #:table-mode
    #:target
    #:text
    #:validate-game

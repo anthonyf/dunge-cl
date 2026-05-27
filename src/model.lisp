@@ -16,6 +16,7 @@
 
 (define-dunge-node game ()
   ((rooms :reader game-rooms :initarg :rooms :initform nil)
+   (tables :reader game-tables :initarg :tables :initform nil)
    (global-state :reader game-global-state
                  :initform (make-hash-table :test 'eql))
    (global-state-declarations :reader game-global-state-declarations
@@ -31,14 +32,17 @@
                   :initform (make-hash-table :test 'eql))
    (player :accessor game-player :initarg :player :initform nil)
    (room-index :reader room-index :initform (make-hash-table :test 'equal))
+   (table-index :reader table-index :initform (make-hash-table :test 'eql))
    (start :accessor game-start :initarg :start :initform nil))
-  (:children (thing) (game-rooms thing))
+  (:children (thing) (append (game-rooms thing)
+                             (game-tables thing)))
   (:source :game
    (:fields
     (:start :scene-id)
     (:state :state-declarations :default nil)
     (:flags :state-key-list :default nil)
     (:marked :state-key-list :default nil)
+    (:tables :table-list :default nil)
     (:rooms :room-list :required t))))
 
 (define-dunge-node room ()
@@ -217,6 +221,67 @@
    (:fields
     (:conditions :condition-list :required t))))
 
+(defgeneric availability-condition (thing))
+(defgeneric available-p (thing context))
+(defgeneric consumed-p (thing context))
+(defgeneric consume-node (thing context))
+(defgeneric consumable-id (thing))
+(defgeneric consumable-once-p (thing))
+(defgeneric node-tags (thing))
+(defgeneric node-priority (thing))
+
+(defclass availability-mixin ()
+  ((condition :reader availability-condition
+              :initarg :condition
+              :initform nil)))
+
+(defclass consumable-mixin ()
+  ((id :reader consumable-id :initarg :id :initform nil)
+   (once :reader consumable-once-p :initarg :once :initform nil)))
+
+(defclass tagged-mixin ()
+  ((tags :reader node-tags :initarg :tags :initform nil)))
+
+(defclass prioritized-mixin ()
+  ((priority :reader node-priority :initarg :priority :initform 0)))
+
+(defmethod availability-condition ((thing t))
+  nil)
+
+(defmethod consumed-p ((thing t) context)
+  (declare (ignore thing context))
+  nil)
+
+(defmethod consume-node ((thing t) context)
+  (declare (ignore thing context))
+  nil)
+
+(defmethod consumable-id ((thing t))
+  nil)
+
+(defmethod consumable-once-p ((thing t))
+  nil)
+
+(defmethod node-tags ((thing t))
+  (declare (ignore thing))
+  nil)
+
+(defmethod node-priority ((thing t))
+  (declare (ignore thing))
+  0)
+
+(defmethod available-p ((thing t) context)
+  (not (consumed-p thing context)))
+
+(defmethod available-p ((thing availability-mixin) context)
+  (and (call-next-method)
+       (or (null (availability-condition thing))
+           (evaluate-condition (availability-condition thing) context))))
+
+(defgeneric choice-condition (choice))
+(defgeneric choice-id (choice))
+(defgeneric choice-once-p (choice))
+
 (define-dunge-node sequence (effect-node)
   ((effects :reader sequence-effects :initarg :effects :initform nil))
   (:source :sequence
@@ -281,12 +346,9 @@
     (:then :effect-block :default nil)
     (:else :effect-block :default nil))))
 
-(define-dunge-node choice ()
+(define-dunge-node choice (availability-mixin consumable-mixin)
   ((label :accessor label :initarg :label :initform nil)
-   (target :accessor target :initarg :target :initform nil)
-   (id :reader choice-id :initarg :id :initform nil)
-   (condition :reader choice-condition :initarg :condition :initform nil)
-   (once :reader choice-once-p :initarg :once :initform nil))
+   (target :accessor target :initarg :target :initform nil))
   (:source :%choice
    (:fields
     (:label :string :required t)
@@ -295,8 +357,148 @@
     (:when :condition :to :condition)
     (:once :boolean))))
 
+(defmethod choice-condition ((choice choice))
+  (availability-condition choice))
+
+(defmethod choice-id ((choice choice))
+  (consumable-id choice))
+
+(defmethod choice-once-p ((choice choice))
+  (consumable-once-p choice))
+
 (define-dunge-node choices ()
   ((options :accessor options :initarg :options :initform nil)))
+
+(defun table-id-key (id)
+  (unless (keywordp id)
+    (error "Table ids must be keywords; got ~S." id))
+  id)
+
+(defun table-mode-key (mode)
+  (unless (member mode '(:weighted :roll :deck :sequence :first-match :bundle)
+                  :test #'eq)
+    (error "Table mode must be one of :WEIGHTED, :ROLL, :DECK, :SEQUENCE, :FIRST-MATCH, or :BUNDLE; got ~S."
+           mode))
+  mode)
+
+(defun positive-integer-value (value label)
+  (unless (and (integerp value) (plusp value))
+    (error "~A must be a positive integer; got ~S." label value))
+  value)
+
+(defun non-negative-integer-value (value label)
+  (unless (and (integerp value) (not (minusp value)))
+    (error "~A must be a non-negative integer; got ~S." label value))
+  value)
+
+(defun tag-list-value (value)
+  (unless (listp value)
+    (source-error "Tag lists must be lists; got ~S." value))
+  (mapcar (lambda (tag)
+            (unless (keywordp tag)
+              (source-error "Tags must be keywords; got ~S." tag))
+            tag)
+          value))
+
+(define-dunge-field-type :table-id (value context)
+  (declare (ignore context))
+  (table-id-key value))
+
+(define-dunge-field-type :table-mode (value context)
+  (declare (ignore context))
+  (table-mode-key value))
+
+(define-dunge-field-type :positive-integer (value context)
+  (declare (ignore context))
+  (positive-integer-value value "Value"))
+
+(define-dunge-field-type :non-negative-integer (value context)
+  (declare (ignore context))
+  (non-negative-integer-value value "Value"))
+
+(define-dunge-field-type :tag-list (value context)
+  (declare (ignore context))
+  (tag-list-value value))
+
+(defun table-range-value (value)
+  (cond
+    ((integerp value)
+     (let ((point (positive-integer-value value "Table range")))
+       (cons point point)))
+    ((and (source-pair-p value)
+          (integerp (first value))
+          (integerp (second value)))
+     (let ((low (positive-integer-value (first value) "Table range low"))
+           (high (positive-integer-value (second value) "Table range high")))
+       (when (> low high)
+         (source-error "Table range low ~D is greater than high ~D."
+                       low
+                       high))
+       (cons low high)))
+    (t
+     (source-error "Table ranges must be an integer or (LOW HIGH); got ~S."
+                   value))))
+
+(define-dunge-field-type :table-range (value context)
+  (declare (ignore context))
+  (table-range-value value))
+
+(define-dunge-node table-entry (availability-mixin tagged-mixin)
+  ((id :reader table-entry-id :initarg :id :initform nil)
+   (weight :reader table-entry-weight :initarg :weight :initform 1)
+   (range :reader table-entry-range :initarg :range :initform nil)
+   (result :reader table-entry-result :initarg :result :initform nil)
+   (ordinal :accessor table-entry-ordinal :initform nil))
+  (:source :table-entry
+   (:fields
+    (:id :state-key)
+    (:weight :positive-integer :default 1)
+    (:range :table-range)
+    (:when :condition :to :condition)
+    (:tags :tag-list :default nil)
+    (:result :literal :required t))))
+
+(define-dunge-node random-table ()
+  ((id :reader table-id :initarg :id :initform nil)
+   (mode :reader table-mode :initarg :mode :initform :weighted)
+   (entries :reader table-entries :initarg :entries :initform nil)
+   (sequence-index :accessor table-sequence-index :initform 0)
+   (deck-drawn :reader table-deck-drawn
+               :initform (make-hash-table :test 'eql)))
+  (:children (thing) (table-entries thing))
+  (:source :table
+   (:fields
+    (:id :table-id :required t)
+    (:mode :table-mode :default :weighted)
+    (:entries :table-entry-list :required t))))
+
+(defmethod initialize-instance :after ((table random-table) &key)
+  (loop for entry in (table-entries table)
+        for ordinal from 0
+        do (setf (table-entry-ordinal entry) ordinal)))
+
+(defun reset-table-state (table)
+  (setf (table-sequence-index table) 0)
+  (clrhash (table-deck-drawn table))
+  table)
+
+(define-dunge-field-type :table-entry-list (value context)
+  (mapcar (lambda (form)
+            (let ((node (compile-dunge-source-form form context)))
+              (unless (typep node 'table-entry)
+                (source-error "Expected a table entry source form, got ~S."
+                              form))
+              node))
+          (ensure-source-list :table-entry-list value)))
+
+(define-dunge-field-type :table-list (value context)
+  (mapcar (lambda (form)
+            (let ((node (compile-dunge-source-form form context)))
+              (unless (typep node 'random-table)
+                (source-error "Expected a table source form, got ~S."
+                              form))
+              node))
+          (ensure-source-list :table-list value)))
 
 (define-dunge-node entity ()
   ((name :reader name :initarg :name :initform nil)
@@ -412,6 +614,11 @@
     (when (nth-value 1 (gethash (name room) (room-index game)))
       (error "Duplicate room named ~S." (name room)))
     (setf (gethash (name room) (room-index game)) room))
+  (clrhash (table-index game))
+  (dolist (table (game-tables game))
+    (when (nth-value 1 (gethash (table-id table) (table-index game)))
+      (error "Duplicate table id ~S." (table-id table)))
+    (setf (gethash (table-id table) (table-index game)) table))
   (unless (game-start game)
     (setf (game-start game) (and (game-rooms game)
                                  (name (first (game-rooms game)))))))
@@ -493,6 +700,8 @@
 (defun prepare-game (game)
   (reset-global-state game)
   (clrhash (game-taken-choices game))
+  (dolist (table (game-tables game))
+    (reset-table-state table))
   (dolist (room (game-rooms game))
     (prepare-room-scene room))
   game)
@@ -547,6 +756,21 @@
                                  (label existing)
                                  (label choice))
                (setf (gethash key *validation-choice-ids*) choice))))))))
+
+(defun validate-availability-node (thing game context)
+  (let ((condition (availability-condition thing)))
+    (when condition
+      (validate-condition condition game context))))
+
+(defun validate-consumable-node (thing)
+  (let ((id (consumable-id thing)))
+    (cond
+      ((and (consumable-once-p thing)
+            (null id))
+       (validation-error "Once-only node ~S must declare :ID." thing))
+      ((and id (not (keywordp id)))
+       (validation-error "Consumable node id must be a keyword; got ~S."
+                         id)))))
 
 (defun validate-state-declaration-list (owner-label declarations)
   (let ((seen (make-hash-table :test 'eql)))
@@ -619,6 +843,8 @@
     (validate-game-start game)
     (validate-state-declaration-list "Game"
                                      (game-global-state-declarations game))
+    (dolist (table (game-tables game))
+      (validate-node table game game))
     (dolist (room (game-rooms game))
       (validate-node room game room))
     (signal-validation-errors "Game"))
@@ -652,10 +878,64 @@
   (validate-node-list (options thing) game context))
 
 (defmethod validate-node ((thing choice) game context)
+  (validate-availability-node thing game context)
   (validate-choice-id thing)
-  (when (choice-condition thing)
-    (validate-condition (choice-condition thing) game context))
   (validate-node (target thing) game context))
+
+(defun table-result-reference-id (result)
+  (when (and (consp result)
+             (eq (first result) :table)
+             (consp (rest result))
+             (null (cddr result)))
+    (second result)))
+
+(defun table-range-high (range)
+  (cdr range))
+
+(defun table-ranges-overlap-p (left right)
+  (and (<= (car left) (cdr right))
+       (<= (car right) (cdr left))))
+
+(defun validate-table-entry-list (table)
+  (when (null (table-entries table))
+    (validation-error "Table ~S must contain at least one entry."
+                      (table-id table)))
+  (when (eq (table-mode table) :roll)
+    (let ((seen-ranges nil))
+      (dolist (entry (table-entries table))
+        (let ((range (table-entry-range entry)))
+          (unless range
+            (validation-error "Roll table ~S entry ~S is missing :RANGE."
+                              (table-id table)
+                              (table-entry-result entry)))
+          (when range
+            (dolist (seen seen-ranges)
+              (when (table-ranges-overlap-p range seen)
+                (validation-error "Roll table ~S has overlapping ranges ~S and ~S."
+                                  (table-id table)
+                                  range
+                                  seen)))
+            (push range seen-ranges)))))))
+
+(defmethod validate-node ((thing random-table) game context)
+  (declare (ignore context))
+  (validate-table-entry-list thing)
+  (dolist (entry (table-entries thing))
+    (validate-node entry game thing)))
+
+(defmethod validate-node ((thing table-entry) game context)
+  (declare (ignore context))
+  (validate-availability-node thing game nil)
+  (let ((table-id (table-result-reference-id (table-entry-result thing))))
+    (when table-id
+      (unless (keywordp table-id)
+        (validation-error "Table reference result must use a keyword id; got ~S."
+                          table-id))
+      (when (and game
+                 (keywordp table-id)
+                 (not (nth-value 1 (gethash table-id (table-index game)))))
+        (validation-error "Table entry references missing table ~S."
+                          table-id)))))
 
 (defun validate-effect-tree (effects game context)
   (cond

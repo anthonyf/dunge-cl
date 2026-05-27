@@ -182,14 +182,19 @@
   (first arguments))
 
 (defun expand-choice-source-form (arguments)
-  (unless (and (= 2 (length arguments))
+  (unless (and (>= (length arguments) 2)
                (stringp (first arguments)))
     (source-error
-     ":CHOICE expects (:CHOICE label effect); got ~S."
+     ":CHOICE expects (:CHOICE label effect &key id when once); got ~S."
      arguments))
+  (unless (evenp (length (cddr arguments)))
+    (source-error
+     ":CHOICE keyword metadata must contain an even number of entries; got ~S."
+     (cddr arguments)))
   `(:%choice
     :label ,(first arguments)
-    :do ,(second arguments)))
+    :do ,(second arguments)
+    ,@(cddr arguments)))
 
 (defun expand-once-source-form (arguments)
   (unless (and (= 3 (length arguments))
