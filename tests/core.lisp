@@ -47,6 +47,14 @@
      :rooms
      ((:room :id "room" :body ,body)))))
 
+(defun source-game-with-player (player &rest body)
+  (source-node
+   `(:game
+     :start "room"
+     :player ,player
+     :rooms
+     ((:room :id "room" :body ,body)))))
+
 (defun sorted-keywords (keywords)
   (sort (copy-list keywords)
         #'string<
@@ -578,6 +586,108 @@
         (is (dunge::choice-taken-p
              (second (entities start-room))
              restored-context))))))
+
+(test player-source-form-parses-and-validates-core-state
+  (let* ((game
+           (source-game-with-player
+            '(:player
+              :name "Mara"
+              :background :soldier
+              :str 12
+              :dex 11
+              :wil 9
+              :hp 4
+              :armor 1
+              :gold 8
+              :fate 1
+              :inventory ((:item :rusted-dagger)
+                          (:supply :ration :count 3))
+              :fatigue 1
+              :conditions (:deprived))))
+         (player (game-player game)))
+    (is (typep player 'player))
+    (is (equal "Mara" (player-name player)))
+    (is (eq :soldier (player-background player)))
+    (is (= 12 (player-str player)))
+    (is (= 12 (player-max-str player)))
+    (is (= 4 (player-hp player)))
+    (is (= 4 (player-max-hp player)))
+    (is (equal '((:item :rusted-dagger)
+                 (:supply :ration :count 3))
+               (player-inventory player)))
+    (is (equal '(:deprived) (player-conditions player)))))
+
+(test malformed-player-source-fails-validation
+  (signals error
+    (source-game-with-player
+     '(:player :str -1)))
+  (signals error
+    (source-game-with-player
+     '(:player :str 12 :max-str 10)))
+  (signals error
+    (source-game-with-player
+     '(:player :conditions ("deprived")))))
+
+(test runtime-state-captures-and-restores-player-state
+  (let* ((game
+           (source-game-with-player
+            '(:player
+              :name "Mara"
+              :background :soldier
+              :str 12
+              :dex 11
+              :wil 9
+              :hp 4
+              :armor 1
+              :gold 8
+              :fate 1
+              :inventory ((:item :rusted-dagger))
+              :conditions (:deprived))))
+         (session (make-runtime-session game))
+         (player (game-player game)))
+    (setf (player-hp player) 2
+          (player-gold player) 13
+          (player-inventory player) '((:item :rusted-dagger)
+                                      (:supply :ration :count 2))
+          (player-conditions player) '(:deprived :poisoned))
+    (let* ((state (capture-runtime-state session))
+           (fresh-game
+             (source-game-with-player
+              '(:player
+                :name "Mara"
+                :background :soldier
+                :str 12
+                :dex 11
+                :wil 9
+                :hp 4
+                :armor 1
+                :gold 8
+                :fate 1
+                :inventory ((:item :rusted-dagger))
+                :conditions (:deprived))))
+           (restored-session (restore-runtime-state fresh-game state))
+           (restored-player (game-player fresh-game)))
+      (declare (ignore restored-session))
+      (is (equal "Mara" (getf (getf state :player) :name)))
+      (is (= 2 (player-hp restored-player)))
+      (is (= 4 (player-max-hp restored-player)))
+      (is (= 13 (player-gold restored-player)))
+      (is (equal '((:item :rusted-dagger)
+                   (:supply :ration :count 2))
+                 (player-inventory restored-player)))
+      (is (equal '(:deprived :poisoned)
+                 (player-conditions restored-player))))))
+
+(test runtime-state-restores-saved-player-into-game-without-authored-player
+  (let* ((game (source-game-with-player
+                '(:player :name "Mara" :str 12 :hp 4)))
+         (session (make-runtime-session game))
+         (state (capture-runtime-state session))
+         (fresh-game (source-game-with-body)))
+    (restore-runtime-state fresh-game state)
+    (is (game-player fresh-game))
+    (is (equal "Mara" (player-name (game-player fresh-game))))
+    (is (= 12 (player-str (game-player fresh-game))))))
 
 (test console-debug-undo-restores-previous-choice-state
   (let* ((game (build-save-load-fixture))
@@ -1543,6 +1653,27 @@
     (is (contains-substring-p "function executeEffect" script))
     (is (contains-substring-p "function renderChoiceButton" script))
     (is (contains-substring-p "function renderChoices" script))))
+
+(test html-compiler-lowers-player-state-for-browser-runtime
+  (let* ((game
+           (source-game-with-player
+            '(:player
+              :name "Mara"
+              :background :soldier
+              :str 12
+              :hp 4
+              :inventory ((:item :rusted-dagger))
+              :conditions (:deprived))))
+         (script (dunge-html:compile-game-script game)))
+    (is (contains-substring-p "\"player\":{\"name\":\"Mara\"" script))
+    (is (contains-substring-p "\"background\":{\"type\":\"keyword\",\"name\":\"soldier\"}"
+                              script))
+    (is (contains-substring-p "\"maxStr\":12" script))
+    (is (contains-substring-p "\"inventory\":[[{\"type\":\"keyword\",\"name\":\"item\"}"
+                              script))
+    (is (contains-substring-p "function copyJsonValue" script))
+    (is (contains-substring-p "'player' : copyJsonValue(PLAYER)" script))
+    (is (contains-substring-p "if (state['player'] !== undefined)" script))))
 
 (test html-compiler-can-enable-debug-controls
   (let* ((game (source-game-with-body

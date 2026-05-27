@@ -356,6 +356,45 @@ game-level state declarations and continue using unrestricted globals, but
 authored mystery content should declare its clue, fact, phase, deduction, and
 scoring flags.
 
+## Player State
+
+Games may declare an initial player record:
+
+```lisp
+(:game
+ :start "town"
+ :player
+ (:player
+  :name "Mara"
+  :background :soldier
+  :str 12
+  :dex 11
+  :wil 9
+  :hp 4
+  :armor 1
+  :gold 8
+  :fate 1
+  :inventory ((:item :rusted-dagger)
+              (:supply :ration :count 3))
+  :fatigue 0
+  :conditions nil)
+ :rooms ...)
+```
+
+The player model tracks the current character-sheet foundation: name,
+background, current and maximum STR/DEX/WIL, current and maximum HP, armor,
+gold, fate, inventory data, fatigue, and conditions. Maximum STR/DEX/WIL/HP
+default to the corresponding current values when omitted.
+
+Inventory entries are literal data for now, usually following the table result
+conventions in [AUTHORING.md](AUTHORING.md). The player model stores them, but
+Common Lisp inventory procedures will later decide how slots, bulky items,
+stacking, use effects, and gold transactions work.
+
+If a game has no authored player, the runtime may still restore a saved player
+record. This keeps the model compatible with a future character creation flow,
+where CL creates the player before ordinary room play begins.
+
 ## Effects And Sequences
 
 Choices can target a single effect/control node or a sequence:
@@ -382,6 +421,22 @@ The minimum save payload is still:
 ```lisp
 (:current-room "cupboard"
  :return-stack ("kitchen")
+ :player (:name "Mara"
+          :background :soldier
+          :str 12
+          :max-str 12
+          :dex 11
+          :max-dex 11
+          :wil 9
+          :max-wil 9
+          :hp 4
+          :max-hp 4
+          :armor 1
+          :gold 8
+          :fate 1
+          :inventory ((:item :rusted-dagger))
+          :fatigue 0
+          :conditions nil)
  :globals ((:recipe . t))
  :locals ((:room "kitchen"
            :entity "stove"

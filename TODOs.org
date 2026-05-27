@@ -11,7 +11,7 @@
 - [X] Shared availability protocol for conditionally available and consumable nodes
 - [X] First-class authored random tables with weighted, roll, deck, sequence, first-match, and bundle modes
 - [X] Save/load state for table sequence and deck progress
-- [ ] Include player state in save/load once the player model exists
+- [X] Include player state in save/load once the player model exists
 
 * Phase 1A: Content Data Foundations
 - [X] Document the .dunge "what" vs Common Lisp "how" design boundary
@@ -21,6 +21,7 @@
 - [X] Add a public authoring guide for table result conventions
 
 * Phase 2: Character And Inventory
+- [X] Player state foundation with source validation and save/load
 - [ ] Character creation flow with name, background, stats, HP, armor, gold, fate, and inventory
 - [ ] Background starting gear matching the design document
 - [ ] Inventory slots, bulky items, stackable supplies, and gold handling
