@@ -34,7 +34,10 @@ Use these rules unless a subsystem documents a narrower shape:
 - Options are plist-style keyword/value pairs after the primary payload.
 - Amounts may be integers or dice strings, such as `3`, `"1d6"`, or `"2d4+1"`.
 - Results name content or facts; they do not mutate state by themselves.
-- Use `:when`, `:tags`, and table mode to control eligibility and selection.
+- Use `:when` to control eligibility, and table mode fields such as `:weight`
+  or `:range` to control selection.
+- Use `:tags` as metadata for downstream systems, organization, filtering, and
+  future tooling. Tags do not affect table selection by themselves today.
 
 Scalar keyword results are allowed for small private tables, but reusable
 systems should prefer typed result lists so CL can dispatch on the result type.
@@ -149,7 +152,7 @@ packages without adding procedural logic to `.dunge`.
  :entries
  ((:table-entry :weight 4 :result (:gold "1d6"))
   (:table-entry :weight 2 :result (:item :rusted-dagger))
-  (:table-entry :weight 2 :result (:supply :torch :count 1))
+  (:table-entry :weight 2 :result (:supply :ration :count 1))
   (:table-entry
    :weight 1
    :when (:marked? :barrow-secret-found)
