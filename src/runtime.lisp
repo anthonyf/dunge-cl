@@ -709,6 +709,9 @@ can TYPEP the result against QUIT, BACK, and related classes."))
 (defun collect-runtime-roll-log (game)
   (game-roll-log game))
 
+(defun collect-runtime-player-state (game)
+  (player-state-plist (game-player game)))
+
 (defun collect-runtime-local-state (game)
   (let (entries)
     (dolist (room (game-rooms game))
@@ -728,6 +731,7 @@ can TYPEP the result against QUIT, BACK, and related classes."))
   (let ((game (runtime-session-game session)))
     (list :current-room (runtime-session-current-room-name session)
           :return-stack (runtime-session-return-stack-room-names session)
+          :player (collect-runtime-player-state game)
           :rng-state (game-random-state game)
           :roll-log (collect-runtime-roll-log game)
           :globals (sorted-state-alist (game-global-state game))
@@ -739,6 +743,7 @@ can TYPEP the result against QUIT, BACK, and related classes."))
   (let ((game (runtime-session-game session)))
     (list :location (runtime-session-location session)
           :return-stack (copy-list (runtime-session-return-stack session))
+          :player (collect-runtime-player-state game)
           :rng-state (game-random-state game)
           :roll-log (collect-runtime-roll-log game)
           :globals (sorted-state-alist (game-global-state game))
@@ -753,12 +758,98 @@ can TYPEP the result against QUIT, BACK, and related classes."))
           do (return value)
         finally (return default)))
 
+(defun runtime-state-has-field-p (state field)
+  (ensure-runtime-property-list state "state")
+  (loop for tail on state by #'cddr
+        for key = (car tail)
+        when (eq key field)
+          do (return t)
+        finally (return nil)))
+
 (defun runtime-state-required-field (state field)
   (let ((missing '#:missing))
     (let ((value (runtime-state-field state field missing)))
       (when (eq value missing)
         (error "Runtime state is missing required field ~S." field))
       value)))
+
+(defun runtime-maybe-string-value (value label)
+  (unless (or (null value) (stringp value))
+    (error "Runtime ~A must be a string or NIL; got ~S." label value))
+  value)
+
+(defun runtime-maybe-keyword-value (value label)
+  (unless (or (null value) (keywordp value))
+    (error "Runtime ~A must be a keyword or NIL; got ~S." label value))
+  value)
+
+(defun runtime-keyword-list-value (value label)
+  (ensure-runtime-list value label)
+  (mapcar (lambda (entry)
+            (unless (keywordp entry)
+              (error "Runtime ~A entries must be keywords; got ~S."
+                     label
+                     entry))
+            entry)
+          value))
+
+(defun runtime-player-number-field (state field label)
+  (non-negative-integer-value
+   (runtime-state-required-field state field)
+   label))
+
+(defun validate-runtime-player-current-maximum (current maximum label)
+  (when (> current maximum)
+    (error "Runtime player ~A current value ~D exceeds maximum ~D."
+           label
+           current
+           maximum)))
+
+(defun runtime-player-state-plist (state)
+  (ensure-runtime-property-list state ":PLAYER")
+  (let ((name (runtime-maybe-string-value
+               (runtime-state-field state :name nil)
+               "player name"))
+        (background (runtime-maybe-keyword-value
+                     (runtime-state-field state :background nil)
+                     "player background"))
+        (str (runtime-player-number-field state :str "Player STR"))
+        (max-str (runtime-player-number-field state :max-str "Player max STR"))
+        (dex (runtime-player-number-field state :dex "Player DEX"))
+        (max-dex (runtime-player-number-field state :max-dex "Player max DEX"))
+        (wil (runtime-player-number-field state :wil "Player WIL"))
+        (max-wil (runtime-player-number-field state :max-wil "Player max WIL"))
+        (hp (runtime-player-number-field state :hp "Player HP"))
+        (max-hp (runtime-player-number-field state :max-hp "Player max HP"))
+        (armor (runtime-player-number-field state :armor "Player armor"))
+        (gold (runtime-player-number-field state :gold "Player gold"))
+        (fate (runtime-player-number-field state :fate "Player fate"))
+        (inventory (runtime-state-field state :inventory nil))
+        (fatigue (runtime-player-number-field state :fatigue "Player fatigue"))
+        (conditions (runtime-keyword-list-value
+                     (runtime-state-field state :conditions nil)
+                     "player conditions")))
+    (ensure-runtime-list inventory "player inventory")
+    (validate-runtime-player-current-maximum str max-str "STR")
+    (validate-runtime-player-current-maximum dex max-dex "DEX")
+    (validate-runtime-player-current-maximum wil max-wil "WIL")
+    (validate-runtime-player-current-maximum hp max-hp "HP")
+    (list :name name
+          :background background
+          :str str
+          :max-str max-str
+          :dex dex
+          :max-dex max-dex
+          :wil wil
+          :max-wil max-wil
+          :hp hp
+          :max-hp max-hp
+          :armor armor
+          :gold gold
+          :fate fate
+          :inventory (copy-tree inventory)
+          :fatigue fatigue
+          :conditions conditions)))
 
 (defun runtime-state-pair-p (entry)
   (consp entry))
@@ -830,16 +921,31 @@ can TYPEP the result against QUIT, BACK, and related classes."))
   (ensure-runtime-list roll-log ":ROLL-LOG")
   (setf (game-roll-log game) (copy-list roll-log)))
 
+(defun restore-runtime-player-state (game player-state)
+  (cond
+    ((null player-state)
+     (setf (game-player game) nil))
+    (t
+     (let ((player (or (game-player game)
+                       (setf (game-player game)
+                             (make-instance 'player)))))
+       (apply-player-state player
+                           (runtime-player-state-plist player-state))))))
+
 (defun restore-runtime-state (game state)
-  (let ((current-room (runtime-state-required-field state :current-room))
-        (return-stack (runtime-state-field state :return-stack nil))
-        (rng-state (runtime-state-field state :rng-state (game-random-seed game)))
-        (roll-log (runtime-state-field state :roll-log nil))
-        (globals (runtime-state-field state :globals nil))
-        (locals (runtime-state-field state :locals nil))
-        (tables (runtime-state-field state :tables nil))
-        (taken-choices (runtime-state-field state :taken-choices nil)))
+  (let* ((missing '#:missing)
+         (current-room (runtime-state-required-field state :current-room))
+         (return-stack (runtime-state-field state :return-stack nil))
+         (player-state (runtime-state-field state :player missing))
+         (rng-state (runtime-state-field state :rng-state (game-random-seed game)))
+         (roll-log (runtime-state-field state :roll-log nil))
+         (globals (runtime-state-field state :globals nil))
+         (locals (runtime-state-field state :locals nil))
+         (tables (runtime-state-field state :tables nil))
+         (taken-choices (runtime-state-field state :taken-choices nil)))
     (prepare-game game)
+    (unless (eq player-state missing)
+      (restore-runtime-player-state game player-state))
     (restore-runtime-random-state game rng-state)
     (restore-runtime-roll-log game roll-log)
     (restore-runtime-global-state game globals)
@@ -853,6 +959,8 @@ can TYPEP the result against QUIT, BACK, and related classes."))
 (defun restore-runtime-undo-state (session state)
   (let ((game (runtime-session-game session)))
     (prepare-game game)
+    (when (runtime-state-has-field-p state :player)
+      (restore-runtime-player-state game (getf state :player nil)))
     (restore-runtime-random-state game
                                   (getf state :rng-state
                                         (game-random-seed game)))

@@ -157,6 +157,15 @@ body {
     (t
      (error "Cannot compile ~S as a browser runtime value." value))))
 
+(defun compile-html-literal-data (value)
+  (cond
+    ((consp value)
+     (html-array (mapcar #'compile-html-literal-data value)))
+    ((null value)
+     nil)
+    (t
+     (compile-runtime-value value))))
+
 (defun compile-state-declarations (declarations)
   (html-object
    "keys"
@@ -386,12 +395,38 @@ body {
   (declare (ignore effect))
   (html-object "type" "quit"))
 
+(defun compile-html-player (player)
+  (when player
+    (html-object
+     "name" (dunge:player-name player)
+     "background" (and (dunge:player-background player)
+                       (compile-keyword-value (dunge:player-background player)))
+     "str" (dunge:player-str player)
+     "maxStr" (dunge:player-max-str player)
+     "dex" (dunge:player-dex player)
+     "maxDex" (dunge:player-max-dex player)
+     "wil" (dunge:player-wil player)
+     "maxWil" (dunge:player-max-wil player)
+     "hp" (dunge:player-hp player)
+     "maxHp" (dunge:player-max-hp player)
+     "armor" (dunge:player-armor player)
+     "gold" (dunge:player-gold player)
+     "fate" (dunge:player-fate player)
+     "inventory" (html-array
+                  (mapcar #'compile-html-literal-data
+                          (dunge:player-inventory player)))
+     "fatigue" (dunge:player-fatigue player)
+     "conditions" (html-array
+                   (mapcar #'compile-keyword-value
+                           (dunge:player-conditions player))))))
+
 (defun compile-game-data (game)
   "Compile GAME to the browser data model used by the generated Parenscript."
   (dunge:validate-game game)
   (html-object
    "version" 1
    "start" (dunge:game-start game)
+   "player" (compile-html-player (dunge:game-player game))
    "state" (compile-state-declarations
             (dunge:game-global-state-declarations game))
    "rooms" (html-array (mapcar #'compile-html-node
@@ -479,6 +514,7 @@ body {
     (defvar *debug* nil)
     (defvar *game* nil)
     (defvar *state* nil)
+    (defvar *player* nil)
     (defvar *current-location* nil)
     (defvar *return-stack* (array))
     (defvar *undo-stack* (array))
@@ -547,6 +583,12 @@ body {
 
     (defun decode-json (text)
       (chain -j-s-o-n (parse text)))
+
+    (defun copy-json-value (value)
+      (if (or (eql value nil)
+              (eql value undefined))
+          nil
+          (decode-json (encode-json value))))
 
     (defun storage-get (key)
       (try (chain window local-storage (get-item key))
@@ -642,6 +684,7 @@ body {
         (resolve-room-refs room))
       (setf *state* (create :globals (initial-state (@ *game* state))
                             :taken-choices (create)))
+      (setf *player* (copy-json-value (@ *game* player)))
       (setf *current-location* (room-by-id (@ *game* start))))
 
     (defun room-location-id (location)
@@ -696,6 +739,7 @@ body {
               "signature" *save-signature*
               "currentRoom" (fallback-current-room-id)
               "returnStack" (capture-return-stack)
+              "player" (copy-json-value *player*)
               "messages" (copy-array *visible-messages*)
               "globals" (copy-object (@ *state* globals))
               "locals" (capture-local-state)
@@ -727,6 +771,8 @@ body {
             (copy-object (or (getprop state "globals") (create))))
       (setf (getprop *state* "taken-choices")
             (copy-object (or (getprop state "takenChoices") (create))))
+      (unless (eql (getprop state "player") undefined)
+        (setf *player* (copy-json-value (getprop state "player"))))
       (restore-local-state (getprop state "locals"))
       (restore-return-stack (getprop state "returnStack"))
       (setf *messages* (copy-array (getprop state "messages")))

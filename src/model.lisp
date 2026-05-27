@@ -46,6 +46,7 @@
     (:flags :state-key-list :default nil)
     (:marked :state-key-list :default nil)
     (:seed :non-negative-integer :default 1)
+    (:player :player)
     (:tables :table-list :default nil)
     (:rooms :room-list :required t))))
 
@@ -55,6 +56,102 @@
 (defun (setf game-roll-log) (roll-log game)
   (setf (game-roll-log-reversed game) (reverse (copy-list roll-log)))
   roll-log)
+
+(define-dunge-node player ()
+  ((name :accessor player-name :initarg :name :initform nil)
+   (background :accessor player-background
+               :initarg :background
+               :initform nil)
+   (str :accessor player-str :initarg :str :initform 10)
+   (max-str :accessor player-max-str :initarg :max-str :initform nil)
+   (dex :accessor player-dex :initarg :dex :initform 10)
+   (max-dex :accessor player-max-dex :initarg :max-dex :initform nil)
+   (wil :accessor player-wil :initarg :wil :initform 10)
+   (max-wil :accessor player-max-wil :initarg :max-wil :initform nil)
+   (hp :accessor player-hp :initarg :hp :initform 1)
+   (max-hp :accessor player-max-hp :initarg :max-hp :initform nil)
+   (armor :accessor player-armor :initarg :armor :initform 0)
+   (gold :accessor player-gold :initarg :gold :initform 0)
+   (fate :accessor player-fate :initarg :fate :initform 0)
+   (inventory :accessor player-inventory
+              :initarg :inventory
+              :initform nil)
+   (fatigue :accessor player-fatigue :initarg :fatigue :initform 0)
+   (conditions :accessor player-conditions
+               :initarg :conditions
+               :initform nil)
+   (initial-state :accessor player-initial-state :initform nil))
+  (:source :player
+   (:fields
+    (:name :string)
+    (:background :keyword)
+    (:str :non-negative-integer :default 10)
+    (:max-str :non-negative-integer)
+    (:dex :non-negative-integer :default 10)
+    (:max-dex :non-negative-integer)
+    (:wil :non-negative-integer :default 10)
+    (:max-wil :non-negative-integer)
+    (:hp :non-negative-integer :default 1)
+    (:max-hp :non-negative-integer)
+    (:armor :non-negative-integer :default 0)
+    (:gold :non-negative-integer :default 0)
+    (:fate :non-negative-integer :default 0)
+    (:inventory :literal-list :default nil)
+    (:fatigue :non-negative-integer :default 0)
+    (:conditions :state-key-list :default nil))))
+
+(defun player-state-plist (player)
+  (when player
+    (list :name (player-name player)
+          :background (player-background player)
+          :str (player-str player)
+          :max-str (player-max-str player)
+          :dex (player-dex player)
+          :max-dex (player-max-dex player)
+          :wil (player-wil player)
+          :max-wil (player-max-wil player)
+          :hp (player-hp player)
+          :max-hp (player-max-hp player)
+          :armor (player-armor player)
+          :gold (player-gold player)
+          :fate (player-fate player)
+          :inventory (copy-tree (player-inventory player))
+          :fatigue (player-fatigue player)
+          :conditions (copy-list (player-conditions player)))))
+
+(defun apply-player-state (player state)
+  (setf (player-name player) (getf state :name)
+        (player-background player) (getf state :background)
+        (player-str player) (getf state :str)
+        (player-max-str player) (getf state :max-str)
+        (player-dex player) (getf state :dex)
+        (player-max-dex player) (getf state :max-dex)
+        (player-wil player) (getf state :wil)
+        (player-max-wil player) (getf state :max-wil)
+        (player-hp player) (getf state :hp)
+        (player-max-hp player) (getf state :max-hp)
+        (player-armor player) (getf state :armor)
+        (player-gold player) (getf state :gold)
+        (player-fate player) (getf state :fate)
+        (player-inventory player) (copy-tree (getf state :inventory))
+        (player-fatigue player) (getf state :fatigue)
+        (player-conditions player) (copy-list (getf state :conditions)))
+  player)
+
+(defun reset-player-state (player)
+  (when player
+    (apply-player-state player (player-initial-state player))))
+
+(defmethod initialize-instance :after ((player player) &key)
+  (unless (player-max-str player)
+    (setf (player-max-str player) (player-str player)))
+  (unless (player-max-dex player)
+    (setf (player-max-dex player) (player-dex player)))
+  (unless (player-max-wil player)
+    (setf (player-max-wil player) (player-wil player)))
+  (unless (player-max-hp player)
+    (setf (player-max-hp player) (player-hp player)))
+  (setf (player-initial-state player) (player-state-plist player)))
 
 (define-dunge-node room ()
   ((name :reader name :initarg :name :initform nil)
@@ -431,6 +528,16 @@
   (declare (ignore context))
   (tag-list-value value))
 
+(define-dunge-field-type :literal-list (value context)
+  (declare (ignore context))
+  (ensure-source-list :literal-list value))
+
+(define-dunge-field-type :player (value context)
+  (let ((node (compile-dunge-source-form value context)))
+    (unless (typep node 'player)
+      (source-error "Expected a player source form, got ~S." value))
+    node))
+
 (defun table-range-value (value)
   (cond
     ((integerp value)
@@ -714,6 +821,7 @@
   (clrhash (game-taken-choices game))
   (setf (game-random-state game) (game-random-seed game)
         (game-roll-log-reversed game) nil)
+  (reset-player-state (game-player game))
   (dolist (table (game-tables game))
     (reset-table-state table))
   (dolist (room (game-rooms game))
@@ -798,6 +906,13 @@
                                 state-key)
               (setf (gethash state-key seen) t)))))))
 
+(defun validate-player-current-maximum (current maximum label)
+  (when (> current maximum)
+    (validation-error "Player ~A current value ~D exceeds maximum ~D."
+                      label
+                      current
+                      maximum)))
+
 (defun condition-literal-p (thing)
   (or (stringp thing)
       (keywordp thing)
@@ -857,6 +972,8 @@
     (validate-game-start game)
     (validate-state-declaration-list "Game"
                                      (game-global-state-declarations game))
+    (when (game-player game)
+      (validate-node (game-player game) game game))
     (dolist (table (game-tables game))
       (validate-node table game game))
     (dolist (room (game-rooms game))
@@ -895,6 +1012,21 @@
   (validate-availability-node thing game context)
   (validate-choice-id thing)
   (validate-node (target thing) game context))
+
+(defmethod validate-node ((thing player) game context)
+  (declare (ignore game context))
+  (validate-player-current-maximum (player-str thing)
+                                   (player-max-str thing)
+                                   "STR")
+  (validate-player-current-maximum (player-dex thing)
+                                   (player-max-dex thing)
+                                   "DEX")
+  (validate-player-current-maximum (player-wil thing)
+                                   (player-max-wil thing)
+                                   "WIL")
+  (validate-player-current-maximum (player-hp thing)
+                                   (player-max-hp thing)
+                                   "HP"))
 
 (defun table-result-reference-id (result)
   (when (and (consp result)

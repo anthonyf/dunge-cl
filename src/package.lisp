@@ -82,6 +82,23 @@
    #:p
    #:placed-thing
    #:placement-description
+   #:player
+   #:player-armor
+   #:player-background
+   #:player-conditions
+   #:player-dex
+   #:player-fatigue
+   #:player-fate
+   #:player-gold
+   #:player-hp
+   #:player-inventory
+   #:player-max-dex
+   #:player-max-hp
+   #:player-max-str
+   #:player-max-wil
+   #:player-name
+   #:player-str
+   #:player-wil
    #:quit
    #:room
    #:room-title
