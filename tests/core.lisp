@@ -783,7 +783,7 @@
     (is (consumed-p choice context))
     (is (not (available-p choice context)))))
 
-(test table-source-forms-parse-index-and-retain_entry_metadata
+(test table-source-forms-parse-index-and-retain-entry-metadata
   (let* ((game
            (source-game-with-tables
             '((:table
@@ -848,7 +848,7 @@
        (:table :id :same :entries
         ((:table-entry :result :second)))))))
 
-(test table-roll-modes-resolve-with-conditions-and_state
+(test table-roll-modes-resolve-with-conditions-and-state
   (let* ((game
            (source-game-with-tables
             '((:table
@@ -935,7 +935,7 @@
       ((:table-entry :result :left)
        (:table-entry :result :right))))))
 
-(test table-runtime-state-captures-and-restores-sequence-and-deck_progress
+(test table-runtime-state-captures-and-restores-sequence-and-deck-progress
   (let* ((game (build-table-state-fixture))
          (session (make-runtime-session game)))
     (is (eq :first (roll-table game :ordered)))

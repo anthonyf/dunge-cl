@@ -879,7 +879,6 @@
 
 (defmethod validate-node ((thing choice) game context)
   (validate-availability-node thing game context)
-  (validate-consumable-node thing)
   (validate-choice-id thing)
   (validate-node (target thing) game context))
 
