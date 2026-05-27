@@ -279,6 +279,10 @@ can TYPEP the result against QUIT, BACK, and related classes."))
 (defmethod consume-node ((choice choice) context)
   (mark-choice-taken choice context))
 
+(defconstant +dunge-rng-modulus+ 2147483648)
+(defconstant +dunge-rng-multiplier+ 1103515245)
+(defconstant +dunge-rng-increment+ 12345)
+
 (defun find-table (game table-id)
   (multiple-value-bind (table present-p) (gethash (table-id-key table-id)
                                                   (table-index game))
@@ -289,6 +293,27 @@ can TYPEP the result against QUIT, BACK, and related classes."))
 (defun runtime-context-for-table (game context)
   (or context
       (make-runtime-context :game game)))
+
+(defun next-dunge-random-state (state)
+  (mod (+ (* +dunge-rng-multiplier+ state)
+          +dunge-rng-increment+)
+       +dunge-rng-modulus+))
+
+(defun game-random (game limit)
+  (positive-integer-value limit "Random limit")
+  (let ((next-state (next-dunge-random-state (game-random-state game))))
+    (setf (game-random-state game) next-state)
+    (mod next-state limit)))
+
+(defun table-random (game limit random-state)
+  (if random-state
+      (random limit random-state)
+      (game-random game limit)))
+
+(defun record-table-roll (game entry)
+  (setf (game-roll-log game)
+        (append (game-roll-log game) (list entry)))
+  entry)
 
 (defun table-available-entries (table context)
   (let ((entries (remove-if-not (lambda (entry)
@@ -301,33 +326,42 @@ can TYPEP the result against QUIT, BACK, and related classes."))
 (defun choose-indexed-entry (entries index)
   (elt entries index))
 
-(defun choose-random-entry (entries random-state)
-  (choose-indexed-entry entries (random (length entries) random-state)))
+(defun choose-random-entry (game entries random-state)
+  (let ((index (table-random game (length entries) random-state)))
+    (values (choose-indexed-entry entries index)
+            (list :index index))))
 
-(defun choose-weighted-entry (entries random-state)
+(defun choose-weighted-entry (game entries random-state)
   (let ((total (reduce #'+ entries :key #'table-entry-weight)))
-    (loop with roll = (random total random-state)
+    (loop with roll = (table-random game total random-state)
+          with remaining = roll
           for entry in entries
           for weight = (table-entry-weight entry)
-          do (if (< roll weight)
-                 (return entry)
-                 (decf roll weight)))))
+          do (if (< remaining weight)
+                 (return (values entry
+                                 (list :roll roll
+                                       :total total)))
+                 (decf remaining weight)))))
 
 (defun table-range-contains-p (range value)
   (and (<= (car range) value)
        (<= value (cdr range))))
 
-(defun choose-roll-entry (table entries random-state)
+(defun choose-roll-entry (game table entries random-state)
   (let* ((highest (reduce #'max entries
                           :key (lambda (entry)
                                  (table-range-high (table-entry-range entry)))))
-         (roll (1+ (random highest random-state))))
-    (or (find-if (lambda (entry)
-                   (table-range-contains-p (table-entry-range entry) roll))
-                 entries)
+         (roll (1+ (table-random game highest random-state))))
+    (let ((entry (find-if (lambda (entry)
+                            (table-range-contains-p (table-entry-range entry) roll))
+                          entries)))
+      (unless entry
         (error "Roll table ~S rolled ~D, but no entry covers that result."
                (table-id table)
-               roll))))
+               roll))
+      (values entry
+              (list :roll roll
+                    :die highest)))))
 
 (defun choose-sequence-entry (table entries)
   (let* ((last-index (1- (length entries)))
@@ -336,36 +370,44 @@ can TYPEP the result against QUIT, BACK, and related classes."))
          (entry (choose-indexed-entry entries index)))
     (setf (table-sequence-index table)
           (min (1+ index) last-index))
-    entry))
+    (values entry
+            (list :index index))))
 
 (defun deck-entry-drawn-p (table entry)
   (gethash (table-entry-ordinal entry) (table-deck-drawn table)))
 
-(defun choose-deck-entry (table entries random-state)
+(defun choose-deck-entry (game table entries random-state)
   (let ((remaining (remove-if (lambda (entry)
                                 (deck-entry-drawn-p table entry))
-                              entries)))
+                              entries))
+        (reshuffled nil))
     (unless remaining
       (clrhash (table-deck-drawn table))
-      (setf remaining entries))
-    (let ((entry (choose-random-entry remaining random-state)))
+      (setf remaining entries
+            reshuffled t))
+    (multiple-value-bind (entry details)
+        (choose-random-entry game remaining random-state)
       (setf (gethash (table-entry-ordinal entry) (table-deck-drawn table))
             t)
-      entry)))
+      (values entry
+              (append details
+                      (list :remaining (length remaining)
+                            :reshuffled reshuffled))))))
 
-(defun choose-table-entry (table context random-state)
+(defun choose-table-entry (game table context random-state)
   (let ((entries (table-available-entries table context)))
     (ecase (table-mode table)
       (:weighted
-       (choose-weighted-entry entries random-state))
+       (choose-weighted-entry game entries random-state))
       (:roll
-       (choose-roll-entry table entries random-state))
+       (choose-roll-entry game table entries random-state))
       (:deck
-       (choose-deck-entry table entries random-state))
+       (choose-deck-entry game table entries random-state))
       (:sequence
        (choose-sequence-entry table entries))
       (:first-match
-       (first entries)))))
+       (values (first entries)
+               (list :index 0))))))
 
 (defun table-reference-result-id (result)
   (when (and (consp result)
@@ -382,24 +424,37 @@ can TYPEP the result against QUIT, BACK, and related classes."))
                     :random-state random-state)
         result)))
 
-(defun roll-table (game table-id &key context (random-state *random-state*))
+(defun table-roll-log-entry (table entry result details)
+  (append (list :table (table-id table)
+                :mode (table-mode table)
+                :entry (and entry (table-entry-ordinal entry)))
+          details
+          (list :result result)))
+
+(defun roll-table (game table-id &key context random-state)
   (let* ((table (find-table game table-id))
          (context (runtime-context-for-table game context)))
     (if (eq (table-mode table) :bundle)
-        (values
-         (mapcar (lambda (entry)
-                   (resolve-table-result game
-                                         (table-entry-result entry)
-                                         context
-                                         random-state))
-                 (table-available-entries table context))
-         nil)
-        (let ((entry (choose-table-entry table context random-state)))
-          (values (resolve-table-result game
-                                        (table-entry-result entry)
-                                        context
-                                        random-state)
-                  entry)))))
+        (let ((result (mapcar (lambda (entry)
+                                (resolve-table-result game
+                                                      (table-entry-result entry)
+                                                      context
+                                                      random-state))
+                              (table-available-entries table context))))
+          (record-table-roll
+           game
+           (table-roll-log-entry table nil result nil))
+          (values result nil))
+        (multiple-value-bind (entry details)
+            (choose-table-entry game table context random-state)
+          (let ((result (resolve-table-result game
+                                              (table-entry-result entry)
+                                              context
+                                              random-state)))
+            (record-table-roll
+             game
+             (table-roll-log-entry table entry result details))
+            (values result entry))))))
 
 (defun runtime-debug-undo-available-p (context)
   (and *debug*
@@ -652,6 +707,9 @@ can TYPEP the result against QUIT, BACK, and related classes."))
                   :deck-drawn (sorted-hash-keys (table-deck-drawn table))))
           (game-tables game)))
 
+(defun collect-runtime-roll-log (game)
+  (copy-list (game-roll-log game)))
+
 (defun collect-runtime-local-state (game)
   (let (entries)
     (dolist (room (game-rooms game))
@@ -671,6 +729,8 @@ can TYPEP the result against QUIT, BACK, and related classes."))
   (let ((game (runtime-session-game session)))
     (list :current-room (runtime-session-current-room-name session)
           :return-stack (runtime-session-return-stack-room-names session)
+          :rng-state (game-random-state game)
+          :roll-log (collect-runtime-roll-log game)
           :globals (sorted-state-alist (game-global-state game))
           :locals (collect-runtime-local-state game)
           :tables (collect-runtime-table-state game)
@@ -680,6 +740,8 @@ can TYPEP the result against QUIT, BACK, and related classes."))
   (let ((game (runtime-session-game session)))
     (list :location (runtime-session-location session)
           :return-stack (copy-list (runtime-session-return-stack session))
+          :rng-state (game-random-state game)
+          :roll-log (collect-runtime-roll-log game)
           :globals (sorted-state-alist (game-global-state game))
           :locals (collect-runtime-local-state game)
           :tables (collect-runtime-table-state game)
@@ -761,14 +823,26 @@ can TYPEP the result against QUIT, BACK, and related classes."))
   (dolist (entry tables)
     (restore-runtime-table-state-entry game entry)))
 
+(defun restore-runtime-random-state (game rng-state)
+  (setf (game-random-state game)
+        (non-negative-integer-value rng-state "Runtime RNG state")))
+
+(defun restore-runtime-roll-log (game roll-log)
+  (ensure-runtime-list roll-log ":ROLL-LOG")
+  (setf (game-roll-log game) (copy-list roll-log)))
+
 (defun restore-runtime-state (game state)
   (let ((current-room (runtime-state-required-field state :current-room))
         (return-stack (runtime-state-field state :return-stack nil))
+        (rng-state (runtime-state-field state :rng-state (game-random-seed game)))
+        (roll-log (runtime-state-field state :roll-log nil))
         (globals (runtime-state-field state :globals nil))
         (locals (runtime-state-field state :locals nil))
         (tables (runtime-state-field state :tables nil))
         (taken-choices (runtime-state-field state :taken-choices nil)))
     (prepare-game game)
+    (restore-runtime-random-state game rng-state)
+    (restore-runtime-roll-log game roll-log)
     (restore-runtime-global-state game globals)
     (restore-runtime-local-state game locals)
     (restore-runtime-table-state game tables)
@@ -780,6 +854,10 @@ can TYPEP the result against QUIT, BACK, and related classes."))
 (defun restore-runtime-undo-state (session state)
   (let ((game (runtime-session-game session)))
     (prepare-game game)
+    (restore-runtime-random-state game
+                                  (getf state :rng-state
+                                        (game-random-seed game)))
+    (restore-runtime-roll-log game (getf state :roll-log nil))
     (restore-runtime-global-state game (getf state :globals))
     (restore-runtime-local-state game (getf state :locals))
     (restore-runtime-table-state game (getf state :tables))

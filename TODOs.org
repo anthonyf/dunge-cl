@@ -17,7 +17,7 @@
 - [X] Document the .dunge "what" vs Common Lisp "how" design boundary
 - [X] Allow flat :when/:once/:id metadata on public :choice forms
 - [X] Add tests for availability metadata and table source validation
-- [ ] Add a roll log and deterministic seed plumbing for table rolls
+- [X] Add a roll log and deterministic seed plumbing for table rolls
 - [ ] Add a public authoring guide for table result conventions
 
 * Phase 2: Character And Inventory
