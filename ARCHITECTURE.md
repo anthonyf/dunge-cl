@@ -386,10 +386,22 @@ background, current and maximum STR/DEX/WIL, current and maximum HP, armor,
 gold, fate, inventory data, fatigue, and conditions. Maximum STR/DEX/WIL/HP
 default to the corresponding current values when omitted.
 
-Inventory entries are literal data for now, usually following the table result
-conventions in [AUTHORING.md](AUTHORING.md). The player model stores them, but
-Common Lisp inventory procedures will later decide how slots, bulky items,
-stacking, use effects, and gold transactions work.
+Inventory entries are literal data, usually following the table result
+conventions in [AUTHORING.md](AUTHORING.md). The engine validates two entry
+forms today: `(:item ITEM-ID ...)` for distinct inventory items and
+`(:supply SUPPLY-ID ...)` for stackable supplies. Items cost one slot per
+copy, or two slots per copy when `:bulky t` is present. Supplies cost one
+slot for the stack. Any entry may use `:slots N` to override its slot cost,
+`:condition KEYWORD` for item state, and `:tags (...)` for classification.
+Player inventory stores resolved data, so `:count` and `:slots` are integers
+there even if a loot table result used dice-string shorthand before CL added
+the entry.
+
+The Common Lisp inventory helpers add and remove counted entries, stack
+matching item/supply records, compute used and free slots, count Fatigue as
+slot pressure, and expose `player-deprived-p` when the player is explicitly
+Deprived or their inventory is full. Item use effects, shop transactions, and
+gold handling remain CL behavior layered on this data model.
 
 If a game has no authored player, the runtime may still restore a saved player
 record. This keeps the model compatible with a future character creation flow,

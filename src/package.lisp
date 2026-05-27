@@ -9,6 +9,7 @@
    #:*output*
    #:*pause-after-say*
    #:*debug*
+   #:+player-inventory-capacity+
    #:action
    #:action-owner
    #:back
@@ -62,10 +63,18 @@
    #:game-start
    #:game-tables
    #:game-taken-choices
+   #:find-player-inventory-entry
    #:gosub
    #:goto
+   #:add-player-inventory-entry
    #:interaction-label
    #:interaction-target
+   #:inventory-entry-bulky-p
+   #:inventory-entry-count
+   #:inventory-entry-id
+   #:inventory-entry-kind
+   #:inventory-entry-slots
+   #:inventory-entry-tags
    #:item
    #:label
    #:load-dunge-file
@@ -86,12 +95,18 @@
    #:player-armor
    #:player-background
    #:player-conditions
+   #:player-deprived-p
    #:player-dex
    #:player-fatigue
    #:player-fate
    #:player-gold
    #:player-hp
    #:player-inventory
+   #:player-inventory-capacity
+   #:player-inventory-count
+   #:player-inventory-free-slots
+   #:player-inventory-full-p
+   #:player-inventory-used-slots
    #:player-max-dex
    #:player-max-hp
    #:player-max-str
@@ -104,6 +119,7 @@
    #:room-title
    #:room-name
    #:read-runtime-state-file
+   #:remove-player-inventory-entry
    #:restore-runtime-state
    #:make-runtime-context
    #:prioritized-mixin

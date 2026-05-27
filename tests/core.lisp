@@ -626,7 +626,84 @@
      '(:player :str 12 :max-str 10)))
   (signals error
     (source-game-with-player
-     '(:player :conditions ("deprived")))))
+     '(:player :conditions ("deprived"))))
+  (signals error
+    (source-game-with-player
+     '(:player :inventory ((:gold 1)))))
+  (signals error
+    (source-game-with-player
+     '(:player :inventory ((:item "dagger")))))
+  (signals error
+    (source-game-with-player
+     '(:player :inventory ((:supply :ration :count 0)))))
+  (signals error
+    (source-game-with-player
+     '(:player :inventory ((:item :rope :unknown t)))))
+  (signals error
+    (source-game-with-player
+     '(:player :inventory ((:item :rope :tags ("gear")))))))
+
+(test player-inventory-data-model-computes-slots-and-status
+  (let* ((game
+           (source-game-with-player
+            '(:player
+              :inventory ((:item :rusted-dagger)
+                          (:item :mail :bulky t :tags (:armor))
+                          (:supply :ration :count 3)
+                          (:item :coin-purse :slots 0))
+              :fatigue 2)))
+         (player (game-player game))
+         (dagger (first (player-inventory player)))
+         (mail (second (player-inventory player)))
+         (ration (third (player-inventory player)))
+         (coin-purse (fourth (player-inventory player))))
+    (is (eq :item (inventory-entry-kind dagger)))
+    (is (eq :rusted-dagger (inventory-entry-id dagger)))
+    (is (= 1 (inventory-entry-count dagger)))
+    (is (= 1 (inventory-entry-slots dagger)))
+    (is (inventory-entry-bulky-p mail))
+    (is (= 2 (inventory-entry-slots mail)))
+    (is (equal '(:armor) (inventory-entry-tags mail)))
+    (is (= 3 (inventory-entry-count ration)))
+    (is (= 1 (inventory-entry-slots ration)))
+    (is (= 0 (inventory-entry-slots coin-purse)))
+    (is (= 6 (player-inventory-used-slots player)))
+    (is (= 4 (player-inventory-free-slots player)))
+    (is (not (player-inventory-full-p player)))
+    (is (not (player-deprived-p player)))
+    (setf (player-fatigue player) 6)
+    (is (player-inventory-full-p player))
+    (is (player-deprived-p player))))
+
+(test player-inventory-mutators-stack-and-remove-counted-entries
+  (let ((player (make-instance 'player
+                               :inventory '((:supply :ration :count 2)
+                                            (:item :torch)))))
+    (add-player-inventory-entry player '(:supply :ration) :count 3)
+    (is (equal '((:supply :ration :count 5)
+                 (:item :torch))
+               (player-inventory player)))
+    (add-player-inventory-entry player '(:item :torch))
+    (is (= 2 (player-inventory-count player :item :torch)))
+    (is (equal '(:item :torch :count 2)
+               (find-player-inventory-entry player :item :torch)))
+    (add-player-inventory-entry player '(:item :torch :condition :lit))
+    (is (= 3 (player-inventory-count player :item :torch)))
+    (is (equal '((:supply :ration :count 5)
+                 (:item :torch :count 2)
+                 (:item :torch :condition :lit))
+               (player-inventory player)))
+    (remove-player-inventory-entry player :supply :ration :count 4)
+    (is (equal '((:supply :ration)
+                 (:item :torch :count 2)
+                 (:item :torch :condition :lit))
+               (player-inventory player)))
+    (remove-player-inventory-entry player :item :torch :count 2)
+    (is (equal '((:supply :ration)
+                 (:item :torch :condition :lit))
+               (player-inventory player)))
+    (signals error
+      (remove-player-inventory-entry player :supply :ration :count 2))))
 
 (test runtime-state-captures-and-restores-player-state
   (let* ((game
@@ -688,6 +765,17 @@
     (is (game-player fresh-game))
     (is (equal "Mara" (player-name (game-player fresh-game))))
     (is (= 12 (player-str (game-player fresh-game))))))
+
+(test runtime-state-rejects-malformed-player-inventory
+  (let* ((game (source-game-with-player
+                '(:player :name "Mara" :str 12 :hp 4)))
+         (session (make-runtime-session game))
+         (state (capture-runtime-state session))
+         (player-state (copy-list (getf state :player))))
+    (setf (getf player-state :inventory) '((:gold 1))
+          (getf state :player) player-state)
+    (signals error
+      (restore-runtime-state (source-game-with-body) state))))
 
 (test console-debug-undo-restores-previous-choice-state
   (let* ((game (build-save-load-fixture))
