@@ -31,6 +31,27 @@ The pipeline is:
 This gives Dunge one authoring language and one runtime representation. It also
 keeps editor-authored and hand-authored files on the same path.
 
+## Content vs Procedure
+
+Dunge keeps a hard boundary between authored content and engine procedure:
+
+```text
+.dunge describes what exists, what it means, and when it is eligible.
+Common Lisp implements how systems resolve, generate, mutate, and save state.
+```
+
+In practice, `.dunge` is the place for rooms, entities, choices, tables, future
+actors, items, NPC beats, shops, encounters, room templates, and generated-site
+ingredients. Common Lisp is the place for algorithms: combat resolution, random
+table selection, dungeon graph generation, inventory rules, shop transactions,
+morale, seeding, logging, and save/load mechanics.
+
+This boundary is a design constraint, not just an implementation detail. New
+language features should remain declarative data that compile through the
+source schema. If a feature needs loops, graph construction, complex search, or
+mutation strategy, it belongs in Common Lisp and should be selected or
+configured from `.dunge` by id, tags, fields, or tables.
+
 ## Source Schema
 
 AST classes are declared internally with `define-dunge-node`. Each node
@@ -210,6 +231,66 @@ choice:
 Default choices are sticky. A once-only choice is hidden after it is selected.
 The runtime records consumed choices in `taken-choices`, keyed by stable choice
 IDs. Validation requires explicit IDs for once-only choices.
+
+For choices, the common no-wrapper case can also be written flat:
+
+```lisp
+(:choice
+ "Take the recipe card"
+ ((:mark :recipe)
+  (:back))
+ :when (:not (:marked? :recipe))
+ :once t
+ :id :take-recipe)
+```
+
+Internally, this uses the shared availability protocol. Nodes that opt into that
+protocol can expose `:when` conditions, stable ids, one-time consumption, tags,
+or priority where those concepts have clear semantics. Dunge should not add
+`:once` to every node by default; it is only appropriate when the runtime has a
+well-defined consumption event, such as selecting a choice, drawing a unique
+table entry, or eventually completing a beat.
+
+## Random Tables
+
+Random tables are first-class game content. They are authored in `.dunge`,
+validated with the rest of the game, indexed by keyword id, and resolved by
+Common Lisp at runtime.
+
+```lisp
+(:game
+ :start "kitchen"
+ :tables
+ ((:table
+   :id :cupboard-loot
+   :mode :weighted
+   :entries
+   ((:table-entry :weight 3 :result (:gold "1d6"))
+    (:table-entry :weight 1
+     :when (:marked? :knows-secret-shelf)
+     :tags (:loot :rare)
+     :result (:item :silver-ring)))))
+ :rooms ...)
+```
+
+Supported table modes are:
+
+- `:weighted` chooses one available entry by positive integer weight.
+- `:roll` maps a random roll onto non-overlapping entry ranges.
+- `:deck` draws available entries without replacement, then reshuffles.
+- `:sequence` returns entries in order and repeats the final entry.
+- `:first-match` returns the first available entry.
+- `:bundle` resolves all available entries and returns the list of results.
+
+Entries may use `:when` and `:tags`. A result may be arbitrary safe data, such
+as `(:gold "1d6")`, `(:item :silver-ring)`, or `(:table :nested-table)` for a
+nested table roll. The engine deliberately does not interpret all result shapes
+yet; later systems such as loot, encounters, shops, and dungeon generation will
+define the meanings of their own result data.
+
+Stateful table progress, such as sequence position and deck draws, is part of
+runtime save/load. This lets future generated dungeons roll a room, encounter,
+or loot result once and keep it stable when the player returns.
 
 ## State
 

@@ -30,6 +30,19 @@
      :rooms
      ((:room :id "room" :body ,body)))))
 
+(defun source-game-with-tables (tables &rest body)
+  (source-node
+   `(:game
+     :start "room"
+     :tables ,tables
+     :rooms
+     ((:room :id "room" :body ,body)))))
+
+(defun sorted-keywords (keywords)
+  (sort (copy-list keywords)
+        #'string<
+        :key #'symbol-name))
+
 (defun build-state-fixture ()
   (let* ((game
            (source-game-with-body
@@ -749,6 +762,192 @@
         (is (dunge::choice-visible-p take-recipe context))
         (dunge::mark-choice-taken take-recipe context)
         (is (null (collect-choices branch-node context)))))))
+
+(test availability-protocol-keeps-choice-conditions-and-consumption-general
+  (let* ((game
+           (source-game-with-body
+            '(:choice
+              "Open secret"
+              (:quit)
+              :when (:marked? :secret-open)
+              :once t
+              :id :open-secret)))
+         (context (test-context game))
+         (choice (first (entities (first (game-rooms game))))))
+    (is (typep choice 'availability-mixin))
+    (is (typep choice 'consumable-mixin))
+    (is (not (available-p choice context)))
+    (execute-effect (source-node '(:mark :secret-open)) context)
+    (is (available-p choice context))
+    (consume-node choice context)
+    (is (consumed-p choice context))
+    (is (not (available-p choice context)))))
+
+(test table-source-forms-parse-index-and-retain_entry_metadata
+  (let* ((game
+           (source-game-with-tables
+            '((:table
+               :id :minor-loot
+               :mode :weighted
+               :entries
+               ((:table-entry
+                 :id :coins
+                 :weight 3
+                 :tags (:loot :coin)
+                 :result (:gold "1d6"))
+                (:table-entry
+                 :weight 1
+                 :when (:marked? :found-cache)
+                 :tags (:loot :rare)
+                 :result (:item :silver-ring)))))))
+         (table (find :minor-loot (game-tables game) :key #'table-id)))
+    (is (not (null table)))
+    (is (eq table (gethash :minor-loot (table-index game))))
+    (is (eq :weighted (table-mode table)))
+    (is (= 2 (length (table-entries table))))
+    (let ((entry (first (table-entries table))))
+      (is (eq :coins (table-entry-id entry)))
+      (is (= 3 (table-entry-weight entry)))
+      (is (equal '(:loot :coin) (node-tags entry)))
+      (is (equal '(:gold "1d6") (table-entry-result entry))))))
+
+(test table-source-validation-catches-bad-definitions
+  (signals error
+    (source-game-with-tables
+     '((:table :id "loot" :entries
+        ((:table-entry :result :nothing))))))
+  (signals error
+    (source-game-with-tables
+     '((:table :id :loot :mode :mystery :entries
+        ((:table-entry :result :nothing))))))
+  (signals error
+    (source-game-with-tables
+     '((:table :id :loot :entries
+        ((:table-entry :weight 0 :result :nothing))))))
+  (signals error
+    (source-game-with-tables
+     '((:table :id :loot :mode :roll :entries
+        ((:table-entry :result :nothing))))))
+  (signals error
+    (source-game-with-tables
+     '((:table :id :loot :mode :roll :entries
+        ((:table-entry :range (1 3) :result :first)
+         (:table-entry :range (3 4) :result :second))))))
+  (signals error
+    (source-game-with-tables
+     '((:table :id :loot :entries
+        ((:table-entry :result (:table :missing)))))))
+  (signals error
+    (source-game-with-tables
+     '((:table :id :loot :entries
+        ((:table-entry :tags (:loot "bad") :result :nothing))))))
+  (signals error
+    (source-game-with-tables
+     '((:table :id :same :entries
+        ((:table-entry :result :first)))
+       (:table :id :same :entries
+        ((:table-entry :result :second)))))))
+
+(test table-roll-modes-resolve-with-conditions-and_state
+  (let* ((game
+           (source-game-with-tables
+            '((:table
+               :id :stateful
+               :mode :weighted
+               :entries
+               ((:table-entry
+                 :when (:marked? :unlocked)
+                 :result :open)
+                (:table-entry
+                 :when (:not (:marked? :unlocked))
+                 :result :closed)))
+              (:table
+               :id :ordered
+               :mode :sequence
+               :entries
+               ((:table-entry :result :first)
+                (:table-entry :result :second)))
+              (:table
+               :id :roll-result
+               :mode :roll
+               :entries
+               ((:table-entry :range 1 :result :rolled)))
+              (:table
+               :id :match
+               :mode :first-match
+               :entries
+               ((:table-entry
+                 :when (:marked? :unlocked)
+                 :result :unlocked)
+                (:table-entry :result :fallback)))
+              (:table
+               :id :inner
+               :mode :sequence
+               :entries
+               ((:table-entry :result :inner-result)))
+              (:table
+               :id :bundle
+               :mode :bundle
+               :entries
+               ((:table-entry :result :gold)
+                (:table-entry :result (:table :inner)))))))
+         (context (test-context game)))
+    (is (eq :closed (roll-table game :stateful :context context)))
+    (is (eq :fallback (roll-table game :match :context context)))
+    (execute-effect (source-node '(:mark :unlocked)) context)
+    (is (eq :open (roll-table game :stateful :context context)))
+    (is (eq :unlocked (roll-table game :match :context context)))
+    (is (eq :first (roll-table game :ordered)))
+    (is (eq :second (roll-table game :ordered)))
+    (is (eq :second (roll-table game :ordered)))
+    (is (eq :rolled (roll-table game :roll-result)))
+    (is (equal '(:gold :inner-result)
+               (roll-table game :bundle)))))
+
+(test deck-table-draws-without-replacement-before-reshuffling
+  (let* ((game
+           (source-game-with-tables
+            '((:table
+               :id :deck
+               :mode :deck
+               :entries
+               ((:table-entry :result :first)
+                (:table-entry :result :second))))))
+         (first-two (list (roll-table game :deck)
+                          (roll-table game :deck)))
+         (third (roll-table game :deck)))
+    (is (equal '(:first :second) (sorted-keywords first-two)))
+    (is (member third '(:first :second)))))
+
+(defun build-table-state-fixture ()
+  (source-game-with-tables
+   '((:table
+      :id :ordered
+      :mode :sequence
+      :entries
+      ((:table-entry :result :first)
+       (:table-entry :result :second)
+       (:table-entry :result :third)))
+     (:table
+      :id :deck
+      :mode :deck
+      :entries
+      ((:table-entry :result :left)
+       (:table-entry :result :right))))))
+
+(test table-runtime-state-captures-and-restores-sequence-and-deck_progress
+  (let* ((game (build-table-state-fixture))
+         (session (make-runtime-session game)))
+    (is (eq :first (roll-table game :ordered)))
+    (is (eq :second (roll-table game :ordered)))
+    (let* ((deck-first (roll-table game :deck))
+           (state (capture-runtime-state session))
+           (fresh-game (build-table-state-fixture)))
+      (restore-runtime-state fresh-game state)
+      (is (eq :third (roll-table fresh-game :ordered)))
+      (let ((deck-next (roll-table fresh-game :deck)))
+        (is (member deck-next '(:left :right)))
+        (is (not (eq deck-first deck-next)))))))
 
 (test author-facing-shorthands-keep-control-flow-composable
   (let* ((game

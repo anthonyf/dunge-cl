@@ -22,6 +22,62 @@ systems below are aspirational until their roadmap phases land.
 - **Procedures:** B/X D&D (exploration turns, wandering monsters, reaction rolls, morale)
 - **Solo Engine:** Oracle system for answering questions outside procedures
 
+### Engine Design Rule
+
+Dunge's authored language and engine code have separate jobs:
+
+```text
+.dunge describes what exists, what it means, and when it is eligible.
+Common Lisp implements how systems resolve, generate, mutate, and save state.
+```
+
+This means authored data should define things like tables, actors, items, NPCs,
+shops, encounters, room templates, and story beats. Common Lisp should handle
+combat resolution, inventory math, transaction rules, procedural layout,
+random selection, morale, seeding, logging, and persistence. When a future
+feature starts needing algorithms instead of declarations, it belongs in CL and
+should be configured from `.dunge`.
+
+### Data Foundations
+
+Dunge uses reusable data definitions rather than hand-authoring every outcome
+inside rooms.
+
+**Availability metadata** is the shared basis for conditional content. Forms
+that opt in can support `:when`, `:once`, `:id`, `:tags`, and `:priority` where
+those concepts have clear runtime meaning. Choices already use this model:
+
+```lisp
+(:choice
+ "Ask about the old journal"
+ ((:say "\"Where did you find that?\"")
+  (:mark :blacksmith-saw-journal))
+ :when (:marked? :found-first-journal)
+ :once t
+ :id :ask-blacksmith-journal)
+```
+
+**Random tables** are first-class content pools. They can power loot, rumors,
+encounters, dungeon details, oracle results, shop stock, and future beat
+selection. Current modes are `:weighted`, `:roll`, `:deck`, `:sequence`,
+`:first-match`, and `:bundle`.
+
+```lisp
+(:table
+ :id :barrow-loot
+ :mode :weighted
+ :entries
+ ((:table-entry :weight 4 :result (:gold "1d6"))
+  (:table-entry :weight 2 :result (:item :rusted-dagger))
+  (:table-entry :weight 1
+   :when (:marked? :barrow-secret-found)
+   :tags (:loot :regalia)
+   :result (:item :dragon-scale-fragment))))
+```
+
+Tables describe possible results; CL decides how to roll, draw, save progress,
+and interpret results for a specific subsystem.
+
 ---
 
 ## Core Mechanics (Cairn-Based)

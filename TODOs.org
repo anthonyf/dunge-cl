@@ -8,7 +8,17 @@
 - [X] Local entity state, references, conditional visibility, and simple effects
 - [X] Load authored games from external data or user packages
 - [X] Add save/load for current room, entity state, and world flags
+- [X] Shared availability protocol for conditionally available and consumable nodes
+- [X] First-class authored random tables with weighted, roll, deck, sequence, first-match, and bundle modes
+- [X] Save/load state for table sequence and deck progress
 - [ ] Include player state in save/load once the player model exists
+
+* Phase 1A: Content Data Foundations
+- [X] Document the .dunge "what" vs Common Lisp "how" design boundary
+- [X] Allow flat :when/:once/:id metadata on public :choice forms
+- [X] Add tests for availability metadata and table source validation
+- [ ] Add a roll log and deterministic seed plumbing for table rolls
+- [ ] Add a public authoring guide for table result conventions
 
 * Phase 2: Character And Inventory
 - [ ] Character creation flow with name, background, stats, HP, armor, gold, fate, and inventory
@@ -41,7 +51,7 @@
 
 * Phase 6: Procedural Generation And Oracle
 - [ ] Authored dungeon skeletons with procedural room details
-- [ ] Monster, treasure, hazard, feature, and activity tables
+- [ ] Monster, treasure, hazard, feature, and activity tables built on the table foundation
 - [ ] Yes/no oracle with likelihood levels
 - [ ] Twist, complication, spark, and random-event tables
 - [ ] Seeding rules for previous-adventurer remains, journals, and regalia clues
