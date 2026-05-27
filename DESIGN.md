@@ -85,6 +85,13 @@ log outcomes, and interpret results for a specific subsystem. Table rolls use
 the game's deterministic seed by default, and save/load preserves the current
 RNG state, roll log, sequence positions, and deck draws.
 
+Public table result conventions live in [AUTHORING.md](AUTHORING.md). In
+short, table results should name typed content, such as `(:gold "1d6")`,
+`(:item :rusted-dagger)`, `(:encounter :goblin-scouts)`,
+`(:room-detail :flooded-floor)`, or `(:shop-stock :blacksmith-basic)`, while CL
+implements the inventory, combat, shop, generation, and persistence behavior
+attached to those result types.
+
 ---
 
 ## Core Mechanics (Cairn-Based)

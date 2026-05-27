@@ -47,6 +47,8 @@ when adding to an existing query string, or `#debug`.
 
 ## Design Notes
 
+- [AUTHORING.md](AUTHORING.md) describes public `.dunge` authoring
+  conventions, including table result shapes for future gameplay systems.
 - [ARCHITECTURE.md](ARCHITECTURE.md) describes the current `.dunge` source
   model, AST, runtime, and HTML compiler.
 - [DESIGN.md](DESIGN.md) captures broader game-design ideas and future

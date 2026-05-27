@@ -283,11 +283,14 @@ Supported table modes are:
 - `:first-match` returns the first available entry.
 - `:bundle` resolves all available entries and returns the list of results.
 
-Entries may use `:when` and `:tags`. A result may be arbitrary safe data, such
-as `(:gold "1d6")`, `(:item :silver-ring)`, or `(:table :nested-table)` for a
-nested table roll. The engine deliberately does not interpret all result shapes
-yet; later systems such as loot, encounters, shops, and dungeon generation will
-define the meanings of their own result data.
+Entries may use `:when` and `:tags`. A result may be arbitrary safe data.
+`(:table :nested-table)` is resolved by the table runtime as a nested roll.
+Other public result conventions, such as `(:gold "1d6")`,
+`(:item :silver-ring)`, `(:encounter :goblin-scouts)`,
+`(:shop-stock :blacksmith-basic)`, and `(:room-detail :flooded-floor)`, are
+documented in [AUTHORING.md](AUTHORING.md). The engine deliberately does not
+interpret all result shapes yet; later systems such as loot, encounters, shops,
+and dungeon generation will define the meanings of their own result data.
 
 Games may declare an initial `:seed`. The seed is authored data; the Common
 Lisp runtime owns the deterministic pseudo-random generator, current RNG state,
