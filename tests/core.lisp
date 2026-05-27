@@ -972,7 +972,13 @@
       :id :certain-roll
       :mode :roll
       :entries
-      ((:table-entry :range 1 :result :only))))))
+      ((:table-entry :range 1 :result :only)))
+     (:table
+      :id :ordered
+      :mode :sequence
+      :entries
+      ((:table-entry :result :first)
+       (:table-entry :result :second))))))
 
 (test table-rolls-use-game-seed-and-record-roll-log
   (let ((first-game (build-seeded-table-fixture 314))
@@ -992,7 +998,18 @@
                            :roll 1
                            :die 1
                            :result :only))
-               (game-roll-log game)))))
+               (game-roll-log game))))
+  (let ((game (build-seeded-table-fixture 9)))
+    (is (eq :first (roll-table game :ordered)))
+    (is (eq :second (roll-table game :ordered)))
+    (is (equal '(:first :second)
+               (mapcar (lambda (entry)
+                         (getf entry :result))
+                       (game-roll-log game))))
+    (is (equal '(0 1)
+               (mapcar (lambda (entry)
+                         (getf entry :entry))
+                       (game-roll-log game))))))
 
 (test game-seed-must-be-non-negative
   (signals error

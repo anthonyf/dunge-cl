@@ -311,8 +311,7 @@ can TYPEP the result against QUIT, BACK, and related classes."))
       (game-random game limit)))
 
 (defun record-table-roll (game entry)
-  (setf (game-roll-log game)
-        (append (game-roll-log game) (list entry)))
+  (push entry (game-roll-log-reversed game))
   entry)
 
 (defun table-available-entries (table context)
@@ -708,7 +707,7 @@ can TYPEP the result against QUIT, BACK, and related classes."))
           (game-tables game)))
 
 (defun collect-runtime-roll-log (game)
-  (copy-list (game-roll-log game)))
+  (game-roll-log game))
 
 (defun collect-runtime-local-state (game)
   (let (entries)
