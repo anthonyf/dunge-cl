@@ -220,15 +220,16 @@
     tags))
 
 (defun inventory-entry-slots (entry)
-  (let ((explicit-slots (inventory-option-value entry :slots nil)))
-    (if explicit-slots
-        (non-negative-integer-value explicit-slots "Inventory entry slots")
+  (let* ((missing '#:missing)
+         (explicit-slots (inventory-option-value entry :slots missing)))
+    (if (eq explicit-slots missing)
         (ecase (inventory-entry-kind entry)
           (:item
            (* (inventory-entry-count entry)
               (if (inventory-entry-bulky-p entry) 2 1)))
           (:supply
-           1)))))
+           1))
+        (non-negative-integer-value explicit-slots "Inventory entry slots"))))
 
 (defun validate-inventory-entry-data (entry)
   (let ((options (inventory-entry-options entry)))
