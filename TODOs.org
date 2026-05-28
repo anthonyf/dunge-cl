@@ -22,10 +22,11 @@
 
 * Phase 2: Character And Inventory
 - [X] Player state foundation with source validation and save/load
+- [X] Inventory data model with stack helpers, slot accounting, Fatigue pressure, and Deprived checks
 - [ ] Character creation flow with name, background, stats, HP, armor, gold, fate, and inventory
 - [ ] Background starting gear matching the design document
-- [ ] Inventory slots, bulky items, stackable supplies, and gold handling
-- [ ] Fatigue and Deprived status
+- [ ] Inventory UI integration and gold handling
+- [ ] Rest/recovery integration for Fatigue and Deprived status
 - [ ] Item use effects for healing herbs, light sources, tools, spellbooks, scrolls, and relics
 
 * Phase 3: Cairn Mechanics

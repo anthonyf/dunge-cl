@@ -58,23 +58,33 @@ Use `(:gold AMOUNT)` for money.
 (:gold "1d6")
 ```
 
-Use `(:item ITEM-ID ...)` for inventory items. Supported options should be
-plist-style keys such as `:count`, `:condition`, and `:tags`. Omit `:count`
-for a single item.
+Use `(:item ITEM-ID ...)` for inventory items. Supported options are
+plist-style keys such as `:count`, `:slots`, `:bulky`, `:condition`, and
+`:tags`. Omit `:count` for a single item. By default, each item copy costs
+one inventory slot; `:bulky t` makes each copy cost two, and `:slots N`
+overrides the slot cost for the whole entry.
 
 ```lisp
 (:item :rusted-dagger)
 (:item :torch :count "1d4")
+(:item :iron-mail :bulky t)
+(:item :coin-purse :slots 0)
 (:item :silver-ring :condition :tarnished :tags (:loot :jewelry))
 ```
 
 Use `(:supply SUPPLY-ID ...)` for stackable adventuring supplies that are not
-distinct item records. `:count` is the common option.
+distinct item records. `:count` is the common option. A supply stack costs one
+inventory slot by default, regardless of count, unless `:slots` overrides it.
 
 ```lisp
 (:supply :ration :count "1d4")
 (:supply :oil-flask :count 2)
 ```
+
+When an item or supply entry is stored directly in player inventory,
+`:count` and `:slots` must already be resolved integers. Dice strings are table
+result shorthand for CL loot procedures to roll before adding entries to a
+player.
 
 Use `(:encounter ENCOUNTER-ID ...)` for bestiary or encounter templates.
 Common options include `:count`, `:reaction`, and `:morale`.

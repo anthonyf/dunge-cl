@@ -800,8 +800,11 @@ Roll or choose evocative features:
 This is the target Cairn-style character sheet for play. It includes current/max stat tracking, a 10-slot inventory grid, Fatigue boxes, and the Deprived flag. The implementation can grow toward this shape incrementally, but this is the player-facing model the rest of the design assumes.
 
 The current engine foundation supports a declarative `:player` form on
-`:game`, plus runtime save/load for the player record. Character creation,
-inventory slots, item use, and combat mutation are still later phases.
+`:game`, runtime save/load for the player record, and a Common Lisp inventory
+data model with item/supply validation, stack helpers, 10-slot accounting,
+Fatigue slot pressure, and Deprived checks. Character creation, item use, shop
+transactions, gold handling beyond the player field, and combat mutation are
+still later phases.
 
 ### Core Stats
 

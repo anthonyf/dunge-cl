@@ -153,6 +153,227 @@
     (setf (player-max-hp player) (player-hp player)))
   (setf (player-initial-state player) (player-state-plist player)))
 
+(defconstant +player-inventory-capacity+ 10)
+
+(defun proper-list-length-value (value label)
+  (unless (listp value)
+    (error "~A must be a proper list; got ~S." label value))
+  (let ((length (handler-case
+                    (list-length value)
+                  (type-error ()
+                    nil))))
+    (unless length
+      (error "~A must be a proper, non-circular list." label))
+    length))
+
+(defun inventory-entry-options (entry)
+  (proper-list-length-value entry "Inventory entry")
+  (unless (and (consp entry)
+               (consp (cdr entry)))
+    (error "Inventory entries must be (TYPE ID &KEY ...); got ~S." entry))
+  (let ((options (cddr entry)))
+    (unless (evenp (proper-list-length-value options "Inventory entry options"))
+      (error "Inventory entry options must contain an even number of entries; got ~S."
+             options))
+    (loop for tail on options by #'cddr
+          for key = (car tail)
+          unless (keywordp key)
+            do (error "Inventory entry option names must be keywords; got ~S."
+                      key))
+    options))
+
+(defun inventory-entry-kind (entry)
+  (inventory-entry-options entry)
+  (let ((kind (first entry)))
+    (unless (member kind '(:item :supply) :test #'eq)
+      (error "Inventory entry type must be :ITEM or :SUPPLY; got ~S." kind))
+    kind))
+
+(defun inventory-entry-id (entry)
+  (inventory-entry-options entry)
+  (let ((id (second entry)))
+    (unless (keywordp id)
+      (error "Inventory entry ids must be keywords; got ~S." id))
+    id))
+
+(defun inventory-option-value (entry option &optional default)
+  (getf (inventory-entry-options entry) option default))
+
+(defun inventory-entry-count (entry)
+  (positive-integer-value
+   (inventory-option-value entry :count 1)
+   "Inventory entry count"))
+
+(defun inventory-entry-bulky-p (entry)
+  (let ((bulky (inventory-option-value entry :bulky nil)))
+    (unless (or (eq bulky t)
+                (null bulky))
+      (error "Inventory entry :BULKY must be a boolean; got ~S." bulky))
+    bulky))
+
+(defun inventory-entry-tags (entry)
+  (let ((tags (inventory-option-value entry :tags nil)))
+    (proper-list-length-value tags "Inventory entry :TAGS")
+    (dolist (tag tags)
+      (unless (keywordp tag)
+        (error "Inventory entry tags must be keywords; got ~S." tag)))
+    tags))
+
+(defun inventory-entry-slots (entry)
+  (let* ((missing '#:missing)
+         (explicit-slots (inventory-option-value entry :slots missing)))
+    (if (eq explicit-slots missing)
+        (ecase (inventory-entry-kind entry)
+          (:item
+           (* (inventory-entry-count entry)
+              (if (inventory-entry-bulky-p entry) 2 1)))
+          (:supply
+           1))
+        (non-negative-integer-value explicit-slots "Inventory entry slots"))))
+
+(defun validate-inventory-entry-data (entry)
+  (let ((options (inventory-entry-options entry)))
+    (inventory-entry-kind entry)
+    (inventory-entry-id entry)
+    (inventory-entry-count entry)
+    (inventory-entry-slots entry)
+    (inventory-entry-tags entry)
+    (let ((condition (inventory-option-value entry :condition nil)))
+      (unless (or (null condition)
+                  (keywordp condition))
+        (error "Inventory entry :CONDITION must be a keyword or NIL; got ~S."
+               condition)))
+    (loop for tail on options by #'cddr
+          for key = (car tail)
+          unless (member key '(:count :slots :bulky :condition :tags)
+                         :test #'eq)
+            do (error "Unknown inventory entry option ~S in ~S."
+                      key
+                      entry)))
+  entry)
+
+(defun validate-player-inventory-data (inventory)
+  (proper-list-length-value inventory "Player inventory")
+  (dolist (entry inventory)
+    (validate-inventory-entry-data entry))
+  inventory)
+
+(defun inventory-entry-metadata (entry)
+  (loop for (key value) on (inventory-entry-options entry) by #'cddr
+        unless (eq key :count)
+          append (list key value)))
+
+(defun inventory-entry-matches-p (entry kind id
+                                  &optional
+                                    (metadata nil metadata-supplied-p))
+  (and (eq (inventory-entry-kind entry) kind)
+       (eq (inventory-entry-id entry) id)
+       (or (not metadata-supplied-p)
+           (equal (inventory-entry-metadata entry) metadata))))
+
+(defun inventory-entry-with-count (entry count)
+  (let ((kind (inventory-entry-kind entry))
+        (id (inventory-entry-id entry))
+        (metadata (inventory-entry-metadata entry)))
+    (append (list kind id)
+            (when (/= count 1)
+              (list :count count))
+            metadata)))
+
+(defun normalize-inventory-entry (entry &optional count)
+  (validate-inventory-entry-data entry)
+  (inventory-entry-with-count entry
+                              (or count
+                                  (inventory-entry-count entry))))
+
+(defun find-player-inventory-entry (player kind id)
+  (find-if (lambda (entry)
+             (and (eq (inventory-entry-kind entry) kind)
+                  (eq (inventory-entry-id entry) id)))
+           (player-inventory player)))
+
+(defun player-inventory-count (player kind id)
+  (loop for entry in (player-inventory player)
+        when (and (eq (inventory-entry-kind entry) kind)
+                  (eq (inventory-entry-id entry) id))
+          sum (inventory-entry-count entry)))
+
+(defun add-player-inventory-entry (player entry &key count)
+  (let* ((count (if count
+                    (positive-integer-value count "Inventory add count")
+                    (inventory-entry-count entry)))
+         (normalized (normalize-inventory-entry entry count))
+         (kind (inventory-entry-kind normalized))
+         (id (inventory-entry-id normalized))
+         (metadata (inventory-entry-metadata normalized))
+         (existing (find-if (lambda (candidate)
+                              (inventory-entry-matches-p candidate
+                                                         kind
+                                                         id
+                                                         metadata))
+                            (player-inventory player))))
+    (if existing
+        (setf (player-inventory player)
+              (mapcar (lambda (candidate)
+                        (if (eq candidate existing)
+                            (inventory-entry-with-count
+                             candidate
+                             (+ (inventory-entry-count candidate) count))
+                            candidate))
+                      (player-inventory player)))
+        (setf (player-inventory player)
+              (append (player-inventory player)
+                      (list normalized)))))
+  player)
+
+(defun remove-player-inventory-entry (player kind id &key (count 1))
+  (let* ((count (positive-integer-value count "Inventory remove count"))
+         (available (player-inventory-count player kind id)))
+    (when (< available count)
+      (error "Player inventory has only ~D ~S ~S entries; cannot remove ~D."
+             available
+             kind
+             id
+             count))
+    (let ((remaining-to-remove count)
+          (new-inventory nil))
+      (dolist (entry (player-inventory player))
+        (if (and (plusp remaining-to-remove)
+                 (eq (inventory-entry-kind entry) kind)
+                 (eq (inventory-entry-id entry) id))
+            (let* ((entry-count (inventory-entry-count entry))
+                   (removed (min entry-count remaining-to-remove))
+                   (remaining-entry-count (- entry-count removed)))
+              (decf remaining-to-remove removed)
+              (when (plusp remaining-entry-count)
+                (push (inventory-entry-with-count entry remaining-entry-count)
+                      new-inventory)))
+            (push entry new-inventory)))
+      (setf (player-inventory player) (nreverse new-inventory))))
+  player)
+
+(defun player-inventory-capacity (player)
+  (declare (ignore player))
+  +player-inventory-capacity+)
+
+(defun player-inventory-used-slots (player)
+  (+ (player-fatigue player)
+     (loop for entry in (player-inventory player)
+           sum (inventory-entry-slots entry))))
+
+(defun player-inventory-free-slots (player)
+  (max 0
+       (- (player-inventory-capacity player)
+          (player-inventory-used-slots player))))
+
+(defun player-inventory-full-p (player)
+  (>= (player-inventory-used-slots player)
+      (player-inventory-capacity player)))
+
+(defun player-deprived-p (player)
+  (or (not (null (member :deprived (player-conditions player) :test #'eq)))
+      (player-inventory-full-p player)))
+
 (define-dunge-node room ()
   ((name :reader name :initarg :name :initform nil)
    (title :reader room-title :initarg :title :initform nil)
@@ -1026,7 +1247,11 @@
                                    "WIL")
   (validate-player-current-maximum (player-hp thing)
                                    (player-max-hp thing)
-                                   "HP"))
+                                   "HP")
+  (handler-case
+      (validate-player-inventory-data (player-inventory thing))
+    (error (condition)
+      (validation-error "~A" condition))))
 
 (defun table-result-reference-id (result)
   (when (and (consp result)
