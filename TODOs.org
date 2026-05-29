@@ -24,7 +24,7 @@
 - [X] Research public-domain/CC0 dungeon RPG adaptation targets
 - [X] Create adaptation skeleton with provenance notes and an authored entrance loop
 - [X] Map adaptation loop to current Dunge support and engine gaps
-- [ ] Add dice utilities and CL character creation procedures for the adaptation
+- [X] Add dice utilities and CL character creation procedures for the adaptation
 - [ ] Add persistent generated room instances for a small dungeon graph
 - [ ] Add encounter state and a minimal combat loop
 - [ ] Resolve loot and item-use table results into player/world mutations
@@ -40,7 +40,7 @@
 - [ ] Item use effects for healing herbs, light sources, tools, spellbooks, scrolls, and relics
 
 * Phase 3: Cairn Mechanics
-- [ ] Dice utilities and roll records
+- [X] Dice utilities and roll records
 - [ ] STR/DEX/WIL saves
 - [ ] Damage resolution: armor, HP, STR spillover, critical damage, and death
 - [ ] Rest and recovery rules

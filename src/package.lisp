@@ -89,6 +89,7 @@
    #:open-choice
    #:options
    #:p
+   #:parse-dice-expression
    #:placed-thing
    #:placement-description
    #:player
@@ -143,6 +144,8 @@
    #:state-set
    #:state-toggle
    #:tagged-mixin
+   #:roll-dice
+   #:roll-dice-value
    #:roll-table
    #:game-random
    #:table-entries

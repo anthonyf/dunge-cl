@@ -294,9 +294,10 @@ and dungeon generation will define the meanings of their own result data.
 
 Games may declare an initial `:seed`. The seed is authored data; the Common
 Lisp runtime owns the deterministic pseudo-random generator, current RNG state,
-and roll log. Table rolls advance the game RNG by default and append a
-structured roll record containing the table id, mode, selected entry, roll
-details, and resolved result.
+and roll log. Table rolls and dice rolls advance the game RNG by default and
+append structured roll records. Table records contain the table id, mode,
+selected entry, roll details, and resolved result. Dice records contain the dice
+expression, individual die results, optional label, and result total.
 
 Stateful table progress, such as sequence position, deck draws, current RNG
 state, and the roll log, is part of runtime save/load. This lets future
