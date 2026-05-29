@@ -20,6 +20,15 @@
 - [X] Add a roll log and deterministic seed plumbing for table rolls
 - [X] Add a public authoring guide for table result conventions
 
+* Phase 1B: Adaptation Testbed
+- [X] Research public-domain/CC0 dungeon RPG adaptation targets
+- [ ] Create adaptation skeleton with provenance notes and an authored entrance loop
+- [ ] Add dice utilities and CL character creation procedures for the adaptation
+- [ ] Add persistent generated room instances for a small dungeon graph
+- [ ] Add encounter state and a minimal combat loop
+- [ ] Resolve loot and item-use table results into player/world mutations
+- [ ] Add browser character and encounter panels
+
 * Phase 2: Character And Inventory
 - [X] Player state foundation with source validation and save/load
 - [X] Inventory data model with stack helpers, slot accounting, Fatigue pressure, and Deprived checks
