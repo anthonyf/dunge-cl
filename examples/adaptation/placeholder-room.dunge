@@ -1,0 +1,8 @@
+(:room
+ :id "placeholder-room"
+ :title "Placeholder Chamber"
+ :body
+ ((:p "The generated chamber will live here: rolled room segment, exits, encounter, loot, and persistent room state.")
+  (:p "This static placeholder lets the adaptation load and play while the support audit names the missing engine pieces.")
+  (:choice "Return to the white arch" (:go "threshold"))
+  (:choice "Quit" (:quit))))
