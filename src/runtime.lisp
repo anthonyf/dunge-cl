@@ -310,6 +310,121 @@ can TYPEP the result against QUIT, BACK, and related classes."))
       (random limit random-state)
       (game-random game limit)))
 
+(defun dice-expression-string (expression)
+  (unless (stringp expression)
+    (error "Dice expressions must be strings; got ~S." expression))
+  (let ((trimmed (string-trim '(#\Space #\Tab #\Newline #\Return)
+                              expression)))
+    (when (string= trimmed "")
+      (error "Dice expressions cannot be empty."))
+    trimmed))
+
+(defun dice-integer-substring (expression start end label &key positive)
+  (when (= start end)
+    (error "~A is missing in dice expression ~S." label expression))
+  (let ((value (handler-case
+                   (parse-integer expression
+                                  :start start
+                                  :end end
+                                  :junk-allowed nil)
+                 (error ()
+                   nil))))
+    (unless value
+      (error "~A must be an integer in dice expression ~S."
+             label
+             expression))
+    (if positive
+        (positive-integer-value value label)
+        (non-negative-integer-value value label))))
+
+(defun dice-modifier-position (expression start)
+  (loop for index from start below (length expression)
+        for char = (char expression index)
+        when (or (char= char #\+)
+                 (char= char #\-))
+          do (return index)))
+
+(defun parse-dice-expression (expression)
+  (let* ((expression (dice-expression-string expression))
+         (d-position (position #\d expression :test #'char-equal)))
+    (unless d-position
+      (error "Dice expression ~S must contain D, as in \"1d6\"." expression))
+    (when (position #\d expression
+                    :test #'char-equal
+                    :start (1+ d-position))
+      (error "Dice expression ~S contains more than one D." expression))
+    (let* ((modifier-position
+             (dice-modifier-position expression (1+ d-position)))
+           (sides-end (or modifier-position (length expression)))
+           (count (if (zerop d-position)
+                      1
+                      (dice-integer-substring expression
+                                              0
+                                              d-position
+                                              "Dice count"
+                                              :positive t)))
+           (sides (dice-integer-substring expression
+                                          (1+ d-position)
+                                          sides-end
+                                          "Dice sides"
+                                          :positive t))
+           (modifier (if modifier-position
+                         (let ((magnitude
+                                 (dice-integer-substring expression
+                                                         (1+ modifier-position)
+                                                         (length expression)
+                                                         "Dice modifier")))
+                           (if (char= (char expression modifier-position) #\-)
+                               (- magnitude)
+                               magnitude))
+                         0)))
+      (list :expression expression
+            :count count
+            :sides sides
+            :modifier modifier))))
+
+(defun dice-roll-log-entry (spec rolls total label)
+  (append (list :dice (getf spec :expression)
+                :count (getf spec :count)
+                :sides (getf spec :sides)
+                :rolls (copy-list rolls))
+          (unless (zerop (getf spec :modifier))
+            (list :modifier (getf spec :modifier)))
+          (when label
+            (list :label label))
+          (list :result total)))
+
+(defun dice-random-roll (game sides random-state)
+  (1+ (table-random game sides random-state)))
+
+(defun roll-dice (game expression &key label random-state (record t))
+  (unless (or game random-state)
+    (error "Rolling dice requires a game or explicit random state."))
+  (let* ((spec (parse-dice-expression expression))
+         (rolls (loop repeat (getf spec :count)
+                      collect (dice-random-roll game
+                                                (getf spec :sides)
+                                                random-state)))
+         (total (+ (reduce #'+ rolls)
+                   (getf spec :modifier)))
+         (entry (dice-roll-log-entry spec rolls total label)))
+    (when (and record game)
+      (push entry (game-roll-log-reversed game)))
+    (values total entry)))
+
+(defun roll-dice-value (game value &key label random-state (record t))
+  (cond
+    ((integerp value)
+     (values (non-negative-integer-value value "Dice value") nil))
+    ((stringp value)
+     (roll-dice game value
+                :label label
+                :random-state random-state
+                :record record))
+    (t
+     (error "Dice values must be non-negative integers or dice strings; got ~S."
+            value))))
+
 (defun record-table-roll (game entry)
   (push entry (game-roll-log-reversed game))
   entry)

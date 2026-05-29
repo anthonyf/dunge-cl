@@ -23,7 +23,7 @@ The first adaptation target is intentionally small:
 
 | Loop step | Current Dunge support | Missing support | Likely next slice |
 | --- | --- | --- | --- |
-| Player creation | `:player` source form, player save/load, inventory data model. | CL procedures for rolling/choosing stats, HP, gold, background, and starting gear. | Dice and character creation. |
+| Player creation | `:player` source form, player save/load, inventory data model, adaptation player creation helper. | A player-facing character creation flow. | Browser character panel. |
 | Safe camp / entrance | Authored rooms, choices, actions, branches, flags, global state. | Nothing major for a static entrance loop. | Adaptation skeleton. |
 | Enter dungeon | `:go`, `:gosub`, `:back`, and authored room ids. | A CL entry point that creates or retrieves generated dungeon rooms. | Generated room instances. |
 | Generate room | Random tables, deterministic seed, table state, roll log. | Room instance API, generated graph state, table-result resolver to concrete room data. | Generated room instances. |
@@ -47,12 +47,12 @@ The first adaptation target is intentionally small:
 - New language forms should wait until an authored example cannot describe the
   needed content cleanly with rooms, entities, choices, tables, and state.
 
-## Immediate Gaps
+## Support Status
 
 1. **Dice utilities**
-   We need a shared parser/roller for `XdY` style strings and explicit roll
-   records. Character creation, loot quantities, damage, and oracle procedures
-   all want the same primitive.
+   The engine has a shared parser/roller for `XdY` style strings and explicit
+   roll records. Character creation uses it now; loot quantities, damage, and
+   oracle procedures should reuse it.
 
 2. **Generated room instances**
    We need a CL-side API that can create a room-like playable location, assign
@@ -74,6 +74,6 @@ The first adaptation target is intentionally small:
 
 ## Next Recommended PR
 
-Build the **dice and character creation** slice next. It gives the adaptation a
-real player to carry through the skeleton and supports later generated loot,
-damage, saves, and oracle rolls.
+Build the **generated room instances** slice next. The adaptation now has a real
+player to carry through the skeleton; the next pressure point is replacing the
+placeholder chamber with a persistent generated room.

@@ -103,7 +103,8 @@ This adaptation should tell us whether Dunge needs:
 
 2. **Dice And Character Creation**
    Add dice utilities and CL character creation procedures, then generate a
-   starting player that uses the existing player/inventory model.
+   starting player that uses the existing player/inventory model. The
+   adaptation example now exposes this through its generated-player loader.
 
 3. **Generated Room Instances**
    Add a CL-side room instancing API and a small persistent dungeon graph.

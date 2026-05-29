@@ -58,6 +58,10 @@ Use `(:gold AMOUNT)` for money.
 (:gold "1d6")
 ```
 
+Dice strings use `NdS`, `dS`, or `NdS+M`/`NdS-M` notation, such as `"1d6"`,
+`"d8"`, or `"2d6+3"`. The string remains authored data until CL procedure code
+rolls it and records the result.
+
 Use `(:item ITEM-ID ...)` for inventory items. Supported options are
 plist-style keys such as `:count`, `:slots`, `:bulky`, `:condition`, and
 `:tags`. Omit `:count` for a single item. By default, each item copy costs

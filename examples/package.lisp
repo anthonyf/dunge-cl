@@ -7,6 +7,10 @@
    #:adaptation-example
    #:basic-example
    #:control-panel-example
+   #:generated-adaptation-example
+   #:install-adaptation-player
    #:load-adaptation-example
    #:load-basic-example
-   #:load-control-panel-example))
+   #:load-control-panel-example
+   #:load-generated-adaptation-example
+   #:make-adaptation-player))

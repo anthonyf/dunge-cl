@@ -990,6 +990,44 @@
     (is (consumed-p choice context))
     (is (not (available-p choice context)))))
 
+(test dice-expressions-parse-and-reject-malformed-input
+  (is (equal '(:expression "2d6+3" :count 2 :sides 6 :modifier 3)
+             (parse-dice-expression "2d6+3")))
+  (is (equal '(:expression "d8-1" :count 1 :sides 8 :modifier -1)
+             (parse-dice-expression " d8-1 ")))
+  (signals error
+    (parse-dice-expression ""))
+  (signals error
+    (parse-dice-expression "2d"))
+  (signals error
+    (parse-dice-expression "0d6"))
+  (signals error
+    (parse-dice-expression "1d0"))
+  (signals error
+    (parse-dice-expression "1d6+bad")))
+
+(test dice-rolls-use-game-seed-and-record-roll-log
+  (let ((first-game (source-game-with-seeded-tables 314 nil))
+        (second-game (source-game-with-seeded-tables 314 nil)))
+    (is (equal (loop repeat 3
+                     collect (roll-dice first-game "1d6" :label :test-die))
+               (loop repeat 3
+                     collect (roll-dice second-game "1d6" :label :test-die))))
+    (is (= 3 (length (game-roll-log first-game))))
+    (let ((entry (first (game-roll-log first-game))))
+      (is (equal "1d6" (getf entry :dice)))
+      (is (= 1 (getf entry :count)))
+      (is (= 6 (getf entry :sides)))
+      (is (equal :test-die (getf entry :label)))
+      (is (equal (first (getf entry :rolls))
+                 (getf entry :result)))))
+  (let ((game (source-game-with-seeded-tables 1 nil)))
+    (multiple-value-bind (value record)
+        (roll-dice-value game 6 :label :static-value)
+      (is (= 6 value))
+      (is (null record))
+      (is (null (game-roll-log game))))))
+
 (test table-source-forms-parse-index-and-retain-entry-metadata
   (let* ((game
            (source-game-with-tables
@@ -1668,6 +1706,45 @@
     (is (contains-substring-p "For now, the generated chamber is a placeholder room."
                               output))
     (is (contains-substring-p "Placeholder Chamber" output))))
+
+(test adaptation-character-creation-uses-dice-and-starting-gear
+  (let ((game (dunge-examples:load-adaptation-example)))
+    (multiple-value-bind (returned-game player)
+        (dunge-examples:install-adaptation-player game
+                                                  :name "Nia"
+                                                  :background :delver)
+      (is (eq game returned-game))
+      (is (eq player (game-player game)))
+      (is (equal "Nia" (player-name player)))
+      (is (eq :delver (player-background player)))
+      (is (<= 5 (player-str player) 15))
+      (is (<= 5 (player-dex player) 15))
+      (is (<= 5 (player-wil player) 15))
+      (is (<= 1 (player-hp player) 6))
+      (is (<= 1 (player-gold player) 6))
+      (is (= 1 (player-armor player)))
+      (is (equal '((:item :rusted-dagger)
+                   (:item :lantern)
+                   (:supply :ration :count 1))
+                 (player-inventory player)))
+      (is (equal '(:adaptation-str
+                   :adaptation-dex
+                   :adaptation-wil
+                   :adaptation-hp
+                   :adaptation-gold)
+                 (mapcar (lambda (entry)
+                           (getf entry :label))
+                         (game-roll-log game)))))))
+
+(test generated-adaptation-example-loads-with-created-player
+  (let* ((game (dunge-examples:load-generated-adaptation-example))
+         (player (game-player game)))
+    (is (equal "Generated Delver" (player-name player)))
+    (is (eq :wanderer (player-background player)))
+    (is (equal '((:item :lantern)
+                 (:supply :ration :count 2))
+               (player-inventory player)))
+    (is (= 5 (length (game-roll-log game))))))
 
 (test html-compiler-generates-single-file-index-shell
   (let* ((game (source-game-with-body
