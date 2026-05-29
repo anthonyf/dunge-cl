@@ -1,0 +1,8 @@
+(:room
+ :id "camp"
+ :title "Dunge Crawler Testbed"
+ :body
+ ((:p "A low campfire burns at the edge of the white arch. This is a tiny adaptation skeleton: a real Dunge example with the future crawler loop marked out, but no procedural generation yet.")
+  (:p "The test delver has a lantern, two rations, and just enough nerve to step through.")
+  (:choice "Approach the white arch" (:go "threshold"))
+  (:choice "Leave the testbed" (:quit))))

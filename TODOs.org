@@ -22,7 +22,8 @@
 
 * Phase 1B: Adaptation Testbed
 - [X] Research public-domain/CC0 dungeon RPG adaptation targets
-- [ ] Create adaptation skeleton with provenance notes and an authored entrance loop
+- [X] Create adaptation skeleton with provenance notes and an authored entrance loop
+- [X] Map adaptation loop to current Dunge support and engine gaps
 - [ ] Add dice utilities and CL character creation procedures for the adaptation
 - [ ] Add persistent generated room instances for a small dungeon graph
 - [ ] Add encounter state and a minimal combat loop

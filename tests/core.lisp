@@ -1636,13 +1636,17 @@
 
 (test example-loaders-read-dunge-source-files
   (let ((basic (dunge-examples:load-basic-example))
-        (control-panel (dunge-examples:load-control-panel-example)))
+        (control-panel (dunge-examples:load-control-panel-example))
+        (adaptation (dunge-examples:load-adaptation-example)))
     (is (typep basic 'game))
     (is (equal '("entrance" "hallway")
                (mapcar #'name (game-rooms basic))))
     (is (typep control-panel 'game))
     (is (equal '("hallway" "hidden room")
-               (mapcar #'name (game-rooms control-panel))))))
+               (mapcar #'name (game-rooms control-panel))))
+    (is (typep adaptation 'game))
+    (is (equal '("camp" "threshold" "placeholder-room")
+               (mapcar #'name (game-rooms adaptation))))))
 
 (test basic-example-scripted-transcript
   (let ((output (run-example-with-input #'dunge-examples:basic-example
@@ -1656,6 +1660,14 @@
     (is (contains-substring-p "You flip the switch." output))
     (is (contains-substring-p "Something heavy slides open nearby." output))
     (is (contains-substring-p "Hidden Room" output))))
+
+(test adaptation-example-scripted-transcript
+  (let ((output (run-example-with-input #'dunge-examples:adaptation-example
+                                        (format nil "1~%1~%2~%"))))
+    (is (contains-substring-p "Dunge Crawler Testbed" output))
+    (is (contains-substring-p "For now, the generated chamber is a placeholder room."
+                              output))
+    (is (contains-substring-p "Placeholder Chamber" output))))
 
 (test html-compiler-generates-single-file-index-shell
   (let* ((game (source-game-with-body

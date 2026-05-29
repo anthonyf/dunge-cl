@@ -1,0 +1,48 @@
+(:game
+ :start "camp"
+ :seed 17
+ :flags (:first-room-generated)
+ :state ((:rooms-generated 0)
+         (:dungeon-depth 0))
+ :player
+ (:player
+  :name "Test Delver"
+  :background :wanderer
+  :str 10
+  :dex 10
+  :wil 10
+  :hp 3
+  :armor 0
+  :gold 0
+  :fate 0
+  :inventory ((:item :lantern)
+              (:supply :ration :count 2))
+  :fatigue 0
+  :conditions nil)
+ :tables
+ ((:table
+   :id :room-segment
+   :mode :sequence
+   :entries
+   ((:table-entry
+     :result (:room-segment :white-arch :tags (:threshold :dream)))
+    (:table-entry
+     :result (:room-segment :cold-gallery :tags (:room :stone)))
+    (:table-entry
+     :result (:room-segment :root-crossing :tags (:room :hazard)))))
+  (:table
+   :id :starter-loot
+   :mode :weighted
+   :entries
+   ((:table-entry :weight 3 :result (:supply :ration :count 1))
+    (:table-entry :weight 2 :result (:item :chalk :slots 0))
+    (:table-entry :weight 1 :result (:gold "1d6"))))
+  (:table
+   :id :starter-encounter
+   :mode :first-match
+   :entries
+   ((:table-entry :result (:encounter :watchful-shadow :reaction :uncertain)))))
+ :rooms
+ ("adaptation/camp.dunge"
+  "adaptation/threshold.dunge"
+  "adaptation/placeholder-room.dunge"))

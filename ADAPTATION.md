@@ -98,7 +98,8 @@ This adaptation should tell us whether Dunge needs:
 
 1. **Adaptation Skeleton**
    Create an example package directory, license/provenance notes, and a tiny
-   authored entrance loop.
+   authored entrance loop. This is represented by `examples/adaptation/` and
+   the support audit in [ADAPTATION_SUPPORT_AUDIT.md](ADAPTATION_SUPPORT_AUDIT.md).
 
 2. **Dice And Character Creation**
    Add dice utilities and CL character creation procedures, then generate a

@@ -31,7 +31,16 @@
                               :pathname "control-panel"
                               :components ((:static-file "hallway.dunge")
                                            (:static-file "hidden-room.dunge")))
-                             (:file "control-panel")))))
+                             (:file "control-panel")
+                             (:static-file "adaptation.dunge")
+                             (:module "adaptation-rooms"
+                              :pathname "adaptation"
+                              :components ((:static-file "camp.dunge")
+                                           (:static-file "threshold.dunge")
+                                           (:static-file "placeholder-room.dunge")
+                                           (:static-file "README.md")
+                                           (:static-file "PROVENANCE.md")))
+                             (:file "adaptation")))))
 
 (asdf:defsystem "dunge/tests"
   :depends-on ("dunge/examples"

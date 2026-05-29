@@ -4,7 +4,9 @@
                           #:room
                           #:sequence)
   (:export
+   #:adaptation-example
    #:basic-example
    #:control-panel-example
+   #:load-adaptation-example
    #:load-basic-example
    #:load-control-panel-example))
