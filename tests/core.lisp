@@ -1097,6 +1097,55 @@
       (is (null record))
       (is (null (game-roll-log game))))))
 
+(test table-result-resolvers-normalize-amounts-and-apply-player-mutations
+  (let* ((game (source-game-with-player
+                '(:player
+                  :name "Resolver"
+                  :gold 2
+                  :inventory ((:supply :ration :count 1)))))
+         (player (game-player game))
+         (resolved (resolve-table-result-data
+                    game
+                    '((:gold "1d6")
+                      (:supply :ration :count "1d4")
+                      (:item :chalk :slots 0)
+                      (:room-detail :flooded-floor)))))
+    (is (= 2 (length (game-roll-log game))))
+    (is (equal '(:result-gold :result-count)
+               (mapcar (lambda (entry)
+                         (getf entry :label))
+                       (game-roll-log game))))
+    (let ((gold (second (first resolved)))
+          (ration-count (getf (second resolved) :count)))
+      (is (<= 1 gold 6))
+      (is (<= 1 ration-count 4))
+      (apply-resolved-table-result-to-player player resolved)
+      (is (= (+ 2 gold) (player-gold player)))
+      (is (= (+ 1 ration-count)
+             (player-inventory-count player :supply :ration)))
+      (is (find-player-inventory-entry player :item :chalk))
+      (is (equal '(:item :torch :count 2)
+                 (apply-table-result-to-player
+                  game
+                  player
+                  '(:item :torch :count 2))))
+      (is (= 2 (player-inventory-count player :item :torch))))))
+
+(test table-result-resolvers-extract-exits-and-reject-bad-shapes
+  (let ((game (source-game-with-body)))
+    (is (equal '((:north . "generated:dungeon:2")
+                 (:back . "room"))
+               (table-result-exits
+                (resolve-table-result-data
+                 game
+                 '((:exit :north "generated:dungeon:2")
+                   (:room-detail :flooded-floor)
+                   (:exit :back "room"))))))
+    (signals error
+      (resolve-table-result-data game '(:exit :north)))
+    (signals error
+      (resolve-table-result-data game '(:item :torch :count 0)))))
+
 (test table-source-forms-parse-index-and-retain-entry-metadata
   (let* ((game
            (source-game-with-tables
@@ -1822,11 +1871,14 @@
     (is (typep room 'generated-room))
     (is (eq :dungeon (generated-room-zone room)))
     (is (= 1 (generated-room-depth room)))
-    (is (= 3 (length (generated-room-results room))))
-    (is (equal '(:room-segment :starter-loot :starter-encounter)
+    (is (= 4 (length (generated-room-results room))))
+    (is (equal '(:room-segment :starter-loot :starter-encounter :starter-exit)
                (mapcar (lambda (entry)
                          (getf entry :table))
                        (game-roll-log game))))
+    (is (equal '((:back . "threshold"))
+               (generated-room-exits room)))
+    (is (= 3 (player-inventory-count (game-player game) :supply :ration)))
     (is (= 1 (gethash :rooms-generated (game-global-state game))))
     (is (= 1 (gethash :dungeon-depth (game-global-state game))))
     (is (gethash :first-room-generated (game-global-state game)))
@@ -1856,7 +1908,8 @@
   (let ((game (dunge-examples:load-instanced-adaptation-example)))
     (is (game-player game))
     (is (= 1 (length (game-generated-rooms game))))
-    (is (= 8 (length (game-roll-log game))))))
+    (is (= 3 (player-inventory-count (game-player game) :supply :ration)))
+    (is (= 9 (length (game-roll-log game))))))
 
 (test html-compiler-generates-single-file-index-shell
   (let* ((game (source-game-with-body

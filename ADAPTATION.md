@@ -77,8 +77,8 @@ This adaptation should tell us whether Dunge needs:
 - Item-use effects that can be invoked from rooms, combat, and shops.
 - Character panel/browser UI for stats, slots, gold, conditions, and current
   encounter.
-- Table result resolvers that turn authored data into concrete player/world
-  mutations.
+- Richer table result procedures for room details, objectives, item effects,
+  and encounter starts.
 - A clear content package layout for example games with license/provenance
   notes.
 
