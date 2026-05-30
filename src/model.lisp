@@ -783,6 +783,24 @@
   (let ((counter (incf (game-generated-room-counter game))))
     (format nil "generated:~A:~D" (generated-zone-id-part zone) counter)))
 
+(defun generated-room-id-counter (id)
+  (let ((separator (position #\: id :from-end t)))
+    (when (and separator (< (1+ separator) (length id)))
+      (handler-case
+          (let ((counter (parse-integer id
+                                        :start (1+ separator)
+                                        :junk-allowed nil)))
+            (when (plusp counter)
+              counter))
+        (error ()
+          nil)))))
+
+(defun note-generated-room-id-counter (game id)
+  (let ((counter (generated-room-id-counter id)))
+    (when counter
+      (setf (game-generated-room-counter game)
+            (max (game-generated-room-counter game) counter)))))
+
 (defun make-generated-room (&key id title description zone (depth 0) results exits
                               visited-p)
   (let ((id (generated-room-id-string id)))
@@ -832,6 +850,7 @@
       (error "Duplicate generated room id ~S." id))
     (prepare-room-scene room)
     (setf (gethash id (generated-room-index game)) room)
+    (note-generated-room-id-counter game id)
     room))
 
 (defun create-generated-room (game &key id title description zone (depth 0)

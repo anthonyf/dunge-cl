@@ -815,9 +815,27 @@
           (run-session-script restored-session (format nil "1~%"))
         (is (contains-substring-p "Flooded Guardroom" output))
         (is (contains-substring-p "Cold water covers the floor." output))
+        (is (contains-substring-p "Room Detail: Flooded Floor." output))
+        (is (contains-substring-p "Loot: Minor." output))
         (is (contains-substring-p "1. Return" output))
         (is (equal "room" (name result)))
         (is (generated-room-visited-p restored-room))))))
+
+(test generated-room-restore-keeps-counter-ahead-of-explicit-ids
+  (let* ((game (source-game-with-body))
+         (session (restore-runtime-state
+                   game
+                   '(:current-room "generated:dungeon:7"
+                     :generated-room-counter 0
+                     :generated-rooms
+                     ((:id "generated:dungeon:7"
+                       :title "Seventh Room"
+                       :zone :dungeon
+                       :exits ((:back . "room")))))))
+         (next-room (create-generated-room game :zone :dungeon)))
+    (declare (ignore session))
+    (is (= 8 (game-generated-room-counter game)))
+    (is (equal "generated:dungeon:8" (name next-room)))))
 
 (test runtime-state-rejects-malformed-generated-room-state
   (signals error

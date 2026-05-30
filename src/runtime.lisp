@@ -277,13 +277,12 @@ can TYPEP the result against QUIT, BACK, and related classes."))
   (setf (generated-room-visited-p room) t)
   (let ((room-context (runtime-context-for-scene context room)))
     (render-scene-title (or (room-title room) (name room)))
-    (cond
-      ((generated-room-description room)
-       (format *output* "~A~%~%" (generated-room-description room)))
-      ((generated-room-results room)
-       (dolist (result (generated-room-results room))
-         (format *output* "~A~%" (generated-room-result-line result)))
-       (terpri *output*)))
+    (when (generated-room-description room)
+      (format *output* "~A~%~%" (generated-room-description room)))
+    (when (generated-room-results room)
+      (dolist (result (generated-room-results room))
+        (format *output* "~A~%" (generated-room-result-line result)))
+      (terpri *output*))
     (let ((collected-options
             (mapcar #'generated-room-exit-choice
                     (generated-room-exits room))))
@@ -1162,13 +1161,13 @@ can TYPEP the result against QUIT, BACK, and related classes."))
 (defun restore-runtime-generated-rooms (game generated-rooms counter)
   (ensure-runtime-list generated-rooms ":GENERATED-ROOMS")
   (clear-generated-rooms game)
+  (setf (game-generated-room-counter game)
+        (non-negative-integer-value counter "Generated room counter"))
   (dolist (entry generated-rooms)
     (register-generated-room
      game
      (apply #'make-generated-room
-            (runtime-generated-room-state-plist entry))))
-  (setf (game-generated-room-counter game)
-        (non-negative-integer-value counter "Generated room counter")))
+            (runtime-generated-room-state-plist entry)))))
 
 (defun restore-runtime-player-state (game player-state)
   (cond
