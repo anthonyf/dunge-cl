@@ -304,6 +304,26 @@ state, and the roll log, is part of runtime save/load. This lets future
 generated dungeons roll a room, encounter, or loot result once and keep it
 stable when the player returns.
 
+## Generated Rooms
+
+Generated rooms are runtime room instances created by Common Lisp from authored
+tables and result data. They subclass normal rooms, receive stable generated ids
+such as `"generated:dungeon:1"`, and can be found by the same navigation lookup
+used for authored rooms once registered with a game.
+
+The public CL API is intentionally small:
+
+- `create-generated-room` allocates and registers a generated room.
+- `register-generated-room` registers a room with an explicit id.
+- `find-generated-room` recalls a previously generated room.
+- `game-generated-rooms` returns the current generated room instances.
+
+Generated room save data records the id, zone, depth, title, description,
+resolved table results, exits, and visited flag. Runtime save/load restores
+generated rooms before resolving the current room and return stack, so a saved
+run can resume inside generated content. `.dunge` still describes the possible
+ingredients; CL owns when those ingredients become persistent world state.
+
 ## State
 
 Global state is the first-class primitive for flags, counters, and simple

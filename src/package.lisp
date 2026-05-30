@@ -55,6 +55,8 @@
    #:game
    #:game-global-state
    #:game-global-state-declarations
+   #:game-generated-room-counter
+   #:game-generated-rooms
    #:game-player
    #:game-random-seed
    #:game-random-state
@@ -64,6 +66,15 @@
    #:game-tables
    #:game-taken-choices
    #:find-player-inventory-entry
+   #:find-generated-room
+   #:generated-room
+   #:generated-room-description
+   #:generated-room-depth
+   #:generated-room-exits
+   #:generated-room-results
+   #:generated-room-state-plist
+   #:generated-room-visited-p
+   #:generated-room-zone
    #:gosub
    #:goto
    #:add-player-inventory-entry
@@ -81,6 +92,7 @@
    #:load-dunge-string
    #:load-runtime-state-file
    #:make-runtime-session
+   #:make-generated-room
    #:name
    #:node-children
    #:node-id
@@ -120,6 +132,7 @@
    #:room-title
    #:room-name
    #:read-runtime-state-file
+   #:register-generated-room
    #:remove-player-inventory-entry
    #:restore-runtime-state
    #:make-runtime-context
@@ -147,6 +160,8 @@
    #:roll-dice
    #:roll-dice-value
    #:roll-table
+   #:create-generated-room
+   #:allocate-generated-room-id
    #:game-random
    #:table-entries
    #:table-entry

@@ -2,7 +2,7 @@
  :id "placeholder-room"
  :title "Placeholder Chamber"
  :body
- ((:p "The generated chamber will live here: rolled room segment, exits, encounter, loot, and persistent room state.")
-  (:p "This static placeholder lets the adaptation load and play while the support audit names the missing engine pieces.")
+ ((:p "The generated chamber now exists in the CL adaptation helper: rolled room segment, exits, encounter, loot, and persistent room state.")
+  (:p "This static placeholder keeps the authored .dunge path playable while the runtime procedure proves out generated room instances.")
   (:choice "Return to the white arch" (:go "threshold"))
   (:choice "Quit" (:quit))))
