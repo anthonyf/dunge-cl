@@ -837,6 +837,31 @@
     (is (= 8 (game-generated-room-counter game)))
     (is (equal "generated:dungeon:8" (name next-room)))))
 
+(test generated-room-graph-helpers-link-and-replace-exits
+  (let* ((game (source-game-with-body))
+         (entry (create-generated-room game
+                                       :zone :dungeon
+                                       :depth 1))
+         (deeper (create-generated-room game
+                                        :zone :dungeon
+                                        :depth 2)))
+    (is (null (generated-room-exit-target entry :deeper)))
+    (link-generated-rooms entry :deeper deeper :reverse-direction :back)
+    (is (equal (name deeper)
+               (generated-room-exit-target entry :deeper)))
+    (is (equal (name entry)
+               (generated-room-exit-target deeper :back)))
+    (set-generated-room-exit entry :deeper "room")
+    (is (equal "room" (generated-room-exit-target entry :deeper)))
+    (is (= 1 (count :deeper
+                    (generated-room-exits entry)
+                    :key #'car
+                    :test #'eq)))
+    (signals error
+      (set-generated-room-exit entry "north" "room"))
+    (signals error
+      (generated-room-exit-target "not a room" :north))))
+
 (test runtime-state-rejects-malformed-generated-room-state
   (signals error
     (restore-runtime-state
@@ -1880,15 +1905,34 @@
     (is (eq :dungeon (generated-room-zone room)))
     (is (= 1 (generated-room-depth room)))
     (is (= 4 (length (generated-room-results room))))
-    (is (equal '(:room-segment :starter-loot :starter-encounter :starter-exit)
-               (mapcar (lambda (entry)
-                         (getf entry :table))
-                       (game-roll-log game))))
-    (is (equal '((:back . "threshold"))
-               (generated-room-exits room)))
+    (is (equal '(:room-segment
+                 :starter-loot
+                 :starter-encounter
+                 :starter-exit
+                 :dungeon-link
+                 :room-segment
+                 :starter-loot
+                 :starter-encounter)
+               (remove nil
+                       (mapcar (lambda (entry)
+                                 (getf entry :table))
+                               (game-roll-log game)))))
+    (is (= 2 (length (game-generated-rooms game))))
+    (let* ((deeper-id (generated-room-exit-target room :deeper))
+           (deeper-room (find-generated-room game deeper-id :errorp t)))
+      (is (equal `((:back . "threshold") (:deeper . ,(name deeper-room)))
+                 (generated-room-exits room)))
+      (is (= 2 (generated-room-depth deeper-room)))
+      (is (equal (name room)
+                 (generated-room-exit-target deeper-room :back)))
+      (is (eq deeper-room
+              (dunge-examples:ensure-adaptation-room-exit
+               game
+               room
+               :deeper))))
     (is (= 3 (player-inventory-count (game-player game) :supply :ration)))
-    (is (= 1 (gethash :rooms-generated (game-global-state game))))
-    (is (= 1 (gethash :dungeon-depth (game-global-state game))))
+    (is (= 2 (gethash :rooms-generated (game-global-state game))))
+    (is (= 2 (gethash :dungeon-depth (game-global-state game))))
     (is (gethash :first-room-generated (game-global-state game)))
     (is (eq room (dunge-examples:ensure-adaptation-first-room game)))
     (is (= roll-log-length (length (game-roll-log game))))
@@ -1903,21 +1947,24 @@
                  (runtime-session-current-room-name restored-session)))
       (is (equal (generated-room-results room)
                  (generated-room-results restored-room)))
+      (is (= 2 (length (game-generated-rooms fresh-game))))
       (multiple-value-bind (output result)
-          (run-session-script restored-session (format nil "1~%"))
+          (run-session-script restored-session (format nil "2~%1~%"))
         (is (contains-substring-p (room-title restored-room) output))
         (is (contains-substring-p "A first find waits here" output))
         (is (contains-substring-p "1. Return" output))
+        (is (contains-substring-p "2. Continue deeper" output))
+        (is (contains-substring-p "This chamber sits at depth 2" output))
         (is (typep result 'quit))
-        (is (equal "threshold"
+        (is (equal (name restored-room)
                    (runtime-session-current-room-name restored-session)))))))
 
 (test instanced-adaptation-example-loads-with-first-generated-room
   (let ((game (dunge-examples:load-instanced-adaptation-example)))
     (is (game-player game))
-    (is (= 1 (length (game-generated-rooms game))))
+    (is (= 2 (length (game-generated-rooms game))))
     (is (= 3 (player-inventory-count (game-player game) :supply :ration)))
-    (is (= 9 (length (game-roll-log game))))))
+    (is (= 13 (length (game-roll-log game))))))
 
 (test html-compiler-generates-single-file-index-shell
   (let* ((game (source-game-with-body

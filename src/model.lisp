@@ -772,6 +772,22 @@
              exit)))
   exits)
 
+(defun generated-room-exit-direction-key (direction)
+  (unless (keywordp direction)
+    (error "Generated room exit directions must be keywords; got ~S."
+           direction))
+  direction)
+
+(defun generated-room-exit-target-string (target)
+  (cond
+    ((typep target 'room)
+     (scene-id-key (name target)))
+    ((stringp target)
+     (scene-id-key target))
+    (t
+     (error "Generated room exit targets must be room ids or rooms; got ~S."
+            target))))
+
 (defun generated-room-result-list (results)
   (proper-list-length-value results "Generated room results")
   results)
@@ -867,6 +883,34 @@
                           :results results
                           :exits exits
                           :visited-p visited-p))))
+
+(defun generated-room-exit-target (room direction)
+  (unless (typep room 'generated-room)
+    (error "Generated room exits can only be read from generated rooms; got ~S."
+           room))
+  (cdr (assoc (generated-room-exit-direction-key direction)
+              (generated-room-exits room)
+              :test #'eq)))
+
+(defun set-generated-room-exit (room direction target)
+  (unless (typep room 'generated-room)
+    (error "Generated room exits can only be written on generated rooms; got ~S."
+           room))
+  (let* ((direction (generated-room-exit-direction-key direction))
+         (target (generated-room-exit-target-string target))
+         (existing (assoc direction (generated-room-exits room) :test #'eq)))
+    (if existing
+        (setf (cdr existing) target)
+        (setf (generated-room-exits room)
+              (append (generated-room-exits room)
+                      (list (cons direction target)))))
+    room))
+
+(defun link-generated-rooms (from direction to &key reverse-direction)
+  (set-generated-room-exit from direction to)
+  (when reverse-direction
+    (set-generated-room-exit to reverse-direction from))
+  (values from to))
 
 (defun generated-room-state-plist (room)
   (list :id (name room)

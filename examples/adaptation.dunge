@@ -46,7 +46,12 @@
    :id :starter-exit
    :mode :first-match
    :entries
-   ((:table-entry :result (:exit :back "threshold")))))
+   ((:table-entry :result (:exit :back "threshold"))))
+  (:table
+   :id :dungeon-link
+   :mode :first-match
+   :entries
+   ((:table-entry :result (:exit :deeper "generated:dungeon:*")))))
  :rooms
  ("adaptation/camp.dunge"
   "adaptation/threshold.dunge"
