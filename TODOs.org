@@ -25,7 +25,8 @@
 - [X] Create adaptation skeleton with provenance notes and an authored entrance loop
 - [X] Map adaptation loop to current Dunge support and engine gaps
 - [X] Add dice utilities and CL character creation procedures for the adaptation
-- [ ] Add persistent generated room instances for a small dungeon graph
+- [X] Add persistent generated room instances for the adaptation's first room
+- [ ] Expand generated rooms into a small dungeon graph
 - [ ] Add encounter state and a minimal combat loop
 - [ ] Resolve loot and item-use table results into player/world mutations
 - [ ] Add browser character and encounter panels

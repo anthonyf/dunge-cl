@@ -777,6 +777,57 @@
     (signals error
       (restore-runtime-state (source-game-with-body) state))))
 
+(test generated-rooms-register-render-and-round-trip-runtime-state
+  (let* ((game (source-game-with-body))
+         (room (create-generated-room
+                game
+                :zone :dungeon
+                :depth 1
+                :title "Flooded Guardroom"
+                :description "Cold water covers the floor."
+                :results '((:room-detail :flooded-floor)
+                           (:loot :minor))
+                :exits '((:back . "room"))))
+         (session (make-runtime-session game :current-room (name room)))
+         (state (capture-runtime-state session)))
+    (is (eq room (find-generated-room game (name room) :errorp t)))
+    (is (equal (name room) (runtime-session-current-room-name session)))
+    (is (= 1 (game-generated-room-counter game)))
+    (is (= 1 (length (getf state :generated-rooms))))
+    (let ((room-state (first (getf state :generated-rooms))))
+      (is (equal (name room) (getf room-state :id)))
+      (is (equal "Flooded Guardroom" (getf room-state :title)))
+      (is (eq :dungeon (getf room-state :zone)))
+      (is (equal '((:back . "room")) (getf room-state :exits))))
+    (let* ((fresh-game (source-game-with-body))
+           (restored-session (restore-runtime-state fresh-game state))
+           (restored-room (find-generated-room fresh-game
+                                               (name room)
+                                               :errorp t)))
+      (is (equal (name room)
+                 (runtime-session-current-room-name restored-session)))
+      (is (equal "Cold water covers the floor."
+                 (generated-room-description restored-room)))
+      (is (equal '((:room-detail :flooded-floor)
+                   (:loot :minor))
+                 (generated-room-results restored-room)))
+      (multiple-value-bind (output result)
+          (run-session-script restored-session (format nil "1~%"))
+        (is (contains-substring-p "Flooded Guardroom" output))
+        (is (contains-substring-p "Cold water covers the floor." output))
+        (is (contains-substring-p "1. Return" output))
+        (is (equal "room" (name result)))
+        (is (generated-room-visited-p restored-room))))))
+
+(test runtime-state-rejects-malformed-generated-room-state
+  (signals error
+    (restore-runtime-state
+     (source-game-with-body)
+     '(:current-room "room"
+       :generated-rooms
+       ((:id 42
+         :zone :dungeon))))))
+
 (test console-debug-undo-restores-previous-choice-state
   (let* ((game (build-save-load-fixture))
          (session (make-runtime-session game)))
@@ -1703,7 +1754,7 @@
   (let ((output (run-example-with-input #'dunge-examples:adaptation-example
                                         (format nil "1~%1~%2~%"))))
     (is (contains-substring-p "Dunge Crawler Testbed" output))
-    (is (contains-substring-p "For now, the generated chamber is a placeholder room."
+    (is (contains-substring-p "This authored path still enters the placeholder room."
                               output))
     (is (contains-substring-p "Placeholder Chamber" output))))
 
@@ -1745,6 +1796,49 @@
                  (:supply :ration :count 2))
                (player-inventory player)))
     (is (= 5 (length (game-roll-log game))))))
+
+(test adaptation-generated-room-instances-use-authored-tables-and-persist
+  (let* ((game (dunge-examples:load-adaptation-example))
+         (room (dunge-examples:ensure-adaptation-first-room game))
+         (roll-log-length (length (game-roll-log game))))
+    (is (typep room 'generated-room))
+    (is (eq :dungeon (generated-room-zone room)))
+    (is (= 1 (generated-room-depth room)))
+    (is (= 3 (length (generated-room-results room))))
+    (is (equal '(:room-segment :starter-loot :starter-encounter)
+               (mapcar (lambda (entry)
+                         (getf entry :table))
+                       (game-roll-log game))))
+    (is (= 1 (gethash :rooms-generated (game-global-state game))))
+    (is (= 1 (gethash :dungeon-depth (game-global-state game))))
+    (is (gethash :first-room-generated (game-global-state game)))
+    (is (eq room (dunge-examples:ensure-adaptation-first-room game)))
+    (is (= roll-log-length (length (game-roll-log game))))
+    (let* ((session (make-runtime-session game :current-room (name room)))
+           (state (capture-runtime-state session))
+           (fresh-game (dunge-examples:load-adaptation-example))
+           (restored-session (restore-runtime-state fresh-game state))
+           (restored-room (find-generated-room fresh-game
+                                               (name room)
+                                               :errorp t)))
+      (is (equal (name room)
+                 (runtime-session-current-room-name restored-session)))
+      (is (equal (generated-room-results room)
+                 (generated-room-results restored-room)))
+      (multiple-value-bind (output result)
+          (run-session-script restored-session (format nil "1~%"))
+        (is (contains-substring-p (room-title restored-room) output))
+        (is (contains-substring-p "A first find waits here" output))
+        (is (contains-substring-p "1. Return" output))
+        (is (typep result 'quit))
+        (is (equal "threshold"
+                   (runtime-session-current-room-name restored-session)))))))
+
+(test instanced-adaptation-example-loads-with-first-generated-room
+  (let ((game (dunge-examples:load-instanced-adaptation-example)))
+    (is (game-player game))
+    (is (= 1 (length (game-generated-rooms game))))
+    (is (= 8 (length (game-roll-log game))))))
 
 (test html-compiler-generates-single-file-index-shell
   (let* ((game (source-game-with-body

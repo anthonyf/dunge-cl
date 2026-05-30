@@ -55,9 +55,11 @@ can TYPEP the result against QUIT, BACK, and related classes."))
 
 (defun find-room (game room-name)
   (multiple-value-bind (room present-p) (gethash room-name (room-index game))
-    (if present-p
-        room
-        (error "No room named ~S." room-name))))
+    (cond
+      (present-p room)
+      ((find-generated-room game room-name))
+      (t
+       (error "No room named ~S." room-name)))))
 
 (defun ensure-runtime-room-name (room-name label)
   (unless (stringp room-name)
@@ -231,6 +233,60 @@ can TYPEP the result against QUIT, BACK, and related classes."))
       (when result
         (return-from evaluate result)))
     (let ((collected-options (collect-options-from (entities room) room-context)))
+      (if (or collected-options
+              (runtime-debug-undo-available-p room-context))
+          (evaluate (%make-choices :options collected-options) room-context)
+          (%make-fall-through)))))
+
+(defun generated-room-display-word (value)
+  (let ((text (etypecase value
+                (keyword (symbol-name value))
+                (string value))))
+    (string-capitalize
+     (substitute #\Space #\- (string-downcase text)))))
+
+(defun generated-room-result-line (result)
+  (cond
+    ((and (consp result)
+          (keywordp (first result)))
+     (format nil "~A: ~{~A~^, ~}."
+             (generated-room-display-word (first result))
+             (mapcar (lambda (value)
+                       (if (keywordp value)
+                           (generated-room-display-word value)
+                           (princ-to-string value)))
+                     (rest result))))
+    ((keywordp result)
+     (format nil "~A." (generated-room-display-word result)))
+    (t
+     (princ-to-string result))))
+
+(defun generated-room-exit-label (direction)
+  (case direction
+    (:back "Return")
+    (:deeper "Continue deeper")
+    (:out "Leave")
+    (otherwise
+     (format nil "Go ~A" (string-downcase (symbol-name direction))))))
+
+(defun generated-room-exit-choice (exit)
+  (%make-choice :label (generated-room-exit-label (car exit))
+                :target (%make-goto :room-name (cdr exit))))
+
+(defmethod evaluate ((room generated-room) &optional context)
+  (setf (generated-room-visited-p room) t)
+  (let ((room-context (runtime-context-for-scene context room)))
+    (render-scene-title (or (room-title room) (name room)))
+    (cond
+      ((generated-room-description room)
+       (format *output* "~A~%~%" (generated-room-description room)))
+      ((generated-room-results room)
+       (dolist (result (generated-room-results room))
+         (format *output* "~A~%" (generated-room-result-line result)))
+       (terpri *output*)))
+    (let ((collected-options
+            (mapcar #'generated-room-exit-choice
+                    (generated-room-exits room))))
       (if (or collected-options
               (runtime-debug-undo-available-p room-context))
           (evaluate (%make-choices :options collected-options) room-context)
@@ -827,6 +883,10 @@ can TYPEP the result against QUIT, BACK, and related classes."))
 (defun collect-runtime-player-state (game)
   (player-state-plist (game-player game)))
 
+(defun collect-runtime-generated-room-state (game)
+  (mapcar #'generated-room-state-plist
+          (game-generated-rooms game)))
+
 (defun collect-runtime-local-state (game)
   (let (entries)
     (dolist (room (game-rooms game))
@@ -849,6 +909,8 @@ can TYPEP the result against QUIT, BACK, and related classes."))
           :player (collect-runtime-player-state game)
           :rng-state (game-random-state game)
           :roll-log (collect-runtime-roll-log game)
+          :generated-room-counter (game-generated-room-counter game)
+          :generated-rooms (collect-runtime-generated-room-state game)
           :globals (sorted-state-alist (game-global-state game))
           :locals (collect-runtime-local-state game)
           :tables (collect-runtime-table-state game)
@@ -861,6 +923,8 @@ can TYPEP the result against QUIT, BACK, and related classes."))
           :player (collect-runtime-player-state game)
           :rng-state (game-random-state game)
           :roll-log (collect-runtime-roll-log game)
+          :generated-room-counter (game-generated-room-counter game)
+          :generated-rooms (collect-runtime-generated-room-state game)
           :globals (sorted-state-alist (game-global-state game))
           :locals (collect-runtime-local-state game)
           :tables (collect-runtime-table-state game)
@@ -898,6 +962,16 @@ can TYPEP the result against QUIT, BACK, and related classes."))
     (error "Runtime ~A must be a keyword or NIL; got ~S." label value))
   value)
 
+(defun runtime-keyword-value (value label)
+  (unless (keywordp value)
+    (error "Runtime ~A must be a keyword; got ~S." label value))
+  value)
+
+(defun runtime-boolean-value (value label)
+  (unless (or (eq value t) (null value))
+    (error "Runtime ~A must be a boolean; got ~S." label value))
+  value)
+
 (defun runtime-keyword-list-value (value label)
   (ensure-runtime-list value label)
   (mapcar (lambda (entry)
@@ -907,6 +981,54 @@ can TYPEP the result against QUIT, BACK, and related classes."))
                      entry))
             entry)
           value))
+
+(defun runtime-generated-room-results (results)
+  (ensure-runtime-list results "generated room results")
+  (copy-tree results))
+
+(defun runtime-generated-room-exits (exits)
+  (ensure-runtime-list exits "generated room exits")
+  (mapcar (lambda (exit)
+            (unless (and (consp exit)
+                         (keywordp (car exit))
+                         (stringp (cdr exit)))
+              (error "Runtime generated room exits must be (DIRECTION . ROOM-ID) pairs; got ~S."
+                     exit))
+            (cons (car exit) (cdr exit)))
+          exits))
+
+(defun runtime-generated-room-state-plist (entry)
+  (ensure-runtime-property-list entry "generated room entry")
+  (let ((id (ensure-runtime-room-name
+             (runtime-state-required-field entry :id)
+             "generated room id"))
+        (title (runtime-maybe-string-value
+                (runtime-state-field entry :title nil)
+                "generated room title"))
+        (description (runtime-maybe-string-value
+                      (runtime-state-field entry :description nil)
+                      "generated room description"))
+        (zone (runtime-keyword-value
+               (runtime-state-required-field entry :zone)
+               "generated room zone"))
+        (depth (non-negative-integer-value
+                (runtime-state-field entry :depth 0)
+                "Generated room depth"))
+        (results (runtime-generated-room-results
+                  (runtime-state-field entry :results nil)))
+        (exits (runtime-generated-room-exits
+                (runtime-state-field entry :exits nil)))
+        (visited (runtime-boolean-value
+                  (runtime-state-field entry :visited nil)
+                  "generated room visited flag")))
+    (list :id id
+          :title title
+          :description description
+          :zone zone
+          :depth depth
+          :results results
+          :exits exits
+          :visited-p visited)))
 
 (defun runtime-player-number-field (state field label)
   (non-negative-integer-value
@@ -1037,6 +1159,17 @@ can TYPEP the result against QUIT, BACK, and related classes."))
   (ensure-runtime-list roll-log ":ROLL-LOG")
   (setf (game-roll-log game) (copy-list roll-log)))
 
+(defun restore-runtime-generated-rooms (game generated-rooms counter)
+  (ensure-runtime-list generated-rooms ":GENERATED-ROOMS")
+  (clear-generated-rooms game)
+  (dolist (entry generated-rooms)
+    (register-generated-room
+     game
+     (apply #'make-generated-room
+            (runtime-generated-room-state-plist entry))))
+  (setf (game-generated-room-counter game)
+        (non-negative-integer-value counter "Generated room counter")))
+
 (defun restore-runtime-player-state (game player-state)
   (cond
     ((null player-state)
@@ -1055,6 +1188,11 @@ can TYPEP the result against QUIT, BACK, and related classes."))
          (player-state (runtime-state-field state :player missing))
          (rng-state (runtime-state-field state :rng-state (game-random-seed game)))
          (roll-log (runtime-state-field state :roll-log nil))
+         (generated-room-counter (runtime-state-field
+                                  state
+                                  :generated-room-counter
+                                  0))
+         (generated-rooms (runtime-state-field state :generated-rooms nil))
          (globals (runtime-state-field state :globals nil))
          (locals (runtime-state-field state :locals nil))
          (tables (runtime-state-field state :tables nil))
@@ -1064,6 +1202,9 @@ can TYPEP the result against QUIT, BACK, and related classes."))
       (restore-runtime-player-state game player-state))
     (restore-runtime-random-state game rng-state)
     (restore-runtime-roll-log game roll-log)
+    (restore-runtime-generated-rooms game
+                                     generated-rooms
+                                     generated-room-counter)
     (restore-runtime-global-state game globals)
     (restore-runtime-local-state game locals)
     (restore-runtime-table-state game tables)
@@ -1071,6 +1212,11 @@ can TYPEP the result against QUIT, BACK, and related classes."))
     (make-runtime-session game
                           :current-room current-room
                           :return-stack return-stack)))
+
+(defun canonical-runtime-location (game location)
+  (if (typep location 'room)
+      (find-room game (name location))
+      location))
 
 (defun restore-runtime-undo-state (session state)
   (let ((game (runtime-session-game session)))
@@ -1081,13 +1227,21 @@ can TYPEP the result against QUIT, BACK, and related classes."))
                                   (getf state :rng-state
                                         (game-random-seed game)))
     (restore-runtime-roll-log game (getf state :roll-log nil))
+    (restore-runtime-generated-rooms game
+                                     (getf state :generated-rooms nil)
+                                     (getf state
+                                           :generated-room-counter
+                                           0))
     (restore-runtime-global-state game (getf state :globals))
     (restore-runtime-local-state game (getf state :locals))
     (restore-runtime-table-state game (getf state :tables))
     (restore-runtime-taken-choices game (getf state :taken-choices))
-    (setf (runtime-session-location session) (getf state :location))
+    (setf (runtime-session-location session)
+          (canonical-runtime-location game (getf state :location)))
     (setf (runtime-session-return-stack session)
-          (copy-list (getf state :return-stack)))
+          (mapcar (lambda (location)
+                    (canonical-runtime-location game location))
+                  (getf state :return-stack)))
     session))
 
 (defun read-runtime-state-form (stream source-name)

@@ -59,7 +59,8 @@ The first playable vertical slice should include:
 - Random tables for room segments, sensory details, hazards, encounters, loot,
   and exits.
 - Persistent generated room instances so a random room stays the same after the
-  player leaves and returns.
+  player leaves, returns, saves, and resumes. The current testbed can instantiate
+  and recall its first generated dungeon room from authored table results.
 - A minimal combat loop with one player, one enemy profile, attacks, damage,
   defeat, and escape.
 - Inventory-linked choices such as use supply, light source, tool, or treasure.
@@ -71,7 +72,7 @@ The first playable vertical slice should include:
 This adaptation should tell us whether Dunge needs:
 
 - Dice utilities with roll records and transcript visibility.
-- A public CL API for creating and registering generated room instances.
+- Richer graph helpers on top of the CL generated room API.
 - Encounter state distinct from authored room/entity state.
 - Item-use effects that can be invoked from rooms, combat, and shops.
 - Character panel/browser UI for stats, slots, gold, conditions, and current

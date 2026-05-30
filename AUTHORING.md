@@ -107,6 +107,11 @@ Use `(:hazard HAZARD-ID)`, `(:feature FEATURE-ID)`, and
 (:room-detail :flooded-floor)
 ```
 
+Generated room procedures can combine these result shapes with loot,
+encounter, and exit data to create persistent runtime room instances. The table
+results stay declarative; Common Lisp decides when a rolled result becomes a
+registered generated room.
+
 Use `(:npc NPC-ID ...)` for an NPC presence or generated contact. Common
 options include `:role` and `:disposition`.
 

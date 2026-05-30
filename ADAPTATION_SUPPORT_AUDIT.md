@@ -25,14 +25,14 @@ The first adaptation target is intentionally small:
 | --- | --- | --- | --- |
 | Player creation | `:player` source form, player save/load, inventory data model, adaptation player creation helper. | A player-facing character creation flow. | Browser character panel. |
 | Safe camp / entrance | Authored rooms, choices, actions, branches, flags, global state. | Nothing major for a static entrance loop. | Adaptation skeleton. |
-| Enter dungeon | `:go`, `:gosub`, `:back`, and authored room ids. | A CL entry point that creates or retrieves generated dungeon rooms. | Generated room instances. |
-| Generate room | Random tables, deterministic seed, table state, roll log. | Room instance API, generated graph state, table-result resolver to concrete room data. | Generated room instances. |
-| Inspect room | Paragraphs, entities, conditional choices, local/ref/global state. | Generated room rendering model and a stable way to attach generated content to room views. | Generated room instances. |
+| Enter dungeon | `:go`, `:gosub`, `:back`, authored room ids, and registered generated room ids. | A fuller graph procedure that decides when to create or recall adjacent rooms. | Table result resolvers. |
+| Generate room | Random tables, deterministic seed, table state, roll log, generated room API, and generated room save/load. | Table-result resolver to turn rolled data into richer room content and exits. | Table result resolvers. |
+| Inspect room | Paragraphs, entities, conditional choices, local/ref/global state, and generated room rendering. | Rich generated room interactions beyond description and exits. | Table result resolvers. |
 | Encounters | Table result conventions can name encounters. | Encounter model/state, enemy profiles, initiative/turn procedure, damage, morale, escape. | Encounter state and combat. |
 | Loot and supplies | Table result conventions, player inventory helpers, gold field. | Resolver that turns `(:gold ...)`, `(:item ...)`, and `(:supply ...)` into player mutations. | Loot, item use, and recovery. |
 | Item use | Inventory entries can store count, slots, condition, tags. | Item-use procedures and effect hooks callable from rooms and combat. | Loot, item use, and recovery. |
 | Recovery | Player HP/max HP, fatigue, conditions, Deprived predicate. | Rest/recovery procedure and rules for clearing fatigue/conditions. | Loot, item use, and recovery. |
-| Save/load | Current room, return stack, globals, locals, table state, roll log, player state. | Generated dungeon graph state and encounter state. | Generated room instances; encounter state and combat. |
+| Save/load | Current room, return stack, globals, locals, table state, roll log, player state, and generated room instances. | Encounter state. | Encounter state and combat. |
 | Browser presentation | Browser runtime already serializes player data. | Character/inventory/encounter panels and UI affordances for slots and conditions. | Browser character panel. |
 
 ## Boundary Decisions
@@ -55,9 +55,10 @@ The first adaptation target is intentionally small:
    oracle procedures should reuse it.
 
 2. **Generated room instances**
-   We need a CL-side API that can create a room-like playable location, assign
-   it a stable id, register it for navigation/save/load, and render generated
-   details from resolved table results.
+   The engine has a CL-side API that creates room-like playable locations,
+   assigns stable ids, registers them for navigation/save/load, and renders
+   generated descriptions, exits, and resolved table results. The adaptation
+   uses this to create and recall its first generated dungeon room.
 
 3. **Table result resolvers**
    Tables already return data. The adaptation needs resolver functions that
@@ -74,6 +75,7 @@ The first adaptation target is intentionally small:
 
 ## Next Recommended PR
 
-Build the **generated room instances** slice next. The adaptation now has a real
-player to carry through the skeleton; the next pressure point is replacing the
-placeholder chamber with a persistent generated room.
+Build the **table result resolvers** slice next. The adaptation can now create a
+persistent generated room; the next pressure point is turning result shapes such
+as `(:gold "1d6")`, `(:supply :ration)`, `(:room-detail :flooded-floor)`, and
+`(:encounter :watchful-shadow)` into concrete room, player, and world mutations.
