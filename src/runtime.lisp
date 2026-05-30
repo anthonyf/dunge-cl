@@ -625,6 +625,184 @@ can TYPEP the result against QUIT, BACK, and related classes."))
              (table-roll-log-entry table entry result details))
             (values result entry))))))
 
+(defun table-result-data-p (result)
+  (and (consp result)
+       (keywordp (first result))))
+
+(defun table-result-kind (result)
+  (unless (table-result-data-p result)
+    (error "Table result must be a list beginning with a keyword; got ~S."
+           result))
+  (first result))
+
+(defun table-result-keyword-payload (result label)
+  (let ((payload (second result)))
+    (unless (keywordp payload)
+      (error "~A table result must name a keyword id; got ~S."
+             label
+             result))
+    payload))
+
+(defun table-result-shape-length (result label)
+  (let ((length (handler-case
+                    (list-length result)
+                  (type-error ()
+                    nil))))
+    (unless length
+      (error "~A table result must be a proper, non-circular list; got ~S."
+             label
+             result))
+    length))
+
+(defun ensure-table-result-shape (result label shape length)
+  (unless (= (table-result-shape-length result label) length)
+    (error "~A table result must be ~A; got ~S."
+           label
+           shape
+           result))
+  result)
+
+(defun resolve-table-result-amount (game amount label random-state record)
+  (multiple-value-bind (value roll-entry)
+      (roll-dice-value game amount
+                       :label label
+                       :random-state random-state
+                       :record record)
+    (declare (ignore roll-entry))
+    value))
+
+(defun resolve-table-result-options (game options random-state record)
+  (ensure-runtime-property-list options "table result options")
+  (loop for (key value) on options by #'cddr
+        append (list key
+                     (if (eq key :count)
+                         (positive-integer-value
+                          (resolve-table-result-amount game
+                                                       value
+                                                       :result-count
+                                                       random-state
+                                                       record)
+                          "Table result count")
+                         value))))
+
+(defun resolve-inventory-table-result (game result random-state record)
+  (let* ((kind (table-result-kind result))
+         (id (table-result-keyword-payload result "Inventory"))
+         (options (resolve-table-result-options game
+                                                (cddr result)
+                                                random-state
+                                                record))
+         (entry (append (list kind id) options)))
+    (validate-inventory-entry-data entry)
+    entry))
+
+(defun resolve-gold-table-result (game result random-state record)
+  (ensure-table-result-shape result "Gold" "(:GOLD AMOUNT)" 2)
+  (list :gold
+        (resolve-table-result-amount game
+                                     (second result)
+                                     :result-gold
+                                     random-state
+                                     record)))
+
+(defun resolve-counted-table-result (game result random-state record label)
+  (let* ((kind (table-result-kind result))
+         (id (table-result-keyword-payload result label))
+         (options (resolve-table-result-options game
+                                                (cddr result)
+                                                random-state
+                                                record)))
+    (append (list kind id) options)))
+
+(defun resolve-exit-table-result (result)
+  (ensure-table-result-shape result "Exit" "(:EXIT DIRECTION ROOM-ID)" 3)
+  (let ((direction (second result))
+        (target (third result)))
+    (unless (keywordp direction)
+      (error "Exit table result direction must be a keyword; got ~S."
+             result))
+    (unless (stringp target)
+      (error "Exit table result target must be a room id string; got ~S."
+             result))
+    (list :exit direction target)))
+
+(defun resolve-table-result-data (game result &key random-state (record t))
+  (cond
+    ((table-result-data-p result)
+     (case (table-result-kind result)
+       (:gold
+        (resolve-gold-table-result game result random-state record))
+       ((:item :supply)
+        (resolve-inventory-table-result game result random-state record))
+       ((:encounter)
+        (resolve-counted-table-result game
+                                      result
+                                      random-state
+                                      record
+                                      "Encounter"))
+       ((:exit)
+        (resolve-exit-table-result result))
+       (otherwise
+        (copy-tree result))))
+    ((listp result)
+     (mapcar (lambda (entry)
+               (resolve-table-result-data game
+                                          entry
+                                          :random-state random-state
+                                          :record record))
+             result))
+    (t
+     result)))
+
+(defun apply-resolved-table-result-to-player (player result)
+  (unless (typep player 'player)
+    (error "Applying table results requires a player; got ~S." player))
+  (cond
+    ((table-result-data-p result)
+     (case (table-result-kind result)
+       (:gold
+        (incf (player-gold player)
+              (non-negative-integer-value (second result)
+                                          "Resolved gold result")))
+       ((:item :supply)
+        (add-player-inventory-entry player result)))
+     result)
+    ((listp result)
+     (dolist (entry result)
+       (apply-resolved-table-result-to-player player entry))
+     result)
+    (t
+     result)))
+
+(defun apply-table-result-to-player (game player result
+                                     &key random-state (record t))
+  (let ((resolved (resolve-table-result-data game
+                                             result
+                                             :random-state random-state
+                                             :record record)))
+    (apply-resolved-table-result-to-player player resolved)
+    resolved))
+
+(defun table-result-exit-p (result)
+  (and (table-result-data-p result)
+       (eq (table-result-kind result) :exit)))
+
+(defun table-result-exit (result)
+  (when (table-result-exit-p result)
+    (destructuring-bind (kind direction target) (resolve-exit-table-result result)
+      (declare (ignore kind))
+      (cons direction target))))
+
+(defun table-result-exits (result)
+  (cond
+    ((table-result-exit-p result)
+     (list (table-result-exit result)))
+    ((and (listp result)
+          (not (table-result-data-p result)))
+     (loop for entry in result
+           append (table-result-exits entry)))
+    (t nil)))
+
 (defun runtime-debug-undo-available-p (context)
   (and *debug*
        context

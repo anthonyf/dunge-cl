@@ -78,6 +78,8 @@
    #:gosub
    #:goto
    #:add-player-inventory-entry
+   #:apply-resolved-table-result-to-player
+   #:apply-table-result-to-player
    #:interaction-label
    #:interaction-target
    #:inventory-entry-bulky-p
@@ -169,9 +171,11 @@
    #:table-entry-range
    #:table-entry-result
    #:table-entry-weight
+   #:table-result-exits
    #:table-id
    #:table-index
    #:table-mode
+   #:resolve-table-result-data
    #:target
    #:text
    #:validate-game

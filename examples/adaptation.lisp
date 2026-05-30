@@ -62,6 +62,11 @@
           (adaptation-result-label loot)
           (adaptation-result-label encounter)))
 
+(defun apply-adaptation-room-results (game results)
+  (when (game-player game)
+    (apply-resolved-table-result-to-player (game-player game) results))
+  results)
+
 (defun find-adaptation-first-room (game)
   (find-if (lambda (room)
              (and (eq (generated-room-zone room) :dungeon)
@@ -73,6 +78,13 @@
       (let* ((segment-result (roll-table game :room-segment))
              (loot-result (roll-table game :starter-loot))
              (encounter-result (roll-table game :starter-encounter))
+             (exit-result (roll-table game :starter-exit))
+             (resolved-results
+               (resolve-table-result-data game
+                                          (list segment-result
+                                                loot-result
+                                                encounter-result
+                                                exit-result)))
              (segment (adaptation-result-id segment-result))
              (room (create-generated-room
                     game
@@ -81,12 +93,11 @@
                     :title (adaptation-result-label segment-result)
                     :description (adaptation-first-room-description
                                   segment
-                                  loot-result
-                                  encounter-result)
-                    :results (list segment-result
-                                   loot-result
-                                   encounter-result)
-                    :exits '((:back . "threshold")))))
+                                  (second resolved-results)
+                                  (third resolved-results))
+                    :results resolved-results
+                    :exits (table-result-exits resolved-results))))
+        (apply-adaptation-room-results game resolved-results)
         (setf (gethash :rooms-generated (game-global-state game)) 1
               (gethash :dungeon-depth (game-global-state game)) 1
               (gethash :first-room-generated (game-global-state game)) t)

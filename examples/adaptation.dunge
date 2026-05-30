@@ -41,7 +41,12 @@
    :id :starter-encounter
    :mode :first-match
    :entries
-   ((:table-entry :result (:encounter :watchful-shadow :reaction :uncertain)))))
+   ((:table-entry :result (:encounter :watchful-shadow :reaction :uncertain))))
+  (:table
+   :id :starter-exit
+   :mode :first-match
+   :entries
+   ((:table-entry :result (:exit :back "threshold")))))
  :rooms
  ("adaptation/camp.dunge"
   "adaptation/threshold.dunge"

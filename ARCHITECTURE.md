@@ -288,9 +288,10 @@ Entries may use `:when` and `:tags`. A result may be arbitrary safe data.
 Other public result conventions, such as `(:gold "1d6")`,
 `(:item :silver-ring)`, `(:encounter :goblin-scouts)`,
 `(:shop-stock :blacksmith-basic)`, and `(:room-detail :flooded-floor)`, are
-documented in [AUTHORING.md](AUTHORING.md). The engine deliberately does not
-interpret all result shapes yet; later systems such as loot, encounters, shops,
-and dungeon generation will define the meanings of their own result data.
+documented in [AUTHORING.md](AUTHORING.md). The runtime has a small shared
+resolver layer for common result shapes, while later systems such as combat,
+shops, and richer dungeon generation will define deeper behavior for their own
+result data.
 
 Games may declare an initial `:seed`. The seed is authored data; the Common
 Lisp runtime owns the deterministic pseudo-random generator, current RNG state,
@@ -303,6 +304,26 @@ Stateful table progress, such as sequence position, deck draws, current RNG
 state, and the roll log, is part of runtime save/load. This lets future
 generated dungeons roll a room, encounter, or loot result once and keep it
 stable when the player returns.
+
+## Table Result Resolvers
+
+Table results remain authored data until Common Lisp asks to resolve or apply
+them. The shared resolver normalizes the first common crawler result shapes:
+
+- `(:gold AMOUNT)` resolves integer or dice-string amounts.
+- `(:item ITEM-ID ...)` and `(:supply SUPPLY-ID ...)` resolve `:count` dice
+  strings into inventory-ready integer counts.
+- `(:encounter ENCOUNTER-ID ...)` resolves optional `:count` dice but leaves
+  encounter behavior to the future combat system.
+- `(:exit DIRECTION ROOM-ID)` validates and extracts generated-room exits.
+
+`resolve-table-result-data` returns normalized result data without deciding
+where it belongs. `apply-resolved-table-result-to-player` and
+`apply-table-result-to-player` mutate player gold/inventory for the loot shapes
+only. `table-result-exits` extracts room exits from resolved result data. This
+keeps the `.dunge` boundary intact: source files describe what was rolled, and
+CL procedure code decides whether that roll becomes loot, an exit, room detail,
+an encounter marker, or something else.
 
 ## Generated Rooms
 

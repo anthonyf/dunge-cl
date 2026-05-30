@@ -26,9 +26,10 @@
 - [X] Map adaptation loop to current Dunge support and engine gaps
 - [X] Add dice utilities and CL character creation procedures for the adaptation
 - [X] Add persistent generated room instances for the adaptation's first room
+- [X] Resolve basic loot and exit table results into player/world mutations
 - [ ] Expand generated rooms into a small dungeon graph
 - [ ] Add encounter state and a minimal combat loop
-- [ ] Resolve loot and item-use table results into player/world mutations
+- [ ] Add item-use table result procedures
 - [ ] Add browser character and encounter panels
 
 * Phase 2: Character And Inventory

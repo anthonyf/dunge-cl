@@ -13,9 +13,9 @@ The skeleton deliberately contains only:
 
 The example also exposes CL helpers that can roll and install a generated
 starting player before play, and helpers that roll the authored tables to create
-and recall a persistent first generated dungeon room. The next implementation
-slices should resolve loot and encounter result data into concrete room, player,
-and world mutations.
+and recall a persistent first generated dungeon room. The first resolver layer
+now applies basic loot and extracts generated exits. The next implementation
+slices should expand this into a small generated graph and add encounter state.
 
 See [PROVENANCE.md](PROVENANCE.md) for source/license notes and
 [../../ADAPTATION_SUPPORT_AUDIT.md](../../ADAPTATION_SUPPORT_AUDIT.md) for the
