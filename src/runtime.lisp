@@ -643,6 +643,25 @@ can TYPEP the result against QUIT, BACK, and related classes."))
              result))
     payload))
 
+(defun table-result-shape-length (result label)
+  (let ((length (handler-case
+                    (list-length result)
+                  (type-error ()
+                    nil))))
+    (unless length
+      (error "~A table result must be a proper, non-circular list; got ~S."
+             label
+             result))
+    length))
+
+(defun ensure-table-result-shape (result label shape length)
+  (unless (= (table-result-shape-length result label) length)
+    (error "~A table result must be ~A; got ~S."
+           label
+           shape
+           result))
+  result)
+
 (defun resolve-table-result-amount (game amount label random-state record)
   (multiple-value-bind (value roll-entry)
       (roll-dice-value game amount
@@ -678,16 +697,13 @@ can TYPEP the result against QUIT, BACK, and related classes."))
     entry))
 
 (defun resolve-gold-table-result (game result random-state record)
-  (destructuring-bind (kind amount &rest options) result
-    (declare (ignore kind))
-    (when options
-      (error "Gold table result does not accept options; got ~S." result))
-    (list :gold
-          (resolve-table-result-amount game
-                                       amount
-                                       :result-gold
-                                       random-state
-                                       record))))
+  (ensure-table-result-shape result "Gold" "(:GOLD AMOUNT)" 2)
+  (list :gold
+        (resolve-table-result-amount game
+                                     (second result)
+                                     :result-gold
+                                     random-state
+                                     record)))
 
 (defun resolve-counted-table-result (game result random-state record label)
   (let* ((kind (table-result-kind result))
@@ -699,10 +715,9 @@ can TYPEP the result against QUIT, BACK, and related classes."))
     (append (list kind id) options)))
 
 (defun resolve-exit-table-result (result)
-  (destructuring-bind (kind direction target &rest options) result
-    (declare (ignore kind))
-    (when options
-      (error "Exit table result does not accept options; got ~S." result))
+  (ensure-table-result-shape result "Exit" "(:EXIT DIRECTION ROOM-ID)" 3)
+  (let ((direction (second result))
+        (target (third result)))
     (unless (keywordp direction)
       (error "Exit table result direction must be a keyword; got ~S."
              result))

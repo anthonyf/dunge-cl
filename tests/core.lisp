@@ -1141,8 +1141,16 @@
                  '((:exit :north "generated:dungeon:2")
                    (:room-detail :flooded-floor)
                    (:exit :back "room"))))))
-    (signals error
-      (resolve-table-result-data game '(:exit :north)))
+    (is (contains-substring-p
+         "Gold table result must be (:GOLD AMOUNT)"
+         (error-message-from
+          (lambda ()
+            (resolve-table-result-data game '(:gold))))))
+    (is (contains-substring-p
+         "Exit table result must be (:EXIT DIRECTION ROOM-ID)"
+         (error-message-from
+          (lambda ()
+            (resolve-table-result-data game '(:exit :north))))))
     (signals error
       (resolve-table-result-data game '(:item :torch :count 0)))))
 
