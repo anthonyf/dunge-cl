@@ -62,7 +62,7 @@ The first playable vertical slice should include:
   player leaves, returns, saves, and resumes. The current testbed can instantiate
   and recall a two-room generated dungeon graph from authored table results.
 - A minimal combat loop with one player, one enemy profile, attacks, damage,
-  defeat, and escape.
+  defeat, escape, and save/load support.
 - Inventory-linked choices such as use supply, light source, tool, or treasure.
 - Save/load coverage for player, generated dungeon state, table state, current
   room, and encounter state.
@@ -73,7 +73,7 @@ This adaptation should tell us whether Dunge needs:
 
 - Dice utilities with roll records and transcript visibility.
 - Larger graph policies on top of the CL generated room API.
-- Encounter state distinct from authored room/entity state.
+- Richer encounter rules on top of the first room-bound encounter state.
 - Item-use effects that can be invoked from rooms, combat, and shops.
 - Character panel/browser UI for stats, slots, gold, conditions, and current
   encounter.
@@ -111,8 +111,8 @@ This adaptation should tell us whether Dunge needs:
    Add a CL-side room instancing API and a small persistent dungeon graph.
 
 4. **Encounter State And Combat**
-   Add enemy profiles, encounter state, combat choices, damage, defeat, and
-   escape.
+   Add enemy profiles, encounter state, combat choices, damage, defeat, escape,
+   and save/load support. The current testbed now has this first loop.
 
 5. **Loot, Item Use, And Recovery**
    Resolve table results into inventory/gold mutations, implement basic item use,

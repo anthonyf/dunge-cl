@@ -25,14 +25,14 @@ The first adaptation target is intentionally small:
 | --- | --- | --- | --- |
 | Player creation | `:player` source form, player save/load, inventory data model, adaptation player creation helper. | A player-facing character creation flow. | Browser character panel. |
 | Safe camp / entrance | Authored rooms, choices, actions, branches, flags, global state. | Nothing major for a static entrance loop. | Adaptation skeleton. |
-| Enter dungeon | `:go`, `:gosub`, `:back`, authored room ids, registered generated room ids, resolved exit data, and generated room graph links. | Player-facing dungeon entrance flow that invokes the CL graph helpers directly. | Encounter state and combat. |
-| Generate room | Random tables, deterministic seed, table state, roll log, generated room API, generated room save/load, first table result resolvers, and a two-room adaptation graph. | Richer room detail procedures and larger graph policies. | Encounter state and combat. |
-| Inspect room | Paragraphs, entities, conditional choices, local/ref/global state, generated room rendering, resolved room result facts, and generated exits. | Rich generated room interactions beyond description, facts, and exits. | Encounter state and combat. |
-| Encounters | Table result conventions can name encounters. | Encounter model/state, enemy profiles, initiative/turn procedure, damage, morale, escape. | Encounter state and combat. |
+| Enter dungeon | `:go`, `:gosub`, `:back`, authored room ids, registered generated room ids, resolved exit data, generated room graph links, and active encounter choices. | Player-facing dungeon entrance flow that invokes the CL graph helpers directly. | Loot, item use, and recovery. |
+| Generate room | Random tables, deterministic seed, table state, roll log, generated room API, generated room save/load, first table result resolvers, a two-room adaptation graph, and room-bound encounters. | Richer room detail procedures and larger graph policies. | Loot, item use, and recovery. |
+| Inspect room | Paragraphs, entities, conditional choices, local/ref/global state, generated room rendering, resolved room result facts, generated exits, and combat options. | Rich generated room interactions beyond description, facts, exits, and the minimal combat loop. | Loot, item use, and recovery. |
+| Encounters | Table result conventions can name encounters; CL can create persistent encounter state, render active choices, attack, damage, defeat, and flee. | Richer enemy profiles, morale, initiative/turn policy, encounter rewards, and item integration. | Loot, item use, and recovery. |
 | Loot and supplies | Table result conventions, player inventory helpers, gold field, and resolver support for gold/item/supply mutations. | Player-facing loot choices, item use, and recovery procedures. | Loot, item use, and recovery. |
 | Item use | Inventory entries can store count, slots, condition, tags. | Item-use procedures and effect hooks callable from rooms and combat. | Loot, item use, and recovery. |
 | Recovery | Player HP/max HP, fatigue, conditions, Deprived predicate. | Rest/recovery procedure and rules for clearing fatigue/conditions. | Loot, item use, and recovery. |
-| Save/load | Current room, return stack, globals, locals, table state, roll log, player state, and generated room instances. | Encounter state. | Encounter state and combat. |
+| Save/load | Current room, return stack, globals, locals, table state, roll log, player state, generated room instances, and encounter state. | Browser/runtime parity for encounter display. | Browser character panel. |
 | Browser presentation | Browser runtime already serializes player data. | Character/inventory/encounter panels and UI affordances for slots and conditions. | Browser character panel. |
 
 ## Boundary Decisions
@@ -64,13 +64,14 @@ The first adaptation target is intentionally small:
 3. **Table result resolvers**
    The engine has a first shared resolver layer for result data: normalize
    dice-based gold/counts, apply gold/items/supplies to a player, validate
-   encounter count data, and extract generated-room exits. Richer procedures
-   still decide what room details, hazards, encounters, objectives, and item
-   effects do in context.
+   encounter count data, extract encounter markers, and extract generated-room
+   exits. Richer procedures still decide what room details, hazards,
+   objectives, and item effects do in context.
 
 4. **Encounter state**
-   Combat needs persistent state separate from static room state: enemy id,
-   current HP/STR, disposition, round, escape state, and outcome.
+   The engine has persistent room-bound encounter state: enemy id, current
+   HP/STR, reaction, damage, round, source result, and outcome. Generated rooms
+   can render active attack/flee choices and save/load or undo combat state.
 
 5. **Item-use procedures**
    Rooms and combat both need to ask "what can this item do here?" without
@@ -78,7 +79,7 @@ The first adaptation target is intentionally small:
 
 ## Next Recommended PR
 
-Build the **encounter state and minimal combat** slice next. The adaptation can
-now create and save a small generated graph; the next pressure point is turning
-authored `(:encounter ...)` table results into persistent encounter state,
-player choices, damage, defeat, and escape.
+Build the **loot, item use, and recovery** slice next. The adaptation can now
+generate rooms, link them, and run a small persistent combat loop; the next
+pressure point is making inventory matter during exploration and combat through
+item-use procedures, recovery, and player-facing loot choices.

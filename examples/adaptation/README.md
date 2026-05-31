@@ -16,8 +16,10 @@ The example also exposes CL helpers that can roll and install a generated
 starting player before play, and helpers that roll the authored tables to create
 and recall a persistent two-room generated dungeon graph. The first resolver
 layer now applies basic loot, extracts generated exits, and lets CL replace an
-authored graph-link template with concrete generated room ids. The next
-implementation slice should add encounter state.
+authored graph-link template with concrete generated room ids. It also turns the
+authored `:watchful-shadow` encounter result into persistent room-bound combat
+state with attack and flee choices. The next implementation slice should make
+loot, item use, and recovery matter during play.
 
 See [PROVENANCE.md](PROVENANCE.md) for source/license notes and
 [../../ADAPTATION_SUPPORT_AUDIT.md](../../ADAPTATION_SUPPORT_AUDIT.md) for the

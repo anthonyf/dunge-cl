@@ -313,8 +313,8 @@ them. The shared resolver normalizes the first common crawler result shapes:
 - `(:gold AMOUNT)` resolves integer or dice-string amounts.
 - `(:item ITEM-ID ...)` and `(:supply SUPPLY-ID ...)` resolve `:count` dice
   strings into inventory-ready integer counts.
-- `(:encounter ENCOUNTER-ID ...)` resolves optional `:count` dice but leaves
-  encounter behavior to the future combat system.
+- `(:encounter ENCOUNTER-ID ...)` resolves optional `:count` dice and can be
+  used by CL procedures to start persistent encounter state.
 - `(:exit DIRECTION ROOM-ID)` validates and extracts generated-room exits.
 
 `resolve-table-result-data` returns normalized result data without deciding
@@ -324,6 +324,10 @@ only. `table-result-exits` extracts room exits from resolved result data. This
 keeps the `.dunge` boundary intact: source files describe what was rolled, and
 CL procedure code decides whether that roll becomes loot, an exit, room detail,
 an encounter marker, or something else.
+
+`table-result-encounters` extracts encounter result shapes for procedures that
+want to bind a rolled result to a room, generated site, NPC, or other runtime
+context.
 
 ## Generated Rooms
 
@@ -460,6 +464,32 @@ gold handling remain CL behavior layered on this data model.
 If a game has no authored player, the runtime may still restore a saved player
 record. This keeps the model compatible with a future character creation flow,
 where CL creates the player before ordinary room play begins.
+
+## Encounter State And Combat
+
+Encounter state is runtime data owned by Common Lisp. A `.dunge` table can
+describe an encounter with `(:encounter ENCOUNTER-ID ...)`, but that result does
+not start combat by itself. CL code chooses the room or generated room that owns
+the encounter, applies any enemy profile defaults, and registers an
+`encounter-state` with:
+
+- room id;
+- enemy id and source result;
+- reaction;
+- HP/STR current and maximum values;
+- armor and damage;
+- round count;
+- status, one of `:active`, `:defeated`, `:escaped`, or `:player-defeated`.
+
+`ensure-room-encounter-state` creates or recalls a room-bound encounter from a
+resolved table result. `attack-encounter` rolls player damage, applies enemy
+armor, and lets an active enemy strike back if it survives. `flee-encounter`
+marks the encounter escaped. Generated rooms render active encounter choices
+before ordinary exits; once the encounter is defeated, escaped, or the player is
+defeated, ordinary room exits become available again.
+
+Runtime save data includes `:encounters`, and undo captures encounter state
+alongside player, generated room, table, RNG, and local/global state.
 
 ## Effects And Sequences
 

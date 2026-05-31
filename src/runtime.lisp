@@ -273,6 +273,28 @@ can TYPEP the result against QUIT, BACK, and related classes."))
   (%make-choice :label (generated-room-exit-label (car exit))
                 :target (%make-goto :room-name (cdr exit))))
 
+(defun generated-room-encounter-line (encounter)
+  (format nil "Encounter: ~A (~A, HP ~D/~D)."
+          (generated-room-display-word (encounter-enemy-id encounter))
+          (string-downcase (symbol-name (encounter-status encounter)))
+          (encounter-hp encounter)
+          (encounter-max-hp encounter)))
+
+(defun generated-room-encounter-choices (room encounter)
+  (when (and encounter
+             (encounter-active-p encounter))
+    (list (%make-choice :label (format nil "Attack ~A"
+                                       (string-downcase
+                                        (symbol-name
+                                         (encounter-enemy-id encounter))))
+                        :target (%make-encounter-action
+                                 :room-name (name room)
+                                 :action :attack))
+          (%make-choice :label "Flee"
+                        :target (%make-encounter-action
+                                 :room-name (name room)
+                                 :action :flee)))))
+
 (defmethod evaluate ((room generated-room) &optional context)
   (setf (generated-room-visited-p room) t)
   (let ((room-context (runtime-context-for-scene context room)))
@@ -283,13 +305,18 @@ can TYPEP the result against QUIT, BACK, and related classes."))
       (dolist (result (generated-room-results room))
         (format *output* "~A~%" (generated-room-result-line result)))
       (terpri *output*))
-    (let ((collected-options
-            (mapcar #'generated-room-exit-choice
-                    (generated-room-exits room))))
-      (if (or collected-options
-              (runtime-debug-undo-available-p room-context))
-          (evaluate (%make-choices :options collected-options) room-context)
-          (%make-fall-through)))))
+    (let ((encounter (find-encounter-state (runtime-context-game room-context)
+                                           room)))
+      (when encounter
+        (format *output* "~A~%~%" (generated-room-encounter-line encounter)))
+      (let ((collected-options
+              (or (generated-room-encounter-choices room encounter)
+                  (mapcar #'generated-room-exit-choice
+                          (generated-room-exits room)))))
+        (if (or collected-options
+                (runtime-debug-undo-available-p room-context))
+            (evaluate (%make-choices :options collected-options) room-context)
+            (%make-fall-through))))))
 
 (defmethod describe-entity ((thing t) &optional context)
   (declare (ignore context))
@@ -803,6 +830,109 @@ can TYPEP the result against QUIT, BACK, and related classes."))
            append (table-result-exits entry)))
     (t nil)))
 
+(defun table-result-encounter-p (result)
+  (and (table-result-data-p result)
+       (eq (table-result-kind result) :encounter)))
+
+(defun table-result-encounters (result)
+  (cond
+    ((table-result-encounter-p result)
+     (list (copy-tree result)))
+    ((and (listp result)
+          (not (table-result-data-p result)))
+     (loop for entry in result
+           append (table-result-encounters entry)))
+    (t nil)))
+
+(defun table-result-option (result key &optional default)
+  (ensure-runtime-property-list (cddr result) "table result options")
+  (let ((missing '#:missing))
+    (let ((value (getf (cddr result) key missing)))
+      (if (eq value missing)
+          default
+          value))))
+
+(defun ensure-room-encounter-state (game room result
+                                    &key hp max-hp str max-str armor damage)
+  (unless (table-result-encounter-p result)
+    (error "Encounter state requires an :ENCOUNTER table result; got ~S."
+           result))
+  (or (find-encounter-state game room)
+      (let* ((room-name (encounter-room-name-string room))
+             (enemy-id (second result))
+             (reaction (table-result-option result :reaction nil))
+             (hp (or hp (table-result-option result :hp 3)))
+             (max-hp (or max-hp (table-result-option result :max-hp hp)))
+             (str (or str (table-result-option result :str 10)))
+             (max-str (or max-str (table-result-option result :max-str str)))
+             (armor (or armor (table-result-option result :armor 0)))
+             (damage (or damage (table-result-option result :damage 1))))
+        (register-encounter-state
+         game
+         (make-encounter-state :room room-name
+                               :enemy-id enemy-id
+                               :reaction reaction
+                               :hp hp
+                               :max-hp max-hp
+                               :str str
+                               :max-str max-str
+                               :armor armor
+                               :damage damage
+                               :source result)))))
+
+(defun ensure-active-encounter (encounter)
+  (unless (encounter-active-p encounter)
+    (error "Encounter ~S is not active." (encounter-enemy-id encounter)))
+  encounter)
+
+(defun apply-non-negative-damage (current amount)
+  (max 0 (- current (non-negative-integer-value amount "Damage"))))
+
+(defun attack-encounter (game player encounter
+                         &key (damage "1d6") random-state (record t))
+  (unless (typep player 'player)
+    (error "Attacking an encounter requires a player; got ~S." player))
+  (ensure-active-encounter encounter)
+  (incf (encounter-round encounter))
+  (multiple-value-bind (roll)
+      (roll-dice-value game damage
+                       :label :player-damage
+                       :random-state random-state
+                       :record record)
+    (let ((player-damage (max 0 (- roll (encounter-armor encounter)))))
+      (setf (encounter-hp encounter)
+            (apply-non-negative-damage (encounter-hp encounter)
+                                       player-damage))
+      (if (zerop (encounter-hp encounter))
+          (progn
+            (setf (encounter-status encounter) :defeated)
+            (list :action :attack
+                  :player-damage player-damage
+                  :enemy-damage 0
+                  :status (encounter-status encounter)))
+          (multiple-value-bind (enemy-roll)
+              (roll-dice-value game (encounter-damage encounter)
+                               :label :enemy-damage
+                               :random-state random-state
+                               :record record)
+            (let ((enemy-damage (max 0 (- enemy-roll (player-armor player)))))
+              (setf (player-hp player)
+                    (apply-non-negative-damage (player-hp player)
+                                               enemy-damage))
+              (when (zerop (player-hp player))
+                (setf (encounter-status encounter) :player-defeated))
+              (list :action :attack
+                    :player-damage player-damage
+                    :enemy-damage enemy-damage
+                    :status (encounter-status encounter))))))))
+
+(defun flee-encounter (encounter)
+  (ensure-active-encounter encounter)
+  (incf (encounter-round encounter))
+  (setf (encounter-status encounter) :escaped)
+  (list :action :flee
+        :status (encounter-status encounter)))
+
 (defun runtime-debug-undo-available-p (context)
   (and *debug*
        context
@@ -1064,6 +1194,10 @@ can TYPEP the result against QUIT, BACK, and related classes."))
   (mapcar #'generated-room-state-plist
           (game-generated-rooms game)))
 
+(defun collect-runtime-encounter-state (game)
+  (mapcar #'encounter-state-plist
+          (game-encounter-states game)))
+
 (defun collect-runtime-local-state (game)
   (let (entries)
     (dolist (room (game-rooms game))
@@ -1088,6 +1222,7 @@ can TYPEP the result against QUIT, BACK, and related classes."))
           :roll-log (collect-runtime-roll-log game)
           :generated-room-counter (game-generated-room-counter game)
           :generated-rooms (collect-runtime-generated-room-state game)
+          :encounters (collect-runtime-encounter-state game)
           :globals (sorted-state-alist (game-global-state game))
           :locals (collect-runtime-local-state game)
           :tables (collect-runtime-table-state game)
@@ -1102,6 +1237,7 @@ can TYPEP the result against QUIT, BACK, and related classes."))
           :roll-log (collect-runtime-roll-log game)
           :generated-room-counter (game-generated-room-counter game)
           :generated-rooms (collect-runtime-generated-room-state game)
+          :encounters (collect-runtime-encounter-state game)
           :globals (sorted-state-alist (game-global-state game))
           :locals (collect-runtime-local-state game)
           :tables (collect-runtime-table-state game)
@@ -1266,6 +1402,63 @@ can TYPEP the result against QUIT, BACK, and related classes."))
           :fatigue fatigue
           :conditions conditions)))
 
+(defun runtime-encounter-damage-value (value)
+  (unless (or (stringp value)
+              (and (integerp value) (not (minusp value))))
+    (error "Runtime encounter damage must be a non-negative integer or dice string; got ~S."
+           value))
+  value)
+
+(defun runtime-encounter-state-plist (entry)
+  (ensure-runtime-property-list entry "encounter entry")
+  (let ((room (ensure-runtime-room-name
+               (runtime-state-required-field entry :room)
+               "encounter room"))
+        (enemy-id (runtime-keyword-value
+                   (runtime-state-required-field entry :enemy)
+                   "encounter enemy id"))
+        (reaction (runtime-maybe-keyword-value
+                   (runtime-state-field entry :reaction nil)
+                   "encounter reaction"))
+        (hp (non-negative-integer-value
+             (runtime-state-required-field entry :hp)
+             "Encounter HP"))
+        (max-hp (non-negative-integer-value
+                 (runtime-state-required-field entry :max-hp)
+                 "Encounter max HP"))
+        (str (non-negative-integer-value
+              (runtime-state-required-field entry :str)
+              "Encounter STR"))
+        (max-str (non-negative-integer-value
+                  (runtime-state-required-field entry :max-str)
+                  "Encounter max STR"))
+        (armor (non-negative-integer-value
+                (runtime-state-field entry :armor 0)
+                "Encounter armor"))
+        (damage (runtime-encounter-damage-value
+                 (runtime-state-field entry :damage 1)))
+        (round (non-negative-integer-value
+                (runtime-state-field entry :round 0)
+                "Encounter round"))
+        (status (encounter-status-key
+                 (runtime-state-field entry :status :active)))
+        (source (runtime-state-field entry :source nil)))
+    (ensure-runtime-list source "encounter source")
+    (validate-encounter-current-maximum hp max-hp "HP")
+    (validate-encounter-current-maximum str max-str "STR")
+    (list :room room
+          :enemy-id enemy-id
+          :reaction reaction
+          :hp hp
+          :max-hp max-hp
+          :str str
+          :max-str max-str
+          :armor armor
+          :damage damage
+          :round round
+          :status status
+          :source (copy-tree source))))
+
 (defun runtime-state-pair-p (entry)
   (consp entry))
 
@@ -1347,6 +1540,15 @@ can TYPEP the result against QUIT, BACK, and related classes."))
      (apply #'make-generated-room
             (runtime-generated-room-state-plist entry)))))
 
+(defun restore-runtime-encounter-states (game encounters)
+  (ensure-runtime-list encounters ":ENCOUNTERS")
+  (clear-encounter-states game)
+  (dolist (entry encounters)
+    (register-encounter-state
+     game
+     (apply #'make-encounter-state
+            (runtime-encounter-state-plist entry)))))
+
 (defun restore-runtime-player-state (game player-state)
   (cond
     ((null player-state)
@@ -1370,6 +1572,7 @@ can TYPEP the result against QUIT, BACK, and related classes."))
                                   :generated-room-counter
                                   0))
          (generated-rooms (runtime-state-field state :generated-rooms nil))
+         (encounters (runtime-state-field state :encounters nil))
          (globals (runtime-state-field state :globals nil))
          (locals (runtime-state-field state :locals nil))
          (tables (runtime-state-field state :tables nil))
@@ -1382,6 +1585,7 @@ can TYPEP the result against QUIT, BACK, and related classes."))
     (restore-runtime-generated-rooms game
                                      generated-rooms
                                      generated-room-counter)
+    (restore-runtime-encounter-states game encounters)
     (restore-runtime-global-state game globals)
     (restore-runtime-local-state game locals)
     (restore-runtime-table-state game tables)
@@ -1409,6 +1613,7 @@ can TYPEP the result against QUIT, BACK, and related classes."))
                                      (getf state
                                            :generated-room-counter
                                            0))
+    (restore-runtime-encounter-states game (getf state :encounters nil))
     (restore-runtime-global-state game (getf state :globals))
     (restore-runtime-local-state game (getf state :locals))
     (restore-runtime-table-state game (getf state :tables))
@@ -1581,6 +1786,51 @@ can TYPEP the result against QUIT, BACK, and related classes."))
            (conditional-effect-else effect))
        (%make-sequence))
    context))
+
+(defun combat-result-message (encounter result)
+  (case (getf result :action)
+    (:attack
+     (case (getf result :status)
+       (:defeated
+        (format nil "You strike for ~D damage. ~A falls."
+                (getf result :player-damage)
+                (generated-room-display-word
+                 (encounter-enemy-id encounter))))
+       (:player-defeated
+        (format nil "You strike for ~D damage, but take ~D damage and fall."
+                (getf result :player-damage)
+                (getf result :enemy-damage)))
+       (otherwise
+        (format nil "You strike for ~D damage. ~A hits back for ~D damage."
+                (getf result :player-damage)
+                (generated-room-display-word
+                 (encounter-enemy-id encounter))
+                (getf result :enemy-damage)))))
+    (:flee
+     (format nil "You escape from ~A."
+             (generated-room-display-word (encounter-enemy-id encounter))))
+    (otherwise
+     "The encounter shifts.")))
+
+(defmethod execute-effect ((effect encounter-action) &optional context)
+  (let* ((game (runtime-context-game context))
+         (room-name (or (encounter-action-room-name effect)
+                        (and (runtime-context-scene context)
+                             (name (runtime-context-scene context)))))
+         (encounter (find-encounter-state game room-name :errorp t))
+         (player (game-player game))
+         (result
+           (case (encounter-action-kind effect)
+             (:attack
+              (attack-encounter game player encounter))
+             (:flee
+              (flee-encounter encounter))
+             (otherwise
+              (error "Unknown encounter action ~S."
+                     (encounter-action-kind effect))))))
+    (render-pending-choice-spacing)
+    (format *output* "~A~%~%" (combat-result-message encounter result))
+    nil))
 
 (defun evaluate-effects (effects context)
   (when effects
