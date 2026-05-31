@@ -7,7 +7,7 @@ The skeleton deliberately contains only:
 
 - a safe camp;
 - a dungeon threshold;
-- one placeholder generated chamber in authored `.dunge`;
+- one placeholder chamber in authored `.dunge` for the raw static path;
 - a starter player record;
 - a few authored tables that describe room, loot, encounter, and graph-link
   data.
@@ -22,9 +22,13 @@ state with attack and flee choices. Generated rooms now expose unclaimed
 gold/item/supply results as loot choices, persist claimed result indexes, and
 let the player eat rations for basic recovery during exploration or combat. The
 browser runtime now renders character, inventory, slot pressure, condition, and
-room-bound encounter state. The next implementation slice should make the
-authored threshold enter or recall the generated first room through the CL graph
-helpers.
+room-bound encounter state.
+
+The console example is now the first runnable crawler slice: the CL loader
+installs a generated player, creates the persistent two-room dungeon graph, and
+rewires the authored threshold's `:enter-first-room` choice to the first
+generated room. The placeholder chamber remains only for the raw static source
+path; browser generated-room rendering is the next parity gap.
 
 See [PROVENANCE.md](PROVENANCE.md) for source/license notes and
 [../../ADAPTATION_SUPPORT_AUDIT.md](../../ADAPTATION_SUPPORT_AUDIT.md) for the

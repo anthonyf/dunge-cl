@@ -2127,11 +2127,16 @@
 
 (test adaptation-example-scripted-transcript
   (let ((output (run-example-with-input #'dunge-examples:adaptation-example
-                                        (format nil "1~%1~%2~%"))))
+                                        (format nil "1~%1~%2~%1~%2~%"))))
     (is (contains-substring-p "Dunge Crawler Testbed" output))
-    (is (contains-substring-p "This authored path still enters the placeholder room."
+    (is (contains-substring-p "The first generated chamber waits in the run log."
                               output))
-    (is (contains-substring-p "Placeholder Chamber" output))))
+    (is (contains-substring-p "A first find waits here" output))
+    (is (contains-substring-p "Encounter: Watchful Shadow" output))
+    (is (contains-substring-p "You escape from Watchful Shadow." output))
+    (is (contains-substring-p "You take ration." output))
+    (is (contains-substring-p "This chamber sits at depth 2" output))
+    (is (not (contains-substring-p "Placeholder Chamber" output)))))
 
 (test adaptation-character-creation-uses-dice-and-starting-gear
   (let ((game (dunge-examples:load-adaptation-example)))
@@ -2251,7 +2256,15 @@
     (is (= 2 (length (game-generated-rooms game))))
     (is (= 2 (length (game-encounter-states game))))
     (is (= 2 (player-inventory-count (game-player game) :supply :ration)))
-    (is (= 13 (length (game-roll-log game))))))
+    (is (= 13 (length (game-roll-log game))))
+    (signals error
+      (dunge-examples:find-adaptation-choice game nil))
+    (let* ((room (dunge-examples:ensure-adaptation-first-room game))
+           (choice (dunge-examples:find-adaptation-choice game
+                                                          :enter-first-room))
+           (effect (target choice)))
+      (is (typep effect 'goto))
+      (is (equal (name room) (room-name effect))))))
 
 (test html-compiler-generates-single-file-index-shell
   (let* ((game (source-game-with-body

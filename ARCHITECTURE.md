@@ -369,6 +369,13 @@ rolls an authored `(:exit :deeper "generated:dungeon:*")` table result, then CL
 creates a concrete room such as `"generated:dungeon:2"` and links it back to the
 room that discovered it.
 
+Generated content can also be introduced from an authored threshold without
+adding a language form for generation. The adaptation console loader creates or
+recalls the first generated room in CL, then rewires the authored
+`:enter-first-room` choice to the concrete generated room id. The `.dunge`
+choice still describes the player-facing affordance; CL decides when the room
+exists and which generated id it should enter.
+
 ## State
 
 Global state is the first-class primitive for flags, counters, and simple

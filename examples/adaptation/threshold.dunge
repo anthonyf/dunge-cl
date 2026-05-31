@@ -6,19 +6,20 @@
   (:branch
    :when (:marked? :first-room-generated)
    :then
-   ((:p "A first chamber has already been sketched into the run log. The CL adaptation helper can now recall that same generated instance.")))
+   ((:p "The first generated chamber waits in the run log. The CL adaptation helper can recall that same persistent room from here.")))
   (:choice
    "Sketch the first generated chamber"
    ((:inc :target (:state :scope :global :key :rooms-generated))
     (:inc :target (:state :scope :global :key :dungeon-depth))
     (:mark :first-room-generated)
-    (:say "This authored path still enters the placeholder room. The CL helper now demonstrates the room-instancing procedure outside the .dunge script.")
+    (:say "The static source path still enters the placeholder room. The playable CL loader replaces the remembered chamber link with a generated room.")
     (:go "placeholder-room"))
    :id :sketch-first-room
    :once t
    :when (:not (:marked? :first-room-generated)))
   (:choice
-   "Return to the remembered chamber"
+   "Enter the generated chamber"
    (:go "placeholder-room")
+   :id :enter-first-room
    :when (:marked? :first-room-generated))
   (:choice "Return to camp" (:go "camp"))))
