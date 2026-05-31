@@ -788,6 +788,11 @@
      (error "Generated room exit targets must be room ids or rooms; got ~S."
             target))))
 
+(defun generated-room-value (room label)
+  (unless (typep room 'generated-room)
+    (error "~A must be a generated room; got ~S." label room))
+  room)
+
 (defun generated-room-result-list (results)
   (proper-list-length-value results "Generated room results")
   results)
@@ -885,18 +890,14 @@
                           :visited-p visited-p))))
 
 (defun generated-room-exit-target (room direction)
-  (unless (typep room 'generated-room)
-    (error "Generated room exits can only be read from generated rooms; got ~S."
-           room))
-  (cdr (assoc (generated-room-exit-direction-key direction)
-              (generated-room-exits room)
-              :test #'eq)))
+  (let ((room (generated-room-value room "Generated room exit source")))
+    (cdr (assoc (generated-room-exit-direction-key direction)
+                (generated-room-exits room)
+                :test #'eq))))
 
 (defun set-generated-room-exit (room direction target)
-  (unless (typep room 'generated-room)
-    (error "Generated room exits can only be written on generated rooms; got ~S."
-           room))
-  (let* ((direction (generated-room-exit-direction-key direction))
+  (let* ((room (generated-room-value room "Generated room exit source"))
+         (direction (generated-room-exit-direction-key direction))
          (target (generated-room-exit-target-string target))
          (existing (assoc direction (generated-room-exits room) :test #'eq)))
     (if existing
@@ -907,10 +908,19 @@
     room))
 
 (defun link-generated-rooms (from direction to &key reverse-direction)
-  (set-generated-room-exit from direction to)
-  (when reverse-direction
-    (set-generated-room-exit to reverse-direction from))
-  (values from to))
+  (let* ((from (generated-room-value from "Generated room link source"))
+         (to (generated-room-value to "Generated room link target"))
+         (direction (generated-room-exit-direction-key direction))
+         (reverse-direction (when reverse-direction
+                              (generated-room-exit-direction-key
+                               reverse-direction)))
+         (to-target (generated-room-exit-target-string to))
+         (from-target (when reverse-direction
+                        (generated-room-exit-target-string from))))
+    (set-generated-room-exit from direction to-target)
+    (when reverse-direction
+      (set-generated-room-exit to reverse-direction from-target))
+    (values from to)))
 
 (defun generated-room-state-plist (room)
   (list :id (name room)

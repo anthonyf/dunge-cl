@@ -860,7 +860,27 @@
     (signals error
       (set-generated-room-exit entry "north" "room"))
     (signals error
-      (generated-room-exit-target "not a room" :north))))
+      (generated-room-exit-target "not a room" :north))
+    (let ((source (create-generated-room game
+                                         :zone :dungeon
+                                         :depth 3))
+          (target (create-generated-room game
+                                         :zone :dungeon
+                                         :depth 4)))
+      (signals error
+        (link-generated-rooms source
+                              :north
+                              target
+                              :reverse-direction "south"))
+      (is (null (generated-room-exits source)))
+      (is (null (generated-room-exits target)))
+      (signals error
+        (link-generated-rooms source
+                              :north
+                              "generated:dungeon:5"
+                              :reverse-direction :south))
+      (is (null (generated-room-exits source)))
+      (is (null (generated-room-exits target))))))
 
 (test runtime-state-rejects-malformed-generated-room-state
   (signals error
