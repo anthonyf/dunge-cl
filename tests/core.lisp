@@ -1843,6 +1843,9 @@
   (signals error
     (source-game-with-body
      '(:choice "Missing room" (:go "missing"))))
+  (is (typep (source-game-with-body
+              '(:choice "Generated room" (:go "generated:dungeon:1")))
+             'game))
   (signals error
     (source-game-with-body
      '(:choice "Once without id" (:quit) :once t)))
@@ -2415,6 +2418,38 @@
                                 script))
       (is (contains-substring-p "function renderEncounterStatus" script))
       (is (contains-substring-p "renderStatusPanel();" script)))))
+
+(test html-compiler-lowers-generated-rooms-for-browser-runtime
+  (let* ((game (dunge-examples:load-instanced-adaptation-example))
+         (room (dunge-examples:ensure-adaptation-first-room game))
+         (script (dunge-html:compile-game-script game)))
+    (is (contains-substring-p "\"generatedRooms\":[{\"type\":\"generated-room\""
+                              script))
+    (is (contains-substring-p "\"rooms-generated\":2" script))
+    (is (contains-substring-p "\"dungeon-depth\":2" script))
+    (is (contains-substring-p "\"first-room-generated\":true" script))
+    (is (contains-substring-p "\"id\":\"generated:dungeon:1\"" script))
+    (is (contains-substring-p "\"claimedResults\":[]" script))
+    (is (contains-substring-p "\"exits\":[{\"direction\":{\"type\":\"keyword\",\"name\":\"back\"},\"target\":\"threshold\"}"
+                              script))
+    (is (contains-substring-p "\"room\":{\"type\":\"literal\",\"value\":\"generated:dungeon:1\"}"
+                              script))
+    (is (contains-substring-p (format nil "\"room\":\"~A\"" (name room))
+                              script))
+    (is (contains-substring-p "function rebuildRoomIndex" script))
+    (is (contains-substring-p "function renderGeneratedRoom" script))
+    (is (contains-substring-p "function generatedRoomLootChoices" script))
+    (is (contains-substring-p "function executeLootAction" script))
+    (is (contains-substring-p "effect['result-index']" script))
+    (is (contains-substring-p "function executeEncounterAction" script))
+    (is (contains-substring-p "'generatedRooms' : copyJsonValue(GENERATEDROOMS)"
+                              script))
+    (is (contains-substring-p "'encounters' : copyJsonValue(ENCOUNTERS)"
+                              script))
+    (is (contains-substring-p "if (state['generatedRooms'] !== undefined)"
+                              script))
+    (is (contains-substring-p "if (state['encounters'] !== undefined)"
+                              script))))
 
 (test html-compiler-can-enable-debug-controls
   (let* ((game (source-game-with-body

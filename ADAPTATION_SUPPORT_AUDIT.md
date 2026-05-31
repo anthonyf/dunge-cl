@@ -90,11 +90,17 @@ The first adaptation target is intentionally small:
    gives the testbed a runnable camp-to-threshold-to-generated-room loop without
    moving room instancing into `.dunge`.
 
+8. **Browser generated-room parity**
+   The browser backend now serializes pre-instanced generated rooms, registers
+   them in the same navigation index as authored rooms, renders generated room
+   descriptions/results/exits, and supports browser-side generated-room loot,
+   ration use, encounter attack/flee actions, undo, and save/load of generated
+   room and encounter mutations.
+
 ## Next Recommended PR
 
-Build the **browser generated-room parity** slice next. The console adaptation
-can now generate rooms, link them, enter the first generated room from the
-authored threshold, run a small persistent combat loop, claim loot, use rations,
-and display character state in the browser panel. The next pressure point is
-serializing and rendering generated rooms in the browser backend so this same
-vertical slice can be clicked as a standalone HTML demo.
+Build the **adaptation browser demo** slice next. The browser runtime can now
+play the pre-instanced generated-room slice, so the next pressure point is a
+small committed or generated demo target for the adaptation and a repeatable
+smoke path that proves camp -> threshold -> generated room -> encounter/loot ->
+deeper room in a real browser.

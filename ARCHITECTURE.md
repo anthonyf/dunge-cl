@@ -376,6 +376,14 @@ recalls the first generated room in CL, then rewires the authored
 choice still describes the player-facing affordance; CL decides when the room
 exists and which generated id it should enter.
 
+The browser backend follows the same boundary. It does not roll new generated
+rooms in JavaScript; CL still creates the generated-room instances before
+compilation. The compiler serializes those instances as `generatedRooms`, and
+the browser runtime registers them alongside authored rooms so ordinary `:go`
+navigation can enter them. Browser save data includes generated rooms and
+encounters, which preserves claimed loot, visited state, combat results, and
+the current generated room across refreshes.
+
 ## State
 
 Global state is the first-class primitive for flags, counters, and simple
@@ -599,15 +607,16 @@ those static mount points as the player selects choices.
 The browser panel reads the same serialized player state used by save/load:
 HP, attributes, armor, gold, fate, fatigue, conditions, inventory, and slot
 pressure. The compiler also serializes current encounter states so the browser
-can show the encounter bound to the current authored room. This is presentation
-only; richer generated-dungeon and combat procedure parity remains CL-side
-work.
+can show the encounter bound to the current authored or generated room. For
+pre-instanced generated rooms, the browser runtime can render generated room
+facts, claim loot, use rations, resolve the minimal attack/flee loop, follow
+generated exits, and persist those mutations in local storage.
 
 The generated file does not rely on modules, fetches, or a web server. It is
 intended to run directly from `file://` in ordinary browsers. Browser storage,
 refresh guards, save-game UI, story rendering, and the compact status panel are
-part of this backend; generated dungeon procedures are still driven by Common
-Lisp.
+part of this backend; generation itself is still driven by Common Lisp before
+the file is compiled.
 
 ## Scope Cuts
 

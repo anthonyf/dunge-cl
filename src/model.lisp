@@ -1519,10 +1519,17 @@
 (defun static-room-name-p (thing)
   (stringp thing))
 
+(defun generated-room-reference-p (room-name)
+  (and (stringp room-name)
+       (let ((prefix "generated:"))
+         (and (>= (length room-name) (length prefix))
+              (string= prefix room-name :end2 (length prefix))))))
+
 (defun validate-room-target (node game room-name)
   (when (and *validation-resolve-room-targets*
              (static-room-name-p room-name))
-    (unless (nth-value 1 (gethash room-name (room-index game)))
+    (unless (or (nth-value 1 (gethash room-name (room-index game)))
+                (generated-room-reference-p room-name))
       (validation-error "~A targets missing room ~S."
                         (class-name (class-of node))
                         room-name))))
