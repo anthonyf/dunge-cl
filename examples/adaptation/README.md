@@ -18,8 +18,11 @@ and recall a persistent two-room generated dungeon graph. The first resolver
 layer now applies basic loot, extracts generated exits, and lets CL replace an
 authored graph-link template with concrete generated room ids. It also turns the
 authored `:watchful-shadow` encounter result into persistent room-bound combat
-state with attack and flee choices. The next implementation slice should make
-loot, item use, and recovery matter during play.
+state with attack and flee choices. Generated rooms now expose unclaimed
+gold/item/supply results as loot choices, persist claimed result indexes, and
+let the player eat rations for basic recovery during exploration or combat. The
+next implementation slice should make character, inventory, and encounter state
+visible in the browser runtime.
 
 See [PROVENANCE.md](PROVENANCE.md) for source/license notes and
 [../../ADAPTATION_SUPPORT_AUDIT.md](../../ADAPTATION_SUPPORT_AUDIT.md) for the

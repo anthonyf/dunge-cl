@@ -85,8 +85,7 @@
           depth))
 
 (defun apply-adaptation-room-results (game results)
-  (when (game-player game)
-    (apply-resolved-table-result-to-player (game-player game) results))
+  (declare (ignore game))
   results)
 
 (defun ensure-adaptation-room-encounter (game room)

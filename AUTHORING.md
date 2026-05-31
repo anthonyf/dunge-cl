@@ -116,9 +116,11 @@ Use `(:hazard HAZARD-ID)`, `(:feature FEATURE-ID)`, and
 Generated room procedures can combine these result shapes with loot,
 encounter, and exit data to create persistent runtime room instances. The shared
 resolver can normalize loot counts, apply gold/items/supplies to a player, and
-extract `(:exit DIRECTION ROOM-ID)` data. The table results stay declarative;
-Common Lisp decides when a rolled result becomes a registered generated room or
-a player/world mutation.
+extract `(:exit DIRECTION ROOM-ID)` data. Generated rooms can also expose
+unclaimed gold/item/supply results as player-facing loot choices and persist
+which result indexes have been claimed. The table results stay declarative;
+Common Lisp decides when a rolled result becomes a registered generated room,
+a loot choice, or a player/world mutation.
 
 ```lisp
 (:exit :back "threshold")
@@ -201,6 +203,6 @@ packages without adding procedural logic to `.dunge`.
    :result (:item :dragon-scale-fragment))))
 ```
 
-This table says what can be found. The future loot/inventory subsystem decides
-how to parse dice, add gold, create item stacks, handle tags, and report the
-outcome to the player.
+This table says what can be found. CL loot procedures decide how to parse dice,
+surface a find to the player, add gold, create item stacks, handle tags, and
+report the outcome.

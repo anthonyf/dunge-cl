@@ -67,6 +67,8 @@
    #:game-start
    #:game-tables
    #:game-taken-choices
+   #:claim-generated-room-result
+   #:clear-player-condition
    #:find-player-inventory-entry
    #:find-generated-room
    #:find-encounter-state
@@ -87,11 +89,13 @@
    #:encounter-status
    #:encounter-str
    #:generated-room
+   #:generated-room-claimed-results
    #:generated-room-description
    #:generated-room-depth
    #:generated-room-exits
    #:generated-room-exit-target
    #:generated-room-results
+   #:generated-room-result-claimed-p
    #:generated-room-state-plist
    #:generated-room-visited-p
    #:generated-room-zone
@@ -132,6 +136,7 @@
    #:player-armor
    #:player-background
    #:player-conditions
+   #:player-condition-p
    #:player-deprived-p
    #:player-dex
    #:player-fatigue
@@ -159,10 +164,12 @@
    #:register-generated-room
    #:register-encounter-state
    #:remove-player-inventory-entry
+   #:recover-player
    #:restore-runtime-state
    #:attack-encounter
    #:ensure-room-encounter-state
    #:flee-encounter
+   #:use-player-ration
    #:make-runtime-context
    #:prioritized-mixin
    #:random-table
@@ -200,6 +207,7 @@
    #:table-entry-weight
    #:table-result-encounters
    #:table-result-exits
+   #:table-result-loot-results
    #:table-id
    #:table-index
    #:table-mode

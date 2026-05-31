@@ -705,6 +705,26 @@
     (signals error
       (remove-player-inventory-entry player :supply :ration :count 2))))
 
+(test player-recovery-and-ration-use-mutates-state
+  (let ((player (make-instance 'player
+                               :hp 2
+                               :max-hp 4
+                               :inventory '((:supply :ration :count 2))
+                               :fatigue 2
+                               :conditions '(:deprived :poisoned))))
+    (is (player-condition-p player :deprived))
+    (recover-player player
+                    :hp 5
+                    :fatigue 1
+                    :clear-conditions '(:deprived))
+    (is (= 4 (player-hp player)))
+    (is (= 1 (player-fatigue player)))
+    (is (not (player-condition-p player :deprived)))
+    (is (player-condition-p player :poisoned))
+    (use-player-ration player)
+    (is (= 1 (player-inventory-count player :supply :ration)))
+    (is (= 0 (player-fatigue player)))))
+
 (test runtime-state-captures-and-restores-player-state
   (let* ((game
            (source-game-with-player
@@ -872,6 +892,103 @@
       (is (contains-substring-p "1. Return" output))
       (is (eq :defeated (encounter-status encounter))))))
 
+(test generated-room-active-encounter-allows-ration-use
+  (let* ((game (source-game-with-player
+                '(:player
+                  :name "Mara"
+                  :hp 3
+                  :max-hp 4
+                  :inventory ((:supply :ration)))))
+         (player (game-player game))
+         (room (create-generated-room
+                game
+                :zone :dungeon
+                :title "Shadowed Room"
+                :results '((:encounter :watchful-shadow))
+                :exits '((:back . "room"))))
+         (encounter (ensure-room-encounter-state
+                     game
+                     room
+                     '(:encounter :watchful-shadow)
+                     :hp 1
+                     :damage 1))
+         (session (make-runtime-session game :current-room (name room))))
+    (multiple-value-bind (output result)
+        (run-session-script session (format nil "2~%1~%1~%"))
+      (is (equal "room" (name result)))
+      (is (contains-substring-p "2. Eat ration" output))
+      (is (contains-substring-p "3. Flee" output))
+      (is (contains-substring-p "You eat a ration and recover." output))
+      (is (= 4 (player-hp player)))
+      (is (= 0 (player-inventory-count player :supply :ration)))
+      (is (eq :defeated (encounter-status encounter))))))
+
+(test generated-room-loot-choices-claim-and-persist
+  (let* ((game (source-game-with-player
+                '(:player :name "Mara" :hp 4)))
+         (room (create-generated-room
+                game
+                :zone :dungeon
+                :title "Looted Room"
+                :results '((:supply :ration)
+                           (:gold 3)
+                           (:room-detail :old-bones))
+                :exits '((:back . "room"))))
+         (session (make-runtime-session game :current-room (name room))))
+    (multiple-value-bind (output result)
+        (run-session-script session (format nil "1~%1~%1~%"))
+      (is (equal "room" (name result)))
+      (is (contains-substring-p "1. Take ration" output))
+      (is (contains-substring-p "You take ration." output))
+      (is (contains-substring-p "1. Take 3 gold" output))
+      (is (contains-substring-p "You take 3 gold." output))
+      (is (= 1 (player-inventory-count (game-player game) :supply :ration)))
+      (is (= 3 (player-gold (game-player game))))
+      (is (equal '(0 1) (generated-room-claimed-results room))))
+    (let* ((state (capture-runtime-state session))
+           (fresh-game (source-game-with-player
+                        '(:player :name "Mara" :hp 4)))
+           (restored-session (restore-runtime-state fresh-game state))
+           (restored-room (find-generated-room fresh-game
+                                               (name room)
+                                               :errorp t)))
+      (declare (ignore restored-session))
+      (is (equal '(0 1) (generated-room-claimed-results restored-room)))
+      (multiple-value-bind (output result)
+          (run-session-script
+           (make-runtime-session fresh-game :current-room (name restored-room))
+           (format nil "1~%"))
+        (is (equal "room" (name result)))
+        (is (not (contains-substring-p "Take ration" output)))
+        (is (not (contains-substring-p "Take 3 gold" output)))
+        (is (contains-substring-p "1. Return" output))))))
+
+(test generated-room-ration-use-recovers-in-exploration
+  (let* ((game (source-game-with-player
+                '(:player
+                  :name "Mara"
+                  :hp 2
+                  :max-hp 3
+                  :inventory ((:supply :ration :count 2))
+                  :fatigue 1
+                  :conditions (:deprived))))
+         (player (game-player game))
+         (room (create-generated-room
+                game
+                :zone :dungeon
+                :title "Quiet Room"
+                :exits '((:back . "room"))))
+         (session (make-runtime-session game :current-room (name room))))
+    (multiple-value-bind (output result)
+        (run-session-script session (format nil "1~%1~%"))
+      (is (equal "room" (name result)))
+      (is (contains-substring-p "1. Eat ration" output))
+      (is (contains-substring-p "You eat a ration and recover." output))
+      (is (= 3 (player-hp player)))
+      (is (= 0 (player-fatigue player)))
+      (is (not (player-condition-p player :deprived)))
+      (is (= 1 (player-inventory-count player :supply :ration))))))
+
 (test generated-rooms-register-render-and-round-trip-runtime-state
   (let* ((game (source-game-with-body))
          (room (create-generated-room
@@ -984,7 +1101,16 @@
      '(:current-room "room"
        :generated-rooms
        ((:id 42
-         :zone :dungeon))))))
+         :zone :dungeon)))))
+  (signals error
+    (restore-runtime-state
+     (source-game-with-body)
+     '(:current-room "room"
+       :generated-rooms
+       ((:id "generated:dungeon:1"
+         :zone :dungeon
+         :results ((:gold 1))
+         :claimed-results (1)))))))
 
 (test runtime-state-rejects-malformed-encounter-state
   (signals error
@@ -1289,6 +1415,10 @@
           (ration-count (getf (second resolved) :count)))
       (is (<= 1 gold 6))
       (is (<= 1 ration-count 4))
+      (is (equal (list (first resolved)
+                       (second resolved)
+                       (third resolved))
+                 (table-result-loot-results resolved)))
       (apply-resolved-table-result-to-player player resolved)
       (is (= (+ 2 gold) (player-gold player)))
       (is (= (+ 1 ration-count)
@@ -2075,7 +2205,7 @@
                game
                room
                :deeper))))
-    (is (= 3 (player-inventory-count (game-player game) :supply :ration)))
+    (is (= 2 (player-inventory-count (game-player game) :supply :ration)))
     (is (= 2 (gethash :rooms-generated (game-global-state game))))
     (is (= 2 (gethash :dungeon-depth (game-global-state game))))
     (is (gethash :first-room-generated (game-global-state game)))
@@ -2097,15 +2227,21 @@
       (is (= 2 (length (game-generated-rooms fresh-game))))
       (is (= 2 (length (game-encounter-states fresh-game))))
       (multiple-value-bind (output result)
-          (run-session-script restored-session (format nil "2~%2~%2~%1~%"))
+          (run-session-script restored-session (format nil "2~%1~%2~%2~%2~%"))
         (is (contains-substring-p (room-title restored-room) output))
         (is (contains-substring-p "A first find waits here" output))
         (is (contains-substring-p "Encounter: Watchful Shadow" output))
         (is (contains-substring-p "2. Flee" output))
+        (is (contains-substring-p "1. Take ration" output))
+        (is (contains-substring-p "You take ration." output))
         (is (contains-substring-p "1. Return" output))
         (is (contains-substring-p "2. Continue deeper" output))
         (is (contains-substring-p "This chamber sits at depth 2" output))
         (is (typep result 'quit))
+        (is (= 3 (player-inventory-count (game-player fresh-game)
+                                          :supply
+                                          :ration)))
+        (is (equal '(1) (generated-room-claimed-results restored-room)))
         (is (equal (name restored-room)
                    (runtime-session-current-room-name restored-session)))))))
 
@@ -2114,7 +2250,7 @@
     (is (game-player game))
     (is (= 2 (length (game-generated-rooms game))))
     (is (= 2 (length (game-encounter-states game))))
-    (is (= 3 (player-inventory-count (game-player game) :supply :ration)))
+    (is (= 2 (player-inventory-count (game-player game) :supply :ration)))
     (is (= 13 (length (game-roll-log game))))))
 
 (test html-compiler-generates-single-file-index-shell
