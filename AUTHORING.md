@@ -91,12 +91,18 @@ result shorthand for CL loot procedures to roll before adding entries to a
 player.
 
 Use `(:encounter ENCOUNTER-ID ...)` for bestiary or encounter templates.
-Common options include `:count`, `:reaction`, and `:morale`.
+Common options include `:count`, `:reaction`, `:morale`, `:hp`, `:str`,
+`:armor`, and `:damage`.
 
 ```lisp
 (:encounter :goblin-scouts)
 (:encounter :skeletons :count "1d6" :reaction :uncertain)
 ```
+
+Encounter results are still data. CL decides which room owns the encounter,
+which enemy profile defaults to apply, and whether the resulting combat is
+active, defeated, escaped, or player-defeated. Generated rooms can surface
+active encounter choices before ordinary exits.
 
 Use `(:hazard HAZARD-ID)`, `(:feature FEATURE-ID)`, and
 `(:room-detail DETAIL-ID)` for procedural dungeon content.

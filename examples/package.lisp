@@ -8,6 +8,7 @@
    #:basic-example
    #:control-panel-example
    #:ensure-adaptation-first-room
+   #:ensure-adaptation-room-encounter
    #:ensure-adaptation-room-exit
    #:generated-adaptation-example
    #:instanced-adaptation-example

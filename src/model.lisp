@@ -39,6 +39,8 @@
                          :initform (make-hash-table :test 'equal))
    (generated-room-counter :accessor game-generated-room-counter
                            :initform 0)
+   (encounter-index :reader game-encounter-index
+                    :initform (make-hash-table :test 'equal))
    (table-index :reader table-index :initform (make-hash-table :test 'eql))
    (start :accessor game-start :initarg :start :initform nil))
   (:children (thing) (append (game-rooms thing)
@@ -693,6 +695,14 @@
     (:then :effect-block :default nil)
     (:else :effect-block :default nil))))
 
+(define-dunge-node encounter-action (effect-node)
+  ((room-name :reader encounter-action-room-name
+              :initarg :room-name
+              :initform nil)
+   (action :reader encounter-action-kind
+           :initarg :action
+           :initform nil)))
+
 (define-dunge-node choice (availability-mixin consumable-mixin)
   ((label :accessor label :initarg :label :initform nil)
    (target :accessor target :initarg :target :initform nil))
@@ -737,6 +747,156 @@
   (unless (and (integerp value) (not (minusp value)))
     (error "~A must be a non-negative integer; got ~S." label value))
   value)
+
+(defclass encounter-state ()
+  ((room-name :accessor encounter-room-name
+              :initarg :room
+              :initform nil)
+   (enemy-id :accessor encounter-enemy-id
+             :initarg :enemy-id
+             :initform nil)
+   (reaction :accessor encounter-reaction
+             :initarg :reaction
+             :initform nil)
+   (hp :accessor encounter-hp :initarg :hp :initform 1)
+   (max-hp :accessor encounter-max-hp :initarg :max-hp :initform nil)
+   (str :accessor encounter-str :initarg :str :initform 10)
+   (max-str :accessor encounter-max-str :initarg :max-str :initform nil)
+   (armor :accessor encounter-armor :initarg :armor :initform 0)
+   (damage :accessor encounter-damage :initarg :damage :initform 1)
+   (round :accessor encounter-round :initarg :round :initform 0)
+   (status :accessor encounter-status :initarg :status :initform :active)
+   (source :accessor encounter-source :initarg :source :initform nil)))
+
+(defparameter +encounter-statuses+
+  '(:active :defeated :escaped :player-defeated))
+
+(defun encounter-room-name-string (room)
+  (cond
+    ((typep room 'room)
+     (scene-id-key (name room)))
+    ((stringp room)
+     (scene-id-key room))
+    (t
+     (error "Encounter room must be a room or room id string; got ~S."
+            room))))
+
+(defun encounter-enemy-id-key (enemy-id)
+  (unless (keywordp enemy-id)
+    (error "Encounter enemy id must be a keyword; got ~S." enemy-id))
+  enemy-id)
+
+(defun encounter-maybe-keyword-value (value label)
+  (unless (or (null value) (keywordp value))
+    (error "~A must be a keyword or NIL; got ~S." label value))
+  value)
+
+(defun encounter-damage-value (damage)
+  (unless (or (stringp damage)
+              (and (integerp damage) (not (minusp damage))))
+    (error "Encounter damage must be a non-negative integer or dice string; got ~S."
+           damage))
+  damage)
+
+(defun encounter-status-key (status)
+  (unless (member status +encounter-statuses+ :test #'eq)
+    (error "Encounter status must be one of ~S; got ~S."
+           +encounter-statuses+
+           status))
+  status)
+
+(defun validate-encounter-current-maximum (current maximum label)
+  (when (> current maximum)
+    (error "Encounter ~A current value ~D exceeds maximum ~D."
+           label
+           current
+           maximum)))
+
+(defun make-encounter-state (&key room enemy-id reaction (hp 1) max-hp
+                                  (str 10) max-str (armor 0) (damage 1)
+                                  (round 0) (status :active) source)
+  (let* ((room-name (encounter-room-name-string room))
+         (enemy-id (encounter-enemy-id-key enemy-id))
+         (reaction (encounter-maybe-keyword-value reaction
+                                                  "Encounter reaction"))
+         (hp (non-negative-integer-value hp "Encounter HP"))
+         (max-hp (non-negative-integer-value (or max-hp hp)
+                                             "Encounter max HP"))
+         (str (non-negative-integer-value str "Encounter STR"))
+         (max-str (non-negative-integer-value (or max-str str)
+                                              "Encounter max STR"))
+         (armor (non-negative-integer-value armor "Encounter armor"))
+         (damage (encounter-damage-value damage))
+         (round (non-negative-integer-value round "Encounter round"))
+         (status (encounter-status-key status)))
+    (validate-encounter-current-maximum hp max-hp "HP")
+    (validate-encounter-current-maximum str max-str "STR")
+    (make-instance 'encounter-state
+                   :room room-name
+                   :enemy-id enemy-id
+                   :reaction reaction
+                   :hp hp
+                   :max-hp max-hp
+                   :str str
+                   :max-str max-str
+                   :armor armor
+                   :damage damage
+                   :round round
+                   :status status
+                   :source (copy-tree source))))
+
+(defun encounter-state-plist (encounter)
+  (list :room (encounter-room-name encounter)
+        :enemy (encounter-enemy-id encounter)
+        :reaction (encounter-reaction encounter)
+        :hp (encounter-hp encounter)
+        :max-hp (encounter-max-hp encounter)
+        :str (encounter-str encounter)
+        :max-str (encounter-max-str encounter)
+        :armor (encounter-armor encounter)
+        :damage (encounter-damage encounter)
+        :round (encounter-round encounter)
+        :status (encounter-status encounter)
+        :source (copy-tree (encounter-source encounter))))
+
+(defun encounter-active-p (encounter)
+  (eq (encounter-status encounter) :active))
+
+(defun encounter-finished-p (encounter)
+  (not (encounter-active-p encounter)))
+
+(defun clear-encounter-states (game)
+  (clrhash (game-encounter-index game))
+  game)
+
+(defun game-encounter-states (game)
+  (sort (loop for encounter being the hash-values of (game-encounter-index game)
+              collect encounter)
+        #'string<
+        :key #'encounter-room-name))
+
+(defun find-encounter-state (game room &key errorp active-only)
+  (let ((room-name (encounter-room-name-string room)))
+    (multiple-value-bind (encounter present-p)
+        (gethash room-name (game-encounter-index game))
+      (cond
+        ((and present-p
+              (or (not active-only)
+                  (encounter-active-p encounter)))
+         encounter)
+        (errorp
+         (error "No encounter state for room ~S." room-name))
+        (t nil)))))
+
+(defun register-encounter-state (game encounter)
+  (unless (typep encounter 'encounter-state)
+    (error "Can only register ENCOUNTER-STATE instances; got ~S."
+           encounter))
+  (let ((room-name (encounter-room-name encounter)))
+    (when (nth-value 1 (gethash room-name (game-encounter-index game)))
+      (error "Duplicate encounter state for room ~S." room-name))
+    (setf (gethash room-name (game-encounter-index game)) encounter)
+    encounter))
 
 (defun generated-room-zone-key (zone)
   (unless (keywordp zone)
@@ -1255,6 +1415,7 @@
   (setf (game-random-state game) (game-random-seed game)
         (game-roll-log-reversed game) nil)
   (clear-generated-rooms game)
+  (clear-encounter-states game)
   (reset-player-state (game-player game))
   (dolist (table (game-tables game))
     (reset-table-state table))

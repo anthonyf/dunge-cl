@@ -15,6 +15,12 @@
 
 (defparameter +adaptation-generated-dungeon-target+ "generated:dungeon:*")
 
+(defparameter +adaptation-encounters+
+  '((:watchful-shadow
+     :hp 2
+     :str 8
+     :damage 1)))
+
 (defun load-adaptation-example ()
   (load-dunge-file
    (asdf:system-relative-pathname "dunge/examples"
@@ -26,6 +32,13 @@
 
 (defun adaptation-background-value (background key &optional default)
   (getf (rest (adaptation-background-data background)) key default))
+
+(defun adaptation-encounter-data (enemy-id)
+  (or (find enemy-id +adaptation-encounters+ :key #'first :test #'eq)
+      (error "Unknown adaptation encounter ~S." enemy-id)))
+
+(defun adaptation-encounter-value (enemy-id key &optional default)
+  (getf (rest (adaptation-encounter-data enemy-id)) key default))
 
 (defun adaptation-roll-total (game expression label)
   (roll-dice-value game expression :label label))
@@ -75,6 +88,19 @@
   (when (game-player game)
     (apply-resolved-table-result-to-player (game-player game) results))
   results)
+
+(defun ensure-adaptation-room-encounter (game room)
+  (let ((encounter-result (first (table-result-encounters
+                                  (generated-room-results room)))))
+    (when encounter-result
+      (let ((enemy-id (second encounter-result)))
+        (ensure-room-encounter-state
+         game
+         room
+         encounter-result
+         :hp (adaptation-encounter-value enemy-id :hp 3)
+         :str (adaptation-encounter-value enemy-id :str 10)
+         :damage (adaptation-encounter-value enemy-id :damage 1))))))
 
 (defun find-adaptation-first-room (game)
   (find-if (lambda (room)
@@ -133,6 +159,7 @@
                  :description room-description
                  :results resolved-results
                  :exits exits)))
+      (ensure-adaptation-room-encounter game room)
       (note-adaptation-dungeon-state game)
       room)))
 
@@ -194,6 +221,7 @@
                 (apply-adaptation-room-results game resolved-results)
                 room))))
     (ensure-adaptation-room-exit game room :deeper)
+    (ensure-adaptation-room-encounter game room)
     (note-adaptation-dungeon-state game)
     room))
 

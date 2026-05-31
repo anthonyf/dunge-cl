@@ -28,7 +28,7 @@
 - [X] Add persistent generated room instances for the adaptation's first room
 - [X] Resolve basic loot and exit table results into player/world mutations
 - [X] Expand generated rooms into a small dungeon graph
-- [ ] Add encounter state and a minimal combat loop
+- [X] Add encounter state and a minimal combat loop
 - [ ] Add item-use table result procedures
 - [ ] Add browser character and encounter panels
 

@@ -777,6 +777,101 @@
     (signals error
       (restore-runtime-state (source-game-with-body) state))))
 
+(test encounter-state-starts-from-table-results-and-round-trips-runtime-state
+  (let* ((game (source-game-with-player
+                '(:player :name "Mara" :hp 4 :armor 1)))
+         (room (create-generated-room
+                game
+                :zone :dungeon
+                :results '((:encounter :watchful-shadow
+                             :reaction :uncertain))))
+         (encounter-result (first (table-result-encounters
+                                   (generated-room-results room))))
+         (encounter (ensure-room-encounter-state
+                     game
+                     room
+                     encounter-result
+                     :hp 5
+                     :str 8
+                     :damage 2))
+         (session (make-runtime-session game :current-room (name room)))
+         (state (capture-runtime-state session)))
+    (is (eq encounter (find-encounter-state game room)))
+    (is (eq :watchful-shadow (encounter-enemy-id encounter)))
+    (is (eq :uncertain (encounter-reaction encounter)))
+    (is (= 5 (encounter-hp encounter)))
+    (is (= 8 (encounter-str encounter)))
+    (is (= 1 (length (getf state :encounters))))
+    (let* ((fresh-game (source-game-with-body))
+           (restored-session (restore-runtime-state fresh-game state))
+           (restored-encounter (find-encounter-state
+                                fresh-game
+                                (name room)
+                                :errorp t)))
+      (is (equal (name room)
+                 (runtime-session-current-room-name restored-session)))
+      (is (eq :watchful-shadow
+              (encounter-enemy-id restored-encounter)))
+      (is (= 5 (encounter-hp restored-encounter)))
+      (is (= 2 (encounter-damage restored-encounter)))
+      (is (equal encounter-result
+                 (encounter-source restored-encounter))))))
+
+(test encounter-combat-attacks-and-flee-update-state
+  (let* ((game (source-game-with-player
+                '(:player :name "Mara" :hp 4 :armor 1)))
+         (player (game-player game))
+         (encounter (make-encounter-state
+                     :room "room"
+                     :enemy-id :watchful-shadow
+                     :hp 3
+                     :damage 2)))
+    (register-encounter-state game encounter)
+    (let ((result (attack-encounter game player encounter :damage 1)))
+      (is (equal :attack (getf result :action)))
+      (is (= 2 (encounter-hp encounter)))
+      (is (= 3 (player-hp player)))
+      (is (= 1 (encounter-round encounter)))
+      (is (eq :active (encounter-status encounter))))
+    (let ((result (attack-encounter game player encounter :damage 2)))
+      (is (= 0 (encounter-hp encounter)))
+      (is (= 3 (player-hp player)))
+      (is (= 2 (encounter-round encounter)))
+      (is (eq :defeated (getf result :status)))
+      (is (eq :defeated (encounter-status encounter))))
+    (let ((fleeing (make-encounter-state
+                    :room "room"
+                    :enemy-id :watchful-shadow)))
+      (is (eq :escaped
+              (getf (flee-encounter fleeing) :status)))
+      (is (= 1 (encounter-round fleeing)))
+      (is (encounter-finished-p fleeing)))))
+
+(test generated-room-active-encounter-renders-combat-choices
+  (let* ((game (source-game-with-player
+                '(:player :name "Mara" :hp 4)))
+         (room (create-generated-room
+                game
+                :zone :dungeon
+                :title "Shadowed Room"
+                :results '((:encounter :watchful-shadow))
+                :exits '((:back . "room"))))
+         (encounter (ensure-room-encounter-state
+                     game
+                     room
+                     '(:encounter :watchful-shadow)
+                     :hp 1
+                     :damage 1))
+         (session (make-runtime-session game :current-room (name room))))
+    (multiple-value-bind (output result)
+        (run-session-script session (format nil "1~%1~%"))
+      (is (equal "room" (name result)))
+      (is (contains-substring-p "Encounter: Watchful Shadow" output))
+      (is (contains-substring-p "1. Attack watchful-shadow" output))
+      (is (contains-substring-p "Watchful Shadow falls." output))
+      (is (contains-substring-p "1. Return" output))
+      (is (eq :defeated (encounter-status encounter))))))
+
 (test generated-rooms-register-render-and-round-trip-runtime-state
   (let* ((game (source-game-with-body))
          (room (create-generated-room
@@ -890,6 +985,36 @@
        :generated-rooms
        ((:id 42
          :zone :dungeon))))))
+
+(test runtime-state-rejects-malformed-encounter-state
+  (signals error
+    (restore-runtime-state
+     (source-game-with-body)
+     '(:current-room "room"
+       :encounters
+       ((:room "room"
+         :enemy "watchful-shadow"
+         :hp 1
+         :max-hp 1
+         :str 8
+         :max-str 8)))))
+  (signals error
+    (restore-runtime-state
+     (source-game-with-body)
+     '(:current-room "room"
+       :encounters
+       ((:room "room"
+         :enemy :watchful-shadow
+         :hp 1
+         :max-hp 1
+         :str 8
+         :max-str 8)
+        (:room "room"
+         :enemy :watchful-shadow
+         :hp 1
+         :max-hp 1
+         :str 8
+         :max-str 8))))))
 
 (test console-debug-undo-restores-previous-choice-state
   (let* ((game (build-save-load-fixture))
@@ -1954,6 +2079,8 @@
     (is (= 2 (gethash :rooms-generated (game-global-state game))))
     (is (= 2 (gethash :dungeon-depth (game-global-state game))))
     (is (gethash :first-room-generated (game-global-state game)))
+    (is (= 2 (length (game-encounter-states game))))
+    (is (find-encounter-state game room :active-only t))
     (is (eq room (dunge-examples:ensure-adaptation-first-room game)))
     (is (= roll-log-length (length (game-roll-log game))))
     (let* ((session (make-runtime-session game :current-room (name room)))
@@ -1968,10 +2095,13 @@
       (is (equal (generated-room-results room)
                  (generated-room-results restored-room)))
       (is (= 2 (length (game-generated-rooms fresh-game))))
+      (is (= 2 (length (game-encounter-states fresh-game))))
       (multiple-value-bind (output result)
-          (run-session-script restored-session (format nil "2~%1~%"))
+          (run-session-script restored-session (format nil "2~%2~%2~%1~%"))
         (is (contains-substring-p (room-title restored-room) output))
         (is (contains-substring-p "A first find waits here" output))
+        (is (contains-substring-p "Encounter: Watchful Shadow" output))
+        (is (contains-substring-p "2. Flee" output))
         (is (contains-substring-p "1. Return" output))
         (is (contains-substring-p "2. Continue deeper" output))
         (is (contains-substring-p "This chamber sits at depth 2" output))
@@ -1983,6 +2113,7 @@
   (let ((game (dunge-examples:load-instanced-adaptation-example)))
     (is (game-player game))
     (is (= 2 (length (game-generated-rooms game))))
+    (is (= 2 (length (game-encounter-states game))))
     (is (= 3 (player-inventory-count (game-player game) :supply :ration)))
     (is (= 13 (length (game-roll-log game))))))
 
