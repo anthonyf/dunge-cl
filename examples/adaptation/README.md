@@ -21,8 +21,10 @@ authored `:watchful-shadow` encounter result into persistent room-bound combat
 state with attack and flee choices. Generated rooms now expose unclaimed
 gold/item/supply results as loot choices, persist claimed result indexes, and
 let the player eat rations for basic recovery during exploration or combat. The
-next implementation slice should make character, inventory, and encounter state
-visible in the browser runtime.
+browser runtime now renders character, inventory, slot pressure, condition, and
+room-bound encounter state. The next implementation slice should make the
+authored threshold enter or recall the generated first room through the CL graph
+helpers.
 
 See [PROVENANCE.md](PROVENANCE.md) for source/license notes and
 [../../ADAPTATION_SUPPORT_AUDIT.md](../../ADAPTATION_SUPPORT_AUDIT.md) for the

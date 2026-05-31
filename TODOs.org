@@ -30,14 +30,15 @@
 - [X] Expand generated rooms into a small dungeon graph
 - [X] Add encounter state and a minimal combat loop
 - [X] Add item-use table result procedures
-- [ ] Add browser character and encounter panels
+- [X] Add browser character and encounter panels
+- [ ] Add generated dungeon entrance flow from the authored threshold
 
 * Phase 2: Character And Inventory
 - [X] Player state foundation with source validation and save/load
 - [X] Inventory data model with stack helpers, slot accounting, Fatigue pressure, and Deprived checks
 - [ ] Character creation flow with name, background, stats, HP, armor, gold, fate, and inventory
 - [ ] Background starting gear matching the design document
-- [ ] Inventory UI integration and gold handling
+- [X] Inventory UI integration and gold handling
 - [X] Rest/recovery integration for Fatigue and Deprived status
 - [ ] Item use effects for healing herbs, light sources, tools, spellbooks, scrolls, and relics
 
@@ -80,7 +81,7 @@
 
 * Phase 8: Presentation And Polish
 - [ ] Compact, readable play transcript
-- [ ] Character panel and inventory view
+- [X] Character panel and inventory view
 - [ ] Settings for roll visibility and logging
 - [ ] Error handling for invalid choices and malformed content
 - [ ] Example games that demonstrate rooms, containers, state, combat, and story progression

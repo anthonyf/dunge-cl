@@ -23,17 +23,17 @@ The first adaptation target is intentionally small:
 
 | Loop step | Current Dunge support | Missing support | Likely next slice |
 | --- | --- | --- | --- |
-| Player creation | `:player` source form, player save/load, inventory data model, adaptation player creation helper. | A player-facing character creation flow. | Browser character panel. |
+| Player creation | `:player` source form, player save/load, inventory data model, adaptation player creation helper, and browser character panel. | A player-facing character creation flow. | Generated dungeon entrance flow. |
 | Safe camp / entrance | Authored rooms, choices, actions, branches, flags, global state. | Nothing major for a static entrance loop. | Adaptation skeleton. |
-| Enter dungeon | `:go`, `:gosub`, `:back`, authored room ids, registered generated room ids, resolved exit data, generated room graph links, and active encounter/item-use choices. | Player-facing dungeon entrance flow that invokes the CL graph helpers directly. | Browser character panel. |
-| Generate room | Random tables, deterministic seed, table state, roll log, generated room API, generated room save/load, claimed loot indexes, a two-room adaptation graph, and room-bound encounters. | Richer room detail procedures and larger graph policies. | Browser character panel. |
-| Inspect room | Paragraphs, entities, conditional choices, local/ref/global state, generated room rendering, resolved room result facts, claimable loot, generated exits, and combat options. | Rich generated room interactions beyond description, facts, loot, exits, and the minimal combat loop. | Browser character panel. |
-| Encounters | Table result conventions can name encounters; CL can create persistent encounter state, render active choices, attack, damage, ration use, defeat, and flee. | Richer enemy profiles, morale, initiative/turn policy, and encounter rewards. | Browser character panel. |
-| Loot and supplies | Table result conventions, player inventory helpers, gold field, resolver support for gold/item/supply mutations, and player-facing generated-room loot claims. | Richer item descriptions, treasure tags, and reward policies. | Browser character panel. |
-| Item use | Inventory entries can store count, slots, condition, tags; generated rooms and combat can expose item-use choices; rations can be consumed. | Broader item-use catalog for light, tools, herbs, spellbooks, scrolls, and relics. | Browser character panel. |
-| Recovery | Player HP/max HP, fatigue, conditions, Deprived predicate, recovery helper, and ration procedure. | Full rest procedures and broader condition rules. | Browser character panel. |
-| Save/load | Current room, return stack, globals, locals, table state, roll log, player state, generated room instances, claimed loot, and encounter state. | Browser/runtime parity for encounter display. | Browser character panel. |
-| Browser presentation | Browser runtime already serializes player data. | Character/inventory/encounter panels and UI affordances for slots and conditions. | Browser character panel. |
+| Enter dungeon | `:go`, `:gosub`, `:back`, authored room ids, registered generated room ids, resolved exit data, generated room graph links, and active encounter/item-use choices. | Player-facing dungeon entrance flow that invokes the CL graph helpers directly. | Generated dungeon entrance flow. |
+| Generate room | Random tables, deterministic seed, table state, roll log, generated room API, generated room save/load, claimed loot indexes, a two-room adaptation graph, and room-bound encounters. | Richer room detail procedures and larger graph policies. | Generated dungeon entrance flow. |
+| Inspect room | Paragraphs, entities, conditional choices, local/ref/global state, generated room rendering, resolved room result facts, claimable loot, generated exits, combat options, and browser status. | Rich generated room interactions beyond description, facts, loot, exits, and the minimal combat loop. | Generated dungeon entrance flow. |
+| Encounters | Table result conventions can name encounters; CL can create persistent encounter state, render active choices, attack, damage, ration use, defeat, flee, and browser encounter status. | Richer enemy profiles, morale, initiative/turn policy, and encounter rewards. | Generated dungeon entrance flow. |
+| Loot and supplies | Table result conventions, player inventory helpers, gold field, resolver support for gold/item/supply mutations, player-facing generated-room loot claims, and browser inventory display. | Richer item descriptions, treasure tags, and reward policies. | Generated dungeon entrance flow. |
+| Item use | Inventory entries can store count, slots, condition, tags; generated rooms and combat can expose item-use choices; rations can be consumed. | Broader item-use catalog for light, tools, herbs, spellbooks, scrolls, and relics. | Generated dungeon entrance flow. |
+| Recovery | Player HP/max HP, fatigue, conditions, Deprived predicate, recovery helper, ration procedure, and browser display. | Full rest procedures and broader condition rules. | Generated dungeon entrance flow. |
+| Save/load | Current room, return stack, globals, locals, table state, roll log, player state, generated room instances, claimed loot, and encounter state. | Browser runtime parity for generated rooms and CL procedures. | Generated dungeon entrance flow. |
+| Browser presentation | Browser runtime renders character, inventory, slot pressure, fatigue, conditions, and room-bound encounter status. | Browser runtime parity for generated dungeon procedures. | Generated dungeon entrance flow. |
 
 ## Boundary Decisions
 
@@ -78,9 +78,15 @@ The first adaptation target is intentionally small:
    result indexes. Rooms and combat can ask whether a ration-use action is
    available without turning every item into bespoke authored room logic.
 
+6. **Browser character and encounter panel**
+   The browser backend now renders a compact status panel from serialized player
+   and encounter state: HP, attributes, armor, gold, fate, fatigue, conditions,
+   inventory, slots, and the encounter bound to the current authored room.
+
 ## Next Recommended PR
 
-Build the **browser character panel** slice next. The adaptation can now
-generate rooms, link them, run a small persistent combat loop, claim loot, and
-use rations; the next pressure point is making character, inventory, slots,
-conditions, and encounter status visible in the browser runtime.
+Build the **generated dungeon entrance flow** slice next. The adaptation can now
+generate rooms, link them, run a small persistent combat loop, claim loot, use
+rations, and display character state in the browser; the next pressure point is
+letting the authored threshold enter or recall the generated first room through
+the CL graph helpers instead of routing through the placeholder room.

@@ -28,10 +28,16 @@ body {
   background: #f7f4ed;
 }
 #dunge-app {
-  width: min(760px, calc(100vw - 32px));
+  width: min(1120px, calc(100vw - 32px));
   margin: 0 auto;
   padding: 48px 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 300px);
+  gap: 28px 36px;
+  align-items: start;
 }
+#dunge-controls { grid-column: 1 / -1; }
+#dunge-scene { min-width: 0; }
 #dunge-scene-title {
   margin: 0 0 24px;
   font-size: clamp(2rem, 7vw, 3.75rem);
@@ -52,9 +58,54 @@ body {
   font-style: italic;
 }
 #dunge-choices {
+  grid-column: 1;
   display: grid;
   gap: 10px;
   margin-top: 32px;
+}
+#dunge-status {
+  grid-column: 2;
+  grid-row: 2 / span 2;
+  border-left: 1px solid #c9bfae;
+  padding-left: 24px;
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;
+  font-size: 0.95rem;
+  line-height: 1.35;
+}
+#dunge-status[hidden] { display: none; }
+.dunge-status-section + .dunge-status-section {
+  margin-top: 24px;
+}
+.dunge-status-title {
+  margin: 0 0 10px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+.dunge-status-meta {
+  margin: -4px 0 12px;
+  color: #6f675c;
+}
+.dunge-status-grid {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 6px 14px;
+  margin: 0;
+}
+.dunge-status-grid dt {
+  color: #6f675c;
+}
+.dunge-status-grid dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.dunge-inventory {
+  margin: 10px 0 0;
+  padding-left: 1.1rem;
+}
+.dunge-inventory li {
+  margin: 4px 0;
 }
 .dunge-choice {
   display: block;
@@ -123,6 +174,22 @@ body {
   #dunge-undo:hover,
   #dunge-undo:focus { border-color: #f4efe5; background: #25221c; }
   .dunge-quit { color: #bbb3a6; }
+  #dunge-status { border-left-color: #474035; }
+  .dunge-status-meta,
+  .dunge-status-grid dt { color: #bbb3a6; }
+}
+@media (max-width: 820px) {
+  #dunge-app {
+    display: block;
+    width: min(760px, calc(100vw - 32px));
+  }
+  #dunge-status {
+    margin-top: 32px;
+    padding-left: 0;
+    padding-top: 24px;
+    border-left: 0;
+    border-top: 1px solid #c9bfae;
+  }
 }")
 
 (defun html-object (&rest pairs)
@@ -412,6 +479,7 @@ body {
      "armor" (dunge:player-armor player)
      "gold" (dunge:player-gold player)
      "fate" (dunge:player-fate player)
+     "inventoryCapacity" dunge:+player-inventory-capacity+
      "inventory" (html-array
                   (mapcar #'compile-html-literal-data
                           (dunge:player-inventory player)))
@@ -420,17 +488,38 @@ body {
                    (mapcar #'compile-keyword-value
                            (dunge:player-conditions player))))))
 
+(defun compile-html-encounter (encounter)
+  (html-object
+   "room" (dunge:encounter-room-name encounter)
+   "enemy" (compile-keyword-value (dunge:encounter-enemy-id encounter))
+   "reaction" (and (dunge:encounter-reaction encounter)
+                   (compile-keyword-value
+                    (dunge:encounter-reaction encounter)))
+   "hp" (dunge:encounter-hp encounter)
+   "maxHp" (dunge:encounter-max-hp encounter)
+   "str" (dunge:encounter-str encounter)
+   "maxStr" (dunge:encounter-max-str encounter)
+   "armor" (dunge:encounter-armor encounter)
+   "damage" (compile-runtime-value (dunge:encounter-damage encounter))
+   "round" (dunge:encounter-round encounter)
+   "status" (compile-keyword-value (dunge:encounter-status encounter))))
+
 (defun compile-game-data (game)
   "Compile GAME to the browser data model used by the generated Parenscript."
-  (dunge:validate-game game)
-  (html-object
-   "version" 1
-   "start" (dunge:game-start game)
-   "player" (compile-html-player (dunge:game-player game))
-   "state" (compile-state-declarations
-            (dunge:game-global-state-declarations game))
-   "rooms" (html-array (mapcar #'compile-html-node
-                               (dunge:game-rooms game)))))
+  (let ((encounters (dunge:game-encounter-states game)))
+    (dunge:validate-game game)
+    (dolist (encounter encounters)
+      (dunge:register-encounter-state game encounter))
+    (html-object
+     "version" 1
+     "start" (dunge:game-start game)
+     "player" (compile-html-player (dunge:game-player game))
+     "encounters" (html-array
+                   (mapcar #'compile-html-encounter encounters))
+     "state" (compile-state-declarations
+              (dunge:game-global-state-declarations game))
+     "rooms" (html-array (mapcar #'compile-html-node
+                                 (dunge:game-rooms game))))))
 
 (defun json-escape-string (string stream)
   (write-char #\" stream)
@@ -515,6 +604,7 @@ body {
     (defvar *game* nil)
     (defvar *state* nil)
     (defvar *player* nil)
+    (defvar *encounters* (array))
     (defvar *current-location* nil)
     (defvar *return-stack* (array))
     (defvar *undo-stack* (array))
@@ -634,6 +724,189 @@ body {
         (setf (@ target length) index)
         value))
 
+    (defun titleize-name (name)
+      (let ((parts (chain (or name "") (split "-")))
+            (labels (array)))
+        (dolist (part parts)
+          (when (> (@ part length) 0)
+            (push-array labels
+                        (+ (chain (chain part (char-at 0)) (to-upper-case))
+                           (chain part (slice 1))))))
+        (chain labels (join " "))))
+
+    (defun display-value (value)
+      (cond
+        ((keyword-p value)
+         (titleize-name (@ value name)))
+        ((eql value nil)
+         "None")
+        ((eql value undefined)
+         "None")
+        ((eql value t)
+         "Yes")
+        ((eql value false)
+         "No")
+        (t
+         (+ "" value))))
+
+    (defun append-status-row (list-element label value)
+      (append-text list-element "dt" nil label)
+      (append-text list-element "dd" nil (display-value value)))
+
+    (defun append-status-section (panel title)
+      (let ((section (chain document (create-element "section"))))
+        (setf (@ section class-name) "dunge-status-section")
+        (append-text section "h2" "dunge-status-title" title)
+        (chain panel (append-child section))
+        section))
+
+    (defun append-status-grid (section)
+      (let ((grid (chain document (create-element "dl"))))
+        (setf (@ grid class-name) "dunge-status-grid")
+        (chain section (append-child grid))
+        grid))
+
+    (defun keyword-list-text (values)
+      (let ((labels (array)))
+        (dolist (value (node-list values))
+          (push-array labels (display-value value)))
+        (if (> (@ labels length) 0)
+            (chain labels (join ", "))
+            "None")))
+
+    (defun inventory-option (entry option default-value)
+      (let ((result default-value)
+            (length (@ entry length)))
+        (dotimes (offset length)
+          (let ((index (+ 2 (* offset 2))))
+            (when (< (+ index 1) length)
+              (let ((key (aref entry index)))
+                (when (and (keyword-p key)
+                           (eql (@ key name) option))
+                  (setf result (aref entry (+ index 1))))))))
+        result))
+
+    (defun inventory-entry-count (entry)
+      (let ((count (inventory-option entry "count" 1)))
+        (if (eql (typeof count) "number")
+            count
+            1)))
+
+    (defun inventory-entry-slots (entry)
+      (let ((explicit (inventory-option entry "slots" undefined)))
+        (if (not (eql explicit undefined))
+            explicit
+            (let ((kind (and (keyword-p (aref entry 0))
+                             (@ (aref entry 0) name))))
+              (cond
+                ((eql kind "item")
+                 (* (inventory-entry-count entry)
+                    (if (truthy (inventory-option entry "bulky" nil)) 2 1)))
+                ((eql kind "supply")
+                 1)
+                (t
+                 0))))))
+
+    (defun inventory-used-slots ()
+      (let ((used (or (@ *player* fatigue) 0)))
+        (dolist (entry (node-list (@ *player* inventory)))
+          (setf used (+ used (inventory-entry-slots entry))))
+        used))
+
+    (defun inventory-entry-label (entry)
+      (let* ((id (display-value (aref entry 1)))
+             (count (inventory-entry-count entry)))
+        (if (> count 1)
+            (+ id " x" count)
+            id)))
+
+    (defun render-inventory-list (section)
+      (let ((inventory (node-list (@ *player* inventory))))
+        (if (> (@ inventory length) 0)
+            (let ((list (chain document (create-element "ul"))))
+              (setf (@ list class-name) "dunge-inventory")
+              (dolist (entry inventory)
+                (append-text list "li" nil (inventory-entry-label entry)))
+              (chain section (append-child list)))
+            (append-text section "p" "dunge-status-meta" "Inventory is empty."))))
+
+    (defun render-player-status (panel)
+      (when *player*
+        (let* ((section (append-status-section
+                         panel
+                         (or (@ *player* name) "Character")))
+               (used (inventory-used-slots))
+               (capacity (or (@ *player* inventory-capacity) 10)))
+          (when (@ *player* background)
+            (append-text section
+                         "p"
+                         "dunge-status-meta"
+                         (display-value (@ *player* background))))
+          (let ((grid (append-status-grid section)))
+            (append-status-row grid "HP" (+ (@ *player* hp)
+                                            "/"
+                                            (@ *player* max-hp)))
+            (append-status-row grid "STR" (+ (@ *player* str)
+                                             "/"
+                                             (@ *player* max-str)))
+            (append-status-row grid "DEX" (+ (@ *player* dex)
+                                             "/"
+                                             (@ *player* max-dex)))
+            (append-status-row grid "WIL" (+ (@ *player* wil)
+                                             "/"
+                                             (@ *player* max-wil)))
+            (append-status-row grid "Armor" (@ *player* armor))
+            (append-status-row grid "Gold" (@ *player* gold))
+            (append-status-row grid "Fate" (@ *player* fate))
+            (append-status-row grid "Fatigue" (@ *player* fatigue))
+            (append-status-row grid "Conditions"
+                               (keyword-list-text (@ *player* conditions)))
+            (append-status-row grid "Slots" (+ used
+                                               "/"
+                                               capacity
+                                               " used")))
+          (render-inventory-list section))))
+
+    (defun encounter-for-current-room ()
+      (let ((room-id (room-location-id *current-location*))
+            (match nil))
+        (when room-id
+          (dolist (encounter (node-list *encounters*))
+            (when (and (not match)
+                       (eql (@ encounter room) room-id))
+              (setf match encounter))))
+        match))
+
+    (defun render-encounter-status (panel encounter)
+      (when encounter
+        (let ((grid (append-status-grid
+                     (append-status-section panel "Encounter"))))
+          (append-status-row grid "Enemy" (@ encounter enemy))
+          (append-status-row grid "Status" (@ encounter status))
+          (append-status-row grid "HP" (+ (@ encounter hp)
+                                          "/"
+                                          (@ encounter max-hp)))
+          (append-status-row grid "STR" (+ (@ encounter str)
+                                           "/"
+                                           (@ encounter max-str)))
+          (append-status-row grid "Armor" (@ encounter armor))
+          (append-status-row grid "Damage" (@ encounter damage))
+          (append-status-row grid "Round" (@ encounter round))
+          (when (@ encounter reaction)
+            (append-status-row grid "Reaction" (@ encounter reaction))))))
+
+    (defun render-status-panel ()
+      (let ((panel (by-id "dunge-status"))
+            (encounter (encounter-for-current-room)))
+        (when panel
+          (clear-element panel)
+          (if (or *player* encounter)
+              (progn
+                (setf (@ panel hidden) false)
+                (render-player-status panel)
+                (render-encounter-status panel encounter))
+              (setf (@ panel hidden) t)))))
+
     (defun object-key-count (object)
       (@ (chain -object (keys object)) length))
 
@@ -685,6 +958,7 @@ body {
       (setf *state* (create :globals (initial-state (@ *game* state))
                             :taken-choices (create)))
       (setf *player* (copy-json-value (@ *game* player)))
+      (setf *encounters* (copy-json-value (@ *game* encounters)))
       (setf *current-location* (room-by-id (@ *game* start))))
 
     (defun room-location-id (location)
@@ -1074,6 +1348,7 @@ body {
         (if (eql (@ *current-location* type) "container-view")
             (render-container-view title body choices-element)
             (render-room title body choices-element))
+        (render-status-panel)
         (update-undo-control)))
 
     (defun render-room (title body choices-element)
@@ -1247,7 +1522,8 @@ body {
          (:section :id "dunge-scene" :aria-live "polite"
           (:h1 :id "dunge-scene-title")
           (:div :id "dunge-scene-body"))
-         (:nav :id "dunge-choices" :aria-label "Choices")))))))
+         (:nav :id "dunge-choices" :aria-label "Choices")
+         (:aside :id "dunge-status" :aria-label "Character status" :hidden "hidden")))))))
 
 (defun write-index-html (game pathname &key (title *default-title*)
                                        (style *default-style*)

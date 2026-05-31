@@ -585,14 +585,22 @@ console evaluator.
 
 The backend emits a single self-contained `index.html` file. Lisp generates the
 static document shell, including the app mount points for scene title, scene
-body, and choices. Parenscript generates the embedded browser runtime script.
-The script owns game state and re-renders those static mount points as the
-player selects choices.
+body, choices, and a character/encounter status panel. Parenscript generates
+the embedded browser runtime script. The script owns game state and re-renders
+those static mount points as the player selects choices.
+
+The browser panel reads the same serialized player state used by save/load:
+HP, attributes, armor, gold, fate, fatigue, conditions, inventory, and slot
+pressure. The compiler also serializes current encounter states so the browser
+can show the encounter bound to the current authored room. This is presentation
+only; richer generated-dungeon and combat procedure parity remains CL-side
+work.
 
 The generated file does not rely on modules, fetches, or a web server. It is
 intended to run directly from `file://` in ordinary browsers. Browser storage,
-refresh guards, and save-game UI are deliberately later phases; the current
-compiler focuses on rendering and executing the existing MVP story primitives.
+refresh guards, save-game UI, story rendering, and the compact status panel are
+part of this backend; generated dungeon procedures are still driven by Common
+Lisp.
 
 ## Scope Cuts
 
