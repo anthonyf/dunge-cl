@@ -997,6 +997,23 @@
          :hp 1
          :max-hp 1
          :str 8
+         :max-str 8)))))
+  (signals error
+    (restore-runtime-state
+     (source-game-with-body)
+     '(:current-room "room"
+       :encounters
+       ((:room "room"
+         :enemy :watchful-shadow
+         :hp 1
+         :max-hp 1
+         :str 8
+         :max-str 8)
+        (:room "room"
+         :enemy :watchful-shadow
+         :hp 1
+         :max-hp 1
+         :str 8
          :max-str 8))))))
 
 (test console-debug-undo-restores-previous-choice-state

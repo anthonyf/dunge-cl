@@ -892,10 +892,11 @@
   (unless (typep encounter 'encounter-state)
     (error "Can only register ENCOUNTER-STATE instances; got ~S."
            encounter))
-  (setf (gethash (encounter-room-name encounter)
-                 (game-encounter-index game))
-        encounter)
-  encounter)
+  (let ((room-name (encounter-room-name encounter)))
+    (when (nth-value 1 (gethash room-name (game-encounter-index game)))
+      (error "Duplicate encounter state for room ~S." room-name))
+    (setf (gethash room-name (game-encounter-index game)) encounter)
+    encounter))
 
 (defun generated-room-zone-key (zone)
   (unless (keywordp zone)
