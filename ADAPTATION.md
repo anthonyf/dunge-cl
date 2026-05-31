@@ -133,3 +133,9 @@ This adaptation should tell us whether Dunge needs:
    only player-facing path. The console adaptation example now starts with a
    generated player, installs the persistent two-room dungeon graph, and wires
    the threshold's "enter generated chamber" choice to the first generated room.
+
+8. **Browser Generated-Room Parity**
+   Serialize pre-instanced generated rooms into the browser backend and render
+   the same first crawler interactions in standalone HTML: generated room text,
+   result facts, exits, loot claims, ration use, minimal encounter actions, and
+   save/load of generated room plus encounter mutations.

@@ -28,7 +28,14 @@ The console example is now the first runnable crawler slice: the CL loader
 installs a generated player, creates the persistent two-room dungeon graph, and
 rewires the authored threshold's `:enter-first-room` choice to the first
 generated room. The placeholder chamber remains only for the raw static source
-path; browser generated-room rendering is the next parity gap.
+path.
+
+The browser backend can now serialize and render those pre-instanced generated
+rooms too. In compiled HTML, generated rooms share normal navigation with
+authored rooms and support the same first crawler interactions: flee/attack an
+active encounter, claim generated loot, eat a ration, save/load, undo in debug
+mode, return to the threshold, or continue deeper through concrete generated
+exits.
 
 See [PROVENANCE.md](PROVENANCE.md) for source/license notes and
 [../../ADAPTATION_SUPPORT_AUDIT.md](../../ADAPTATION_SUPPORT_AUDIT.md) for the

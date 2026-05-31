@@ -32,7 +32,8 @@
 - [X] Add item-use table result procedures
 - [X] Add browser character and encounter panels
 - [X] Add generated dungeon entrance flow from the authored threshold
-- [ ] Add browser rendering and save/load parity for generated rooms
+- [X] Add browser rendering and save/load parity for generated rooms
+- [ ] Add adaptation browser demo target and smoke path
 
 * Phase 2: Character And Inventory
 - [X] Player state foundation with source validation and save/load
