@@ -539,6 +539,16 @@ body {
    "round" (dunge:encounter-round encounter)
    "status" (compile-keyword-value (dunge:encounter-status encounter))))
 
+(defun restore-compile-time-runtime-instances (game generated-rooms encounters)
+  "Restore runtime instances that VALIDATE-GAME clears while preparing GAME."
+  (dunge::clear-generated-rooms game)
+  (dunge::clear-encounter-states game)
+  (dolist (room generated-rooms)
+    (dunge:register-generated-room game room))
+  (dolist (encounter encounters)
+    (dunge:register-encounter-state game encounter))
+  game)
+
 (defun compile-game-data (game)
   "Compile GAME to the browser data model used by the generated Parenscript."
   (let ((generated-rooms (dunge:game-generated-rooms game))
@@ -546,22 +556,21 @@ body {
         (state (compile-state-declarations
                 (dunge:game-global-state-declarations game)
                 (dunge:game-global-state game))))
-    (dunge:validate-game game)
-    (dolist (room generated-rooms)
-      (dunge:register-generated-room game room))
-    (dolist (encounter encounters)
-      (dunge:register-encounter-state game encounter))
-    (html-object
-     "version" 1
-     "start" (dunge:game-start game)
-     "player" (compile-html-player (dunge:game-player game))
-     "encounters" (html-array
-                   (mapcar #'compile-html-encounter encounters))
-     "generatedRooms" (html-array
-                       (mapcar #'compile-html-node generated-rooms))
-     "state" state
-     "rooms" (html-array (mapcar #'compile-html-node
-                                 (dunge:game-rooms game))))))
+    (unwind-protect
+         (progn
+           (dunge:validate-game game)
+           (html-object
+            "version" 1
+            "start" (dunge:game-start game)
+            "player" (compile-html-player (dunge:game-player game))
+            "encounters" (html-array
+                          (mapcar #'compile-html-encounter encounters))
+            "generatedRooms" (html-array
+                              (mapcar #'compile-html-node generated-rooms))
+            "state" state
+            "rooms" (html-array (mapcar #'compile-html-node
+                                        (dunge:game-rooms game)))))
+      (restore-compile-time-runtime-instances game generated-rooms encounters))))
 
 (defun json-escape-string (string stream)
   (write-char #\" stream)

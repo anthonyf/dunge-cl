@@ -2449,7 +2449,14 @@
     (is (contains-substring-p "if (state['generatedRooms'] !== undefined)"
                               script))
     (is (contains-substring-p "if (state['encounters'] !== undefined)"
-                              script))))
+                              script))
+    (is (= 2 (length (game-generated-rooms game))))
+    (is (= 2 (length (game-encounter-states game))))
+    (is (find-generated-room game (name room) :errorp t))
+    (is (find-encounter-state game room :errorp t))
+    (is (contains-substring-p
+         "\"generatedRooms\":[{\"type\":\"generated-room\""
+         (dunge-html:compile-game-script game)))))
 
 (test html-compiler-can-enable-debug-controls
   (let* ((game (source-game-with-body
