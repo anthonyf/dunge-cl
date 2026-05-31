@@ -29,7 +29,7 @@
 - [X] Resolve basic loot and exit table results into player/world mutations
 - [X] Expand generated rooms into a small dungeon graph
 - [X] Add encounter state and a minimal combat loop
-- [ ] Add item-use table result procedures
+- [X] Add item-use table result procedures
 - [ ] Add browser character and encounter panels
 
 * Phase 2: Character And Inventory
@@ -38,7 +38,7 @@
 - [ ] Character creation flow with name, background, stats, HP, armor, gold, fate, and inventory
 - [ ] Background starting gear matching the design document
 - [ ] Inventory UI integration and gold handling
-- [ ] Rest/recovery integration for Fatigue and Deprived status
+- [X] Rest/recovery integration for Fatigue and Deprived status
 - [ ] Item use effects for healing herbs, light sources, tools, spellbooks, scrolls, and relics
 
 * Phase 3: Cairn Mechanics

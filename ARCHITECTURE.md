@@ -320,10 +320,11 @@ them. The shared resolver normalizes the first common crawler result shapes:
 `resolve-table-result-data` returns normalized result data without deciding
 where it belongs. `apply-resolved-table-result-to-player` and
 `apply-table-result-to-player` mutate player gold/inventory for the loot shapes
-only. `table-result-exits` extracts room exits from resolved result data. This
-keeps the `.dunge` boundary intact: source files describe what was rolled, and
-CL procedure code decides whether that roll becomes loot, an exit, room detail,
-an encounter marker, or something else.
+only. `table-result-loot-results` extracts gold/item/supply results, and
+`table-result-exits` extracts room exits from resolved result data. This keeps
+the `.dunge` boundary intact: source files describe what was rolled, and CL
+procedure code decides whether that roll becomes a loot choice, an exit, room
+detail, an encounter marker, or something else.
 
 `table-result-encounters` extracts encounter result shapes for procedures that
 want to bind a rolled result to a room, generated site, NPC, or other runtime
@@ -347,13 +348,20 @@ The public CL API is intentionally small:
 - `set-generated-room-exit` adds or replaces a generated room exit.
 - `link-generated-rooms` links two generated rooms and can also write the
   reciprocal exit.
+- `generated-room-result-claimed-p` and `claim-generated-room-result` track
+  claimed generated-room result indexes.
 
 Generated room save data records the id, zone, depth, title, description,
-resolved table results, exits, and visited flag. Runtime save/load restores
-generated rooms before resolving the current room and return stack, so a saved
-run can resume inside generated content. The graph helpers only store concrete
-room-id exits, so a generated room can link to authored rooms or other generated
-rooms through the same navigation path.
+resolved table results, claimed result indexes, exits, and visited flag.
+Runtime save/load restores generated rooms before resolving the current room
+and return stack, so a saved run can resume inside generated content. The graph
+helpers only store concrete room-id exits, so a generated room can link to
+authored rooms or other generated rooms through the same navigation path.
+
+Generated rooms render unclaimed `:gold`, `:item`, and `:supply` results as
+"Take ..." choices. Selecting one applies the resolved loot to the player,
+marks that result index claimed, and refreshes the room. This makes generated
+loot durable without turning the `.dunge` result data into imperative code.
 
 `.dunge` still describes the possible ingredients. CL owns when those
 ingredients become persistent world state. For example, the adaptation testbed
@@ -458,8 +466,11 @@ the entry.
 The Common Lisp inventory helpers add and remove counted entries, stack
 matching item/supply records, compute used and free slots, count Fatigue as
 slot pressure, and expose `player-deprived-p` when the player is explicitly
-Deprived or their inventory is full. Item use effects, shop transactions, and
-gold handling remain CL behavior layered on this data model.
+Deprived or their inventory is full. Recovery helpers can restore HP, reduce
+Fatigue, and clear conditions. The first item-use procedure is ration use,
+which consumes one `:supply :ration` entry and recovers a small amount.
+Additional item effects, shop transactions, and richer gold handling remain CL
+behavior layered on this data model.
 
 If a game has no authored player, the runtime may still restore a saved player
 record. This keeps the model compatible with a future character creation flow,
@@ -485,8 +496,10 @@ the encounter, applies any enemy profile defaults, and registers an
 resolved table result. `attack-encounter` rolls player damage, applies enemy
 armor, and lets an active enemy strike back if it survives. `flee-encounter`
 marks the encounter escaped. Generated rooms render active encounter choices
-before ordinary exits; once the encounter is defeated, escaped, or the player is
-defeated, ordinary room exits become available again.
+before ordinary exits, with available item-use choices such as "Eat ration"
+inserted into the combat menu when they can help. Once the encounter is
+defeated, escaped, or the player is defeated, loot and ordinary room exits
+become available again.
 
 Runtime save data includes `:encounters`, and undo captures encounter state
 alongside player, generated room, table, RNG, and local/global state.

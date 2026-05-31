@@ -261,6 +261,60 @@ can TYPEP the result against QUIT, BACK, and related classes."))
     (t
      (princ-to-string result))))
 
+(defun generated-room-display-lower (value)
+  (string-downcase (generated-room-display-word value)))
+
+(defun generated-room-counted-loot-text (result)
+  (let ((count (positive-integer-value
+                (getf (cddr result) :count 1)
+                "Generated room loot count"))
+        (name (generated-room-display-lower (second result))))
+    (if (= count 1)
+        name
+        (format nil "~D ~A" count name))))
+
+(defun generated-room-loot-text (result)
+  (case (table-result-kind result)
+    (:gold
+     (format nil "~D gold"
+             (non-negative-integer-value (second result)
+                                         "Generated room gold amount")))
+    ((:item :supply)
+     (generated-room-counted-loot-text result))
+    (otherwise
+     (generated-room-display-lower (table-result-kind result)))))
+
+(defun generated-room-loot-label (result)
+  (format nil "Take ~A" (generated-room-loot-text result)))
+
+(defun generated-room-loot-message (result)
+  (format nil "You take ~A." (generated-room-loot-text result)))
+
+(defun generated-room-loot-choice (room result index)
+  (%make-choice :label (generated-room-loot-label result)
+                :target (%make-loot-action
+                         :room-name (name room)
+                         :result-index index)))
+
+(defun generated-room-loot-choices (room)
+  (loop for result in (generated-room-results room)
+        for index from 0
+        when (and (table-result-loot-p result)
+                  (not (generated-room-result-claimed-p room index)))
+          collect (generated-room-loot-choice room result index)))
+
+(defun player-can-use-ration-p (player)
+  (and player
+       (plusp (player-inventory-count player :supply :ration))
+       (or (< (player-hp player) (player-max-hp player))
+           (plusp (player-fatigue player))
+           (player-deprived-p player))))
+
+(defun generated-room-item-use-choices (player)
+  (when (player-can-use-ration-p player)
+    (list (%make-choice :label "Eat ration"
+                        :target (%make-item-use-action :action :ration)))))
+
 (defun generated-room-exit-label (direction)
   (case direction
     (:back "Return")
@@ -280,20 +334,22 @@ can TYPEP the result against QUIT, BACK, and related classes."))
           (encounter-hp encounter)
           (encounter-max-hp encounter)))
 
-(defun generated-room-encounter-choices (room encounter)
+(defun generated-room-encounter-choices (room encounter player)
   (when (and encounter
              (encounter-active-p encounter))
-    (list (%make-choice :label (format nil "Attack ~A"
-                                       (string-downcase
-                                        (symbol-name
-                                         (encounter-enemy-id encounter))))
-                        :target (%make-encounter-action
-                                 :room-name (name room)
-                                 :action :attack))
-          (%make-choice :label "Flee"
-                        :target (%make-encounter-action
-                                 :room-name (name room)
-                                 :action :flee)))))
+    (append
+     (list (%make-choice :label (format nil "Attack ~A"
+                                        (string-downcase
+                                         (symbol-name
+                                          (encounter-enemy-id encounter))))
+                         :target (%make-encounter-action
+                                  :room-name (name room)
+                                  :action :attack)))
+     (generated-room-item-use-choices player)
+     (list (%make-choice :label "Flee"
+                         :target (%make-encounter-action
+                                  :room-name (name room)
+                                  :action :flee))))))
 
 (defmethod evaluate ((room generated-room) &optional context)
   (setf (generated-room-visited-p room) t)
@@ -309,10 +365,15 @@ can TYPEP the result against QUIT, BACK, and related classes."))
                                            room)))
       (when encounter
         (format *output* "~A~%~%" (generated-room-encounter-line encounter)))
-      (let ((collected-options
-              (or (generated-room-encounter-choices room encounter)
-                  (mapcar #'generated-room-exit-choice
-                          (generated-room-exits room)))))
+      (let* ((player (game-player (runtime-context-game room-context)))
+             (encounter-options
+               (generated-room-encounter-choices room encounter player))
+             (collected-options
+               (or encounter-options
+                   (append (generated-room-loot-choices room)
+                           (generated-room-item-use-choices player)
+                           (mapcar #'generated-room-exit-choice
+                                   (generated-room-exits room))))))
         (if (or collected-options
                 (runtime-debug-undo-available-p room-context))
             (evaluate (%make-choices :options collected-options) room-context)
@@ -810,6 +871,20 @@ can TYPEP the result against QUIT, BACK, and related classes."))
     (apply-resolved-table-result-to-player player resolved)
     resolved))
 
+(defun table-result-loot-p (result)
+  (and (table-result-data-p result)
+       (member (table-result-kind result) '(:gold :item :supply) :test #'eq)))
+
+(defun table-result-loot-results (result)
+  (cond
+    ((table-result-loot-p result)
+     (list (copy-tree result)))
+    ((and (listp result)
+          (not (table-result-data-p result)))
+     (loop for entry in result
+           append (table-result-loot-results entry)))
+    (t nil)))
+
 (defun table-result-exit-p (result)
   (and (table-result-data-p result)
        (eq (table-result-kind result) :exit)))
@@ -1299,6 +1374,19 @@ can TYPEP the result against QUIT, BACK, and related classes."))
   (ensure-runtime-list results "generated room results")
   (copy-tree results))
 
+(defun runtime-generated-room-claimed-results (claimed-results result-count)
+  (ensure-runtime-list claimed-results "generated room claimed results")
+  (let ((claimed (mapcar (lambda (index)
+                           (let ((index (non-negative-integer-value
+                                         index
+                                         "Generated room claimed result index")))
+                             (unless (< index result-count)
+                               (error "Runtime generated room claimed result index ~D is out of range."
+                                      index))
+                              index))
+                         claimed-results)))
+    (sort (remove-duplicates claimed :test #'=) #'<)))
+
 (defun runtime-generated-room-exits (exits)
   (ensure-runtime-list exits "generated room exits")
   (mapcar (lambda (exit)
@@ -1329,17 +1417,23 @@ can TYPEP the result against QUIT, BACK, and related classes."))
                 "Generated room depth"))
         (results (runtime-generated-room-results
                   (runtime-state-field entry :results nil)))
+        (claimed-results nil)
         (exits (runtime-generated-room-exits
                 (runtime-state-field entry :exits nil)))
         (visited (runtime-boolean-value
                   (runtime-state-field entry :visited nil)
                   "generated room visited flag")))
+    (setf claimed-results
+          (runtime-generated-room-claimed-results
+           (runtime-state-field entry :claimed-results nil)
+           (length results)))
     (list :id id
           :title title
           :description description
           :zone zone
           :depth depth
           :results results
+          :claimed-results claimed-results
           :exits exits
           :visited-p visited)))
 
@@ -1831,6 +1925,64 @@ can TYPEP the result against QUIT, BACK, and related classes."))
     (render-pending-choice-spacing)
     (format *output* "~A~%~%" (combat-result-message encounter result))
     nil))
+
+(defun effect-generated-room (game room-name context label)
+  (let ((room-name (or room-name
+                       (and context
+                            (runtime-context-scene context)
+                            (name (runtime-context-scene context))))))
+    (unless room-name
+      (error "~A requires a generated room context." label))
+    (find-generated-room game room-name :errorp t)))
+
+(defmethod execute-effect ((effect loot-action) &optional context)
+  (let* ((game (runtime-context-game context))
+         (room (effect-generated-room game
+                                      (loot-action-room-name effect)
+                                      context
+                                      "Loot action"))
+         (index (non-negative-integer-value
+                 (loot-action-result-index effect)
+                 "Loot result index")))
+    (unless (< index (length (generated-room-results room)))
+      (error "Generated room ~S has no result at index ~D."
+             (name room)
+             index))
+    (when (generated-room-result-claimed-p room index)
+      (error "Generated room result ~D in ~S has already been claimed."
+             index
+             (name room)))
+    (let ((result (nth index (generated-room-results room)))
+          (player (game-player game)))
+      (unless player
+        (error "Taking loot requires a player."))
+      (unless (table-result-loot-p result)
+        (error "Generated room result ~D in ~S is not loot: ~S."
+               index
+               (name room)
+               result))
+      (apply-resolved-table-result-to-player player result)
+      (claim-generated-room-result room index)
+      (render-pending-choice-spacing)
+      (format *output* "~A~%~%" (generated-room-loot-message result))
+      nil)))
+
+(defmethod execute-effect ((effect item-use-action) &optional context)
+  (let* ((game (runtime-context-game context))
+         (player (game-player game)))
+    (unless player
+      (error "Using an item requires a player."))
+    (case (item-use-action-kind effect)
+      (:ration
+       (unless (player-can-use-ration-p player)
+         (error "The player cannot use a ration right now."))
+       (use-player-ration player)
+       (render-pending-choice-spacing)
+       (format *output* "You eat a ration and recover.~%~%")
+       nil)
+      (otherwise
+       (error "Unknown item-use action ~S."
+              (item-use-action-kind effect))))))
 
 (defun evaluate-effects (effects context)
   (when effects

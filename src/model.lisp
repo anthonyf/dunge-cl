@@ -380,6 +380,38 @@
   (or (not (null (member :deprived (player-conditions player) :test #'eq)))
       (player-inventory-full-p player)))
 
+(defun player-condition-p (player condition)
+  (not (null (member (state-key condition)
+                     (player-conditions player)
+                     :test #'eq))))
+
+(defun clear-player-condition (player condition)
+  (setf (player-conditions player)
+        (remove (state-key condition) (player-conditions player) :test #'eq))
+  player)
+
+(defun recover-player (player &key (hp 0) (fatigue 0) clear-conditions)
+  (let ((hp (non-negative-integer-value hp "Recovery HP"))
+        (fatigue (non-negative-integer-value fatigue "Recovery fatigue")))
+    (when (plusp hp)
+      (setf (player-hp player)
+            (min (player-max-hp player)
+                 (+ (player-hp player) hp))))
+    (when (plusp fatigue)
+      (setf (player-fatigue player)
+            (max 0 (- (player-fatigue player) fatigue))))
+    (dolist (condition clear-conditions)
+      (clear-player-condition player condition))
+    player))
+
+(defun use-player-ration (player &key (hp 1) (fatigue 1)
+                                  (clear-conditions '(:deprived)))
+  (remove-player-inventory-entry player :supply :ration :count 1)
+  (recover-player player
+                  :hp hp
+                  :fatigue fatigue
+                  :clear-conditions clear-conditions))
+
 (define-dunge-node room ()
   ((name :reader name :initarg :name :initform nil)
    (title :reader room-title :initarg :title :initform nil)
@@ -402,6 +434,9 @@
    (results :accessor generated-room-results
             :initarg :results
             :initform nil)
+   (claimed-results :accessor generated-room-claimed-results
+                    :initarg :claimed-results
+                    :initform nil)
    (exits :accessor generated-room-exits :initarg :exits :initform nil)
    (visited-p :accessor generated-room-visited-p
               :initarg :visited-p
@@ -703,6 +738,19 @@
            :initarg :action
            :initform nil)))
 
+(define-dunge-node loot-action (effect-node)
+  ((room-name :reader loot-action-room-name
+              :initarg :room-name
+              :initform nil)
+   (result-index :reader loot-action-result-index
+                 :initarg :result-index
+                 :initform nil)))
+
+(define-dunge-node item-use-action (effect-node)
+  ((action :reader item-use-action-kind
+           :initarg :action
+           :initform nil)))
+
 (define-dunge-node choice (availability-mixin consumable-mixin)
   ((label :accessor label :initarg :label :initform nil)
    (target :accessor target :initarg :target :initform nil))
@@ -957,6 +1005,31 @@
   (proper-list-length-value results "Generated room results")
   results)
 
+(defun generated-room-claimed-result-list (claimed-results)
+  (proper-list-length-value claimed-results "Generated room claimed results")
+  (dolist (index claimed-results)
+    (non-negative-integer-value index "Generated room claimed result index"))
+  (sort (remove-duplicates (copy-list claimed-results) :test #'=) #'<))
+
+(defun generated-room-result-claimed-p (room index)
+  (not (null (member (non-negative-integer-value
+                      index
+                      "Generated room result index")
+                     (generated-room-claimed-results room)
+                     :test #'=))))
+
+(defun claim-generated-room-result (room index)
+  (let ((index (non-negative-integer-value index
+                                           "Generated room result index")))
+    (unless (< index (length (generated-room-results room)))
+      (error "Generated room ~S has no result at index ~D."
+             (name room)
+             index))
+    (unless (generated-room-result-claimed-p room index)
+      (setf (generated-room-claimed-results room)
+            (sort (cons index (generated-room-claimed-results room)) #'<)))
+    room))
+
 (defun generated-zone-id-part (zone)
   (string-downcase (symbol-name (generated-room-zone-key zone))))
 
@@ -982,9 +1055,17 @@
       (setf (game-generated-room-counter game)
             (max (game-generated-room-counter game) counter)))))
 
-(defun make-generated-room (&key id title description zone (depth 0) results exits
-                              visited-p)
-  (let ((id (generated-room-id-string id)))
+(defun make-generated-room (&key id title description zone (depth 0) results
+                              claimed-results exits visited-p)
+  (let* ((id (generated-room-id-string id))
+         (results (copy-tree (generated-room-result-list (or results nil))))
+         (claimed-results (generated-room-claimed-result-list
+                           (or claimed-results nil))))
+    (dolist (index claimed-results)
+      (unless (< index (length results))
+        (error "Generated room ~S has no result at claimed index ~D."
+               id
+               index)))
     (make-instance 'generated-room
                    :name id
                    :title (generated-room-title-string title id)
@@ -994,8 +1075,8 @@
                    :depth (non-negative-integer-value
                            depth
                            "Generated room depth")
-                   :results (copy-tree (generated-room-result-list
-                                        (or results nil)))
+                   :results results
+                   :claimed-results claimed-results
                    :exits (copy-tree (generated-room-exit-list
                                       (or exits nil)))
                    :visited-p (not (null visited-p)))))
@@ -1035,8 +1116,7 @@
     room))
 
 (defun create-generated-room (game &key id title description zone (depth 0)
-                                results exits
-                                visited-p)
+                                results claimed-results exits visited-p)
   (let ((room-id (or id (allocate-generated-room-id game zone))))
     (register-generated-room
      game
@@ -1046,6 +1126,7 @@
                           :zone zone
                           :depth depth
                           :results results
+                          :claimed-results claimed-results
                           :exits exits
                           :visited-p visited-p))))
 
@@ -1089,6 +1170,7 @@
         :zone (generated-room-zone room)
         :depth (generated-room-depth room)
         :results (copy-tree (generated-room-results room))
+        :claimed-results (copy-list (generated-room-claimed-results room))
         :exits (copy-tree (generated-room-exits room))
         :visited (generated-room-visited-p room)))
 

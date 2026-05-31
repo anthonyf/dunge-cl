@@ -63,7 +63,8 @@ The first playable vertical slice should include:
   and recall a two-room generated dungeon graph from authored table results.
 - A minimal combat loop with one player, one enemy profile, attacks, damage,
   defeat, escape, and save/load support.
-- Inventory-linked choices such as use supply, light source, tool, or treasure.
+- Inventory-linked choices such as claim generated loot and use a ration for
+  recovery during exploration or combat.
 - Save/load coverage for player, generated dungeon state, table state, current
   room, and encounter state.
 
@@ -116,7 +117,9 @@ This adaptation should tell us whether Dunge needs:
 
 5. **Loot, Item Use, And Recovery**
    Resolve table results into inventory/gold mutations, implement basic item use,
-   and wire recovery/Deprived behavior.
+   and wire recovery/Deprived behavior. The current testbed now surfaces
+   generated room loot as claimable choices, persists claimed result indexes,
+   and lets the player eat rations to recover HP/Fatigue and clear Deprived.
 
 6. **Browser Character Panel**
    Show character, inventory, slots, fatigue, conditions, and encounter status
