@@ -97,10 +97,16 @@ The first adaptation target is intentionally small:
    ration use, encounter attack/flee actions, undo, and save/load of generated
    room and encounter mutations.
 
+9. **Adaptation browser demo**
+   `examples/adaptation/index.html` is now a committed standalone browser demo
+   generated from the instanced adaptation loader. The exported
+   `dunge-examples:write-adaptation-browser-demo` helper rebuilds it, and the
+   adaptation README records a repeatable camp -> threshold -> generated room
+   -> encounter/loot -> deeper room smoke path.
+
 ## Next Recommended PR
 
-Build the **adaptation browser demo** slice next. The browser runtime can now
-play the pre-instanced generated-room slice, so the next pressure point is a
-small committed or generated demo target for the adaptation and a repeatable
-smoke path that proves camp -> threshold -> generated room -> encounter/loot ->
-deeper room in a real browser.
+Build the **player-facing character creation** slice next. The adaptation
+currently creates the player in CL before the browser build is compiled; the
+next pressure point is letting the player choose name/background and accept or
+reroll generated stats before entering the camp-to-dungeon loop.

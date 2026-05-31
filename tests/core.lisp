@@ -2269,6 +2269,42 @@
       (is (typep effect 'goto))
       (is (equal (name room) (room-name effect))))))
 
+(test adaptation-browser-demo-writes-repeatable-html-target
+  (let* ((path (merge-pathnames
+                (format nil "adaptation-demo-~A/index.html" (gensym))
+                (uiop:temporary-directory)))
+         (committed-path (dunge-examples:adaptation-browser-demo-path)))
+    (unwind-protect
+         (progn
+           (is (probe-file committed-path))
+           (is (equal path
+                      (dunge-examples:write-adaptation-browser-demo
+                       :pathname path
+                       :debug t)))
+           (let ((contents (uiop:read-file-string path)))
+             (is (contains-substring-p "Dunge Adaptation Testbed" contents))
+             (is (contains-substring-p
+                  "window.DUNGE_GAME_DEBUG = true"
+                  contents))
+             (is (contains-substring-p
+                  "\"generatedRooms\":[{\"type\":\"generated-room\""
+                  contents))
+             (is (contains-substring-p
+                  "\"rooms-generated\":2"
+                  contents))
+             (is (contains-substring-p
+                  "\"Enter the generated chamber\""
+                  contents))
+             (is (contains-substring-p
+                  "\"target\":\"generated:dungeon:2\""
+                  contents))
+             (is (contains-substring-p
+                  "\"room\":\"generated:dungeon:1\""
+                  contents))))
+      (let ((directory (uiop:pathname-directory-pathname path)))
+        (when (probe-file directory)
+          (uiop:delete-directory-tree directory :validate t))))))
+
 (test html-compiler-generates-single-file-index-shell
   (let* ((game (source-game-with-body
                 '(:p "A compiled room.")

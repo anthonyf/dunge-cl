@@ -139,3 +139,8 @@ This adaptation should tell us whether Dunge needs:
    the same first crawler interactions in standalone HTML: generated room text,
    result facts, exits, loot claims, ration use, minimal encounter actions, and
    save/load of generated room plus encounter mutations.
+
+9. **Adaptation Browser Demo**
+   Commit a standalone browser build of the instanced adaptation slice, expose
+   a CL helper to regenerate it, and keep a repeatable smoke path for camp ->
+   threshold -> generated room -> encounter/loot -> deeper room.

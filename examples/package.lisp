@@ -3,8 +3,11 @@
   (:shadowing-import-from #:dunge
                           #:room
                           #:sequence)
+  (:import-from #:dunge-html
+                #:write-index-html)
   (:export
    #:adaptation-example
+   #:adaptation-browser-demo-path
    #:basic-example
    #:control-panel-example
    #:ensure-adaptation-first-room
@@ -20,4 +23,5 @@
    #:load-control-panel-example
    #:load-generated-adaptation-example
    #:load-instanced-adaptation-example
-   #:make-adaptation-player))
+   #:make-adaptation-player
+   #:write-adaptation-browser-demo))

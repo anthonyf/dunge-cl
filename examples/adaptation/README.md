@@ -37,6 +37,31 @@ active encounter, claim generated loot, eat a ration, save/load, undo in debug
 mode, return to the threshold, or continue deeper through concrete generated
 exits.
 
+## Browser Demo
+
+The committed [index.html](index.html) file is a standalone browser build of
+the instanced adaptation slice. It starts at camp, enters the authored
+threshold, and follows the generated-room graph prepared by the CL helper.
+
+Regenerate it from the repository root with:
+
+```sh
+qlot exec sbcl --non-interactive --eval '(asdf:load-system :dunge/examples)' --eval '(dunge-examples:write-adaptation-browser-demo)'
+```
+
+Repeatable smoke path:
+
+1. Open `examples/adaptation/index.html`, or serve the repo locally and visit
+   `/examples/adaptation/`.
+2. Choose **Approach the white arch**.
+3. Choose **Enter the generated chamber**.
+4. Choose **Flee** or **Attack** until the encounter is no longer active.
+5. Choose **Take ration**.
+6. Choose **Continue deeper**.
+7. Choose **Flee** or **Attack** in the deeper generated room.
+8. Reload the page and confirm the deeper generated room, encounter state, and
+   ration inventory change persist.
+
 See [PROVENANCE.md](PROVENANCE.md) for source/license notes and
 [../../ADAPTATION_SUPPORT_AUDIT.md](../../ADAPTATION_SUPPORT_AUDIT.md) for the
 engine support audit.
