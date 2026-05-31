@@ -25,9 +25,9 @@ The first adaptation target is intentionally small:
 | --- | --- | --- | --- |
 | Player creation | `:player` source form, player save/load, inventory data model, adaptation player creation helper. | A player-facing character creation flow. | Browser character panel. |
 | Safe camp / entrance | Authored rooms, choices, actions, branches, flags, global state. | Nothing major for a static entrance loop. | Adaptation skeleton. |
-| Enter dungeon | `:go`, `:gosub`, `:back`, authored room ids, registered generated room ids, and resolved exit data. | A fuller graph procedure that decides when to create or recall adjacent rooms. | Small generated room graph. |
-| Generate room | Random tables, deterministic seed, table state, roll log, generated room API, generated room save/load, and first table result resolvers. | Graph expansion and richer room detail procedures. | Small generated room graph. |
-| Inspect room | Paragraphs, entities, conditional choices, local/ref/global state, generated room rendering, and resolved room result facts. | Rich generated room interactions beyond description, facts, and exits. | Small generated room graph. |
+| Enter dungeon | `:go`, `:gosub`, `:back`, authored room ids, registered generated room ids, resolved exit data, and generated room graph links. | Player-facing dungeon entrance flow that invokes the CL graph helpers directly. | Encounter state and combat. |
+| Generate room | Random tables, deterministic seed, table state, roll log, generated room API, generated room save/load, first table result resolvers, and a two-room adaptation graph. | Richer room detail procedures and larger graph policies. | Encounter state and combat. |
+| Inspect room | Paragraphs, entities, conditional choices, local/ref/global state, generated room rendering, resolved room result facts, and generated exits. | Rich generated room interactions beyond description, facts, and exits. | Encounter state and combat. |
 | Encounters | Table result conventions can name encounters. | Encounter model/state, enemy profiles, initiative/turn procedure, damage, morale, escape. | Encounter state and combat. |
 | Loot and supplies | Table result conventions, player inventory helpers, gold field, and resolver support for gold/item/supply mutations. | Player-facing loot choices, item use, and recovery procedures. | Loot, item use, and recovery. |
 | Item use | Inventory entries can store count, slots, condition, tags. | Item-use procedures and effect hooks callable from rooms and combat. | Loot, item use, and recovery. |
@@ -57,8 +57,9 @@ The first adaptation target is intentionally small:
 2. **Generated room instances**
    The engine has a CL-side API that creates room-like playable locations,
    assigns stable ids, registers them for navigation/save/load, and renders
-   generated descriptions, exits, and resolved table results. The adaptation
-   uses this to create and recall its first generated dungeon room.
+   generated descriptions, exits, and resolved table results. Graph helpers can
+   add, replace, and reciprocally link generated room exits. The adaptation uses
+   this to create and recall a small two-room generated dungeon graph.
 
 3. **Table result resolvers**
    The engine has a first shared resolver layer for result data: normalize
@@ -77,7 +78,7 @@ The first adaptation target is intentionally small:
 
 ## Next Recommended PR
 
-Build the **small generated room graph** slice next. The adaptation can now
-create one persistent generated room and resolve authored exit data; the next
-pressure point is deciding how a "continue deeper" choice creates or recalls
-adjacent generated rooms without authors prewriting every room id.
+Build the **encounter state and minimal combat** slice next. The adaptation can
+now create and save a small generated graph; the next pressure point is turning
+authored `(:encounter ...)` table results into persistent encounter state,
+player choices, damage, defeat, and escape.

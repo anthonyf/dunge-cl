@@ -13,6 +13,8 @@
                  (:item :lantern)
                  (:supply :ration :count 1)))))
 
+(defparameter +adaptation-generated-dungeon-target+ "generated:dungeon:*")
+
 (defun load-adaptation-example ()
   (load-dunge-file
    (asdf:system-relative-pathname "dunge/examples"
@@ -62,6 +64,13 @@
           (adaptation-result-label loot)
           (adaptation-result-label encounter)))
 
+(defun adaptation-room-description (segment loot encounter depth)
+  (format nil "~A A find waits here: ~A. A possible encounter stirs nearby: ~A. This chamber sits at depth ~D."
+          (adaptation-segment-description segment)
+          (adaptation-result-label loot)
+          (adaptation-result-label encounter)
+          depth))
+
 (defun apply-adaptation-room-results (game results)
   (when (game-player game)
     (apply-resolved-table-result-to-player (game-player game) results))
@@ -73,35 +82,120 @@
                   (= (generated-room-depth room) 1)))
            (game-generated-rooms game)))
 
+(defun adaptation-dungeon-rooms (game)
+  (remove-if-not (lambda (room)
+                   (eq (generated-room-zone room) :dungeon))
+                 (game-generated-rooms game)))
+
+(defun note-adaptation-dungeon-state (game)
+  (let ((rooms (adaptation-dungeon-rooms game)))
+    (setf (gethash :rooms-generated (game-global-state game)) (length rooms)
+          (gethash :dungeon-depth (game-global-state game))
+          (if rooms
+              (loop for room in rooms
+                    maximize (generated-room-depth room))
+              0)
+          (gethash :first-room-generated (game-global-state game))
+          (not (null (find-adaptation-first-room game)))))
+  game)
+
+(defun adaptation-room-content (game depth)
+  (let* ((segment-result (roll-table game :room-segment))
+         (loot-result (roll-table game :starter-loot))
+         (encounter-result (roll-table game :starter-encounter))
+         (resolved-results
+           (resolve-table-result-data game
+                                      (list segment-result
+                                            loot-result
+                                            encounter-result))))
+    (values segment-result
+            resolved-results
+            (adaptation-room-description
+             (adaptation-result-id segment-result)
+             (second resolved-results)
+             (third resolved-results)
+             depth))))
+
+(defun create-adaptation-dungeon-room (game depth &key title description results
+                                                    exits)
+  (multiple-value-bind (segment-result resolved-results room-description)
+      (if (and title description results)
+          (values nil results description)
+          (adaptation-room-content game depth))
+    (let ((room (create-generated-room
+                 game
+                 :zone :dungeon
+                 :depth depth
+                 :title (or title
+                            (and segment-result
+                                 (adaptation-result-label segment-result))
+                            (format nil "Dungeon Depth ~D" depth))
+                 :description room-description
+                 :results resolved-results
+                 :exits exits)))
+      (note-adaptation-dungeon-state game)
+      room)))
+
+(defun adaptation-graph-link (game)
+  (let* ((result (resolve-table-result-data game (roll-table game :dungeon-link)))
+         (exits (table-result-exits result)))
+    (unless (= 1 (length exits))
+      (error "Adaptation graph link table must resolve one exit; got ~S."
+             result))
+    (unless (equal +adaptation-generated-dungeon-target+ (cdr (first exits)))
+      (error "Adaptation graph link must target ~S; got ~S."
+             +adaptation-generated-dungeon-target+
+             result))
+    (first exits)))
+
+(defun ensure-adaptation-room-exit (game room direction)
+  (let ((target (generated-room-exit-target room direction)))
+    (if target
+        (find-generated-room game target :errorp t)
+        (let* ((link (adaptation-graph-link game))
+               (link-direction (car link)))
+          (unless (eq link-direction direction)
+            (error "Adaptation graph link expected ~S, got ~S."
+                   direction
+                   link-direction))
+          (let ((next-room
+                  (create-adaptation-dungeon-room
+                   game
+                   (1+ (generated-room-depth room)))))
+            (link-generated-rooms room direction next-room
+                                  :reverse-direction :back)
+            (note-adaptation-dungeon-state game)
+            next-room)))))
+
 (defun ensure-adaptation-first-room (game)
-  (or (find-adaptation-first-room game)
-      (let* ((segment-result (roll-table game :room-segment))
-             (loot-result (roll-table game :starter-loot))
-             (encounter-result (roll-table game :starter-encounter))
-             (exit-result (roll-table game :starter-exit))
-             (resolved-results
-               (resolve-table-result-data game
-                                          (list segment-result
-                                                loot-result
-                                                encounter-result
-                                                exit-result)))
-             (segment (adaptation-result-id segment-result))
-             (room (create-generated-room
-                    game
-                    :zone :dungeon
-                    :depth 1
-                    :title (adaptation-result-label segment-result)
-                    :description (adaptation-first-room-description
-                                  segment
-                                  (second resolved-results)
-                                  (third resolved-results))
-                    :results resolved-results
-                    :exits (table-result-exits resolved-results))))
-        (apply-adaptation-room-results game resolved-results)
-        (setf (gethash :rooms-generated (game-global-state game)) 1
-              (gethash :dungeon-depth (game-global-state game)) 1
-              (gethash :first-room-generated (game-global-state game)) t)
-        room)))
+  (let ((room
+          (or (find-adaptation-first-room game)
+              (let* ((segment-result (roll-table game :room-segment))
+                     (loot-result (roll-table game :starter-loot))
+                     (encounter-result (roll-table game :starter-encounter))
+                     (exit-result (roll-table game :starter-exit))
+                     (resolved-results
+                       (resolve-table-result-data game
+                                                  (list segment-result
+                                                        loot-result
+                                                        encounter-result
+                                                        exit-result)))
+                     (segment (adaptation-result-id segment-result))
+                     (room (create-adaptation-dungeon-room
+                            game
+                            1
+                            :title (adaptation-result-label segment-result)
+                            :description (adaptation-first-room-description
+                                          segment
+                                          (second resolved-results)
+                                          (third resolved-results))
+                            :results resolved-results
+                            :exits (table-result-exits resolved-results))))
+                (apply-adaptation-room-results game resolved-results)
+                room))))
+    (ensure-adaptation-room-exit game room :deeper)
+    (note-adaptation-dungeon-state game)
+    room))
 
 (defun make-adaptation-player (game &key
                                       (name "Generated Delver")

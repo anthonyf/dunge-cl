@@ -27,7 +27,7 @@
 - [X] Add dice utilities and CL character creation procedures for the adaptation
 - [X] Add persistent generated room instances for the adaptation's first room
 - [X] Resolve basic loot and exit table results into player/world mutations
-- [ ] Expand generated rooms into a small dungeon graph
+- [X] Expand generated rooms into a small dungeon graph
 - [ ] Add encounter state and a minimal combat loop
 - [ ] Add item-use table result procedures
 - [ ] Add browser character and encounter panels

@@ -338,12 +338,24 @@ The public CL API is intentionally small:
 - `register-generated-room` registers a room with an explicit id.
 - `find-generated-room` recalls a previously generated room.
 - `game-generated-rooms` returns the current generated room instances.
+- `generated-room-exit-target` reads the concrete target for a generated room
+  direction.
+- `set-generated-room-exit` adds or replaces a generated room exit.
+- `link-generated-rooms` links two generated rooms and can also write the
+  reciprocal exit.
 
 Generated room save data records the id, zone, depth, title, description,
 resolved table results, exits, and visited flag. Runtime save/load restores
 generated rooms before resolving the current room and return stack, so a saved
-run can resume inside generated content. `.dunge` still describes the possible
-ingredients; CL owns when those ingredients become persistent world state.
+run can resume inside generated content. The graph helpers only store concrete
+room-id exits, so a generated room can link to authored rooms or other generated
+rooms through the same navigation path.
+
+`.dunge` still describes the possible ingredients. CL owns when those
+ingredients become persistent world state. For example, the adaptation testbed
+rolls an authored `(:exit :deeper "generated:dungeon:*")` table result, then CL
+creates a concrete room such as `"generated:dungeon:2"` and links it back to the
+room that discovered it.
 
 ## State
 

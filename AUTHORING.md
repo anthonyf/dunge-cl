@@ -119,6 +119,15 @@ a player/world mutation.
 (:exit :deeper "generated:dungeon:2")
 ```
 
+Generator procedures may also reserve room-id templates that are not navigated
+directly. The adaptation testbed uses `"generated:dungeon:*"` to mean "create or
+recall the next generated dungeon room here." CL replaces that template with a
+concrete generated room id before storing the playable room exit.
+
+```lisp
+(:exit :deeper "generated:dungeon:*")
+```
+
 Use `(:npc NPC-ID ...)` for an NPC presence or generated contact. Common
 options include `:role` and `:disposition`.
 

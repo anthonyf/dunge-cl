@@ -71,6 +71,7 @@
    #:generated-room-description
    #:generated-room-depth
    #:generated-room-exits
+   #:generated-room-exit-target
    #:generated-room-results
    #:generated-room-state-plist
    #:generated-room-visited-p
@@ -90,6 +91,7 @@
    #:inventory-entry-tags
    #:item
    #:label
+   #:link-generated-rooms
    #:load-dunge-file
    #:load-dunge-string
    #:load-runtime-state-file
@@ -152,6 +154,7 @@
    #:runtime-session-return-stack-room-names
    #:say
    #:sequence
+   #:set-generated-room-exit
    #:state-clear
    #:state-dec
    #:state-inc
