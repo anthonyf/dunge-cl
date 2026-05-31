@@ -82,8 +82,8 @@ jobs:
           rm -rf public
           mkdir -p public
           cp .github/pages/index.html public/index.html
-          find . -mindepth 2 -maxdepth 2 -name index.html \
-            ! -path './.github/*' \
+          find . -mindepth 2 -name index.html \
+            ! -path './.*/*' \
             ! -path './public/*' \
             -print0 |
           while IFS= read -r -d '' page; do

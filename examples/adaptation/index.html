@@ -1,0 +1,1598 @@
+<!doctype html>
+<html lang='en'><head><meta charset='utf-8' /><meta name='viewport' content='width=device-width, initial-scale=1' /><title>Dunge Adaptation Testbed</title><style>*, *::before, *::after { box-sizing: border-box; }
+html { color-scheme: light dark; }
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: ui-serif, Georgia, Cambria, "Times New Roman", serif;
+  line-height: 1.55;
+  color: #211f1c;
+  background: #f7f4ed;
+}
+#dunge-app {
+  width: min(1120px, calc(100vw - 32px));
+  margin: 0 auto;
+  padding: 48px 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 300px);
+  gap: 28px 36px;
+  align-items: start;
+}
+#dunge-controls { grid-column: 1 / -1; }
+#dunge-scene { min-width: 0; }
+#dunge-scene-title {
+  margin: 0 0 24px;
+  font-size: clamp(2rem, 7vw, 3.75rem);
+  line-height: 1.05;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+#dunge-scene-body {
+  font-size: 1.1rem;
+}
+#dunge-scene-body p {
+  margin: 0 0 1rem;
+}
+.dunge-message {
+  margin: 0 0 1rem;
+  padding-left: 1rem;
+  border-left: 3px solid #8f6a3a;
+  font-style: italic;
+}
+#dunge-choices {
+  grid-column: 1;
+  display: grid;
+  gap: 10px;
+  margin-top: 32px;
+}
+#dunge-status {
+  grid-column: 2;
+  grid-row: 2 / span 2;
+  border-left: 1px solid #c9bfae;
+  padding-left: 24px;
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 0.95rem;
+  line-height: 1.35;
+}
+#dunge-status[hidden] { display: none; }
+.dunge-status-section + .dunge-status-section {
+  margin-top: 24px;
+}
+.dunge-status-title {
+  margin: 0 0 10px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+.dunge-status-meta {
+  margin: -4px 0 12px;
+  color: #6f675c;
+}
+.dunge-status-grid {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 6px 14px;
+  margin: 0;
+}
+.dunge-status-grid dt {
+  color: #6f675c;
+}
+.dunge-status-grid dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.dunge-inventory {
+  margin: 10px 0 0;
+  padding-left: 1.1rem;
+}
+.dunge-inventory li {
+  margin: 4px 0;
+}
+.dunge-choice {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 14px;
+  border: 1px solid #6f6a5f;
+  border-radius: 6px;
+  color: inherit;
+  background: #fffaf0;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.dunge-choice:hover,
+.dunge-choice:focus {
+  border-color: #211f1c;
+  outline: 2px solid transparent;
+  background: #fffdf8;
+}
+.dunge-quit {
+  color: #666056;
+}
+#dunge-controls {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+#dunge-new-game,
+#dunge-undo {
+  min-height: 36px;
+  padding: 6px 10px;
+  border: 1px solid #6f6a5f;
+  border-radius: 6px;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+#dunge-new-game:hover,
+#dunge-new-game:focus,
+#dunge-undo:hover,
+#dunge-undo:focus {
+  border-color: #211f1c;
+  outline: 2px solid transparent;
+  background: #fffaf0;
+}
+#dunge-undo:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+@media (prefers-color-scheme: dark) {
+  body { color: #f4efe5; background: #181713; }
+  .dunge-choice {
+    border-color: #80776a;
+    background: #25221c;
+  }
+  .dunge-choice:hover,
+  .dunge-choice:focus {
+    border-color: #f4efe5;
+    background: #302c24;
+  }
+  #dunge-new-game:hover,
+  #dunge-new-game:focus,
+  #dunge-undo:hover,
+  #dunge-undo:focus { border-color: #f4efe5; background: #25221c; }
+  .dunge-quit { color: #bbb3a6; }
+  #dunge-status { border-color: #474035; }
+  .dunge-status-meta,
+  .dunge-status-grid dt { color: #bbb3a6; }
+}
+@media (max-width: 820px) {
+  #dunge-app {
+    display: block;
+    width: min(760px, calc(100vw - 32px));
+  }
+  #dunge-status {
+    margin-top: 32px;
+    padding-left: 0;
+    padding-top: 24px;
+    border-left: 0;
+    border-top: 1px solid #c9bfae;
+  }
+}</style><script>window.DUNGE_GAME_DATA = {"version":1,"start":"camp","player":{"name":"Generated Delver","background":{"type":"keyword","name":"wanderer"},"str":10,"maxStr":10,"dex":10,"maxDex":10,"wil":8,"maxWil":8,"hp":1,"maxHp":1,"armor":0,"gold":6,"fate":0,"inventoryCapacity":10,"inventory":[[{"type":"keyword","name":"item"},{"type":"keyword","name":"lantern"}],[{"type":"keyword","name":"supply"},{"type":"keyword","name":"ration"},{"type":"keyword","name":"count"},2]],"fatigue":0,"conditions":[]},"encounters":[{"room":"generated:dungeon:1","enemy":{"type":"keyword","name":"watchful-shadow"},"reaction":{"type":"keyword","name":"uncertain"},"hp":2,"maxHp":2,"str":8,"maxStr":8,"armor":0,"damage":1,"round":0,"status":{"type":"keyword","name":"active"}},{"room":"generated:dungeon:2","enemy":{"type":"keyword","name":"watchful-shadow"},"reaction":{"type":"keyword","name":"uncertain"},"hp":2,"maxHp":2,"str":8,"maxStr":8,"armor":0,"damage":1,"round":0,"status":{"type":"keyword","name":"active"}}],"generatedRooms":[{"type":"generated-room","id":"generated:dungeon:1","title":"White Arch","description":"The white arch repeats itself in the dark, its stone too smooth to be old. A first find waits here: Ration. A possible encounter stirs nearby: Watchful Shadow.","zone":{"type":"keyword","name":"dungeon"},"depth":1,"results":[[{"type":"keyword","name":"room-segment"},{"type":"keyword","name":"white-arch"},{"type":"keyword","name":"tags"},[{"type":"keyword","name":"threshold"},{"type":"keyword","name":"dream"}]],[{"type":"keyword","name":"supply"},{"type":"keyword","name":"ration"},{"type":"keyword","name":"count"},1],[{"type":"keyword","name":"encounter"},{"type":"keyword","name":"watchful-shadow"},{"type":"keyword","name":"reaction"},{"type":"keyword","name":"uncertain"}],[{"type":"keyword","name":"exit"},{"type":"keyword","name":"back"},"threshold"]],"claimedResults":[],"exits":[{"direction":{"type":"keyword","name":"back"},"target":"threshold"},{"direction":{"type":"keyword","name":"deeper"},"target":"generated:dungeon:2"}],"visited":null},{"type":"generated-room","id":"generated:dungeon:2","title":"Cold Gallery","description":"A cold gallery stretches ahead, with every footstep returning a little late. A find waits here: Ration. A possible encounter stirs nearby: Watchful Shadow. This chamber sits at depth 2.","zone":{"type":"keyword","name":"dungeon"},"depth":2,"results":[[{"type":"keyword","name":"room-segment"},{"type":"keyword","name":"cold-gallery"},{"type":"keyword","name":"tags"},[{"type":"keyword","name":"room"},{"type":"keyword","name":"stone"}]],[{"type":"keyword","name":"supply"},{"type":"keyword","name":"ration"},{"type":"keyword","name":"count"},1],[{"type":"keyword","name":"encounter"},{"type":"keyword","name":"watchful-shadow"},{"type":"keyword","name":"reaction"},{"type":"keyword","name":"uncertain"}]],"claimedResults":[],"exits":[{"direction":{"type":"keyword","name":"back"},"target":"generated:dungeon:1"}],"visited":null}],"state":{"keys":["rooms-generated","dungeon-depth","first-room-generated"],"values":{"rooms-generated":2,"dungeon-depth":2,"first-room-generated":true}},"rooms":[{"type":"room","id":"camp","title":"Dunge Crawler Testbed","body":[{"type":"p","text":"A low campfire burns at the edge of the white arch. This is a tiny adaptation slice: authored rooms hand off to a generated dungeon graph prepared by Common Lisp."},{"type":"p","text":"The test delver has a lantern, two rations, and just enough nerve to step through."},{"type":"choice","label":"Approach the white arch","target":{"type":"goto","room":{"type":"literal","value":"threshold"}},"id":null,"once":null,"condition":null},{"type":"choice","label":"Leave the testbed","target":{"type":"quit"},"id":null,"once":null,"condition":null}]},{"type":"room","id":"threshold","title":"The White Arch","body":[{"type":"p","text":"The arch is smooth, pale, and cold. The dungeon beyond it is generated by Common Lisp from Dunge-authored tables in the adaptation helper."},{"type":"branch","condition":{"type":"state","scope":"global","role":null,"key":"first-room-generated"},"then":[{"type":"p","text":"The first generated chamber waits in the run log. The CL adaptation helper can recall that same persistent room from here."}],"else":[]},{"type":"choice","label":"Sketch the first generated chamber","target":{"type":"sequence","effects":[{"type":"inc","target":{"type":"state","scope":"global","role":null,"key":"rooms-generated"},"amount":{"type":"literal","value":1}},{"type":"inc","target":{"type":"state","scope":"global","role":null,"key":"dungeon-depth"},"amount":{"type":"literal","value":1}},{"type":"set","target":{"type":"state","scope":"global","role":null,"key":"first-room-generated"},"value":{"type":"literal","value":true}},{"type":"say","text":{"type":"literal","value":"The static source path still enters the placeholder room. The playable CL loader replaces the remembered chamber link with a generated room."}},{"type":"goto","room":{"type":"literal","value":"placeholder-room"}}]},"id":"sketch-first-room","once":true,"condition":{"type":"not","condition":{"type":"state","scope":"global","role":null,"key":"first-room-generated"}}},{"type":"choice","label":"Enter the generated chamber","target":{"type":"goto","room":{"type":"literal","value":"generated:dungeon:1"}},"id":"enter-first-room","once":null,"condition":{"type":"state","scope":"global","role":null,"key":"first-room-generated"}},{"type":"choice","label":"Return to camp","target":{"type":"goto","room":{"type":"literal","value":"camp"}},"id":null,"once":null,"condition":null}]},{"type":"room","id":"placeholder-room","title":"Placeholder Chamber","body":[{"type":"p","text":"The generated chamber now exists in the CL adaptation helper: rolled room segment, exits, encounter, loot, and persistent room state."},{"type":"p","text":"This static placeholder keeps the authored .dunge path playable while the runtime procedure proves out generated room instances."},{"type":"choice","label":"Return to the white arch","target":{"type":"goto","room":{"type":"literal","value":"threshold"}},"id":null,"once":null,"condition":null},{"type":"choice","label":"Quit","target":{"type":"quit"},"id":null,"once":null,"condition":null}]}]};
+window.DUNGE_GAME_SIGNATURE = "10ADCCD6";
+window.DUNGE_GAME_SAVE_KEY = "dunge-save:10ADCCD6";
+window.DUNGE_GAME_DEBUG = false;
+if ('undefined' === typeof __PS_MV_REG) {
+    var __PS_MV_REG = [];
+};
+if ('undefined' === typeof SAVEVERSION) {
+    var SAVEVERSION = 1;
+};
+if ('undefined' === typeof SAVEKEY) {
+    var SAVEKEY = null;
+};
+if ('undefined' === typeof SAVESIGNATURE) {
+    var SAVESIGNATURE = null;
+};
+if ('undefined' === typeof PROGRESSMADE) {
+    var PROGRESSMADE = null;
+};
+if ('undefined' === typeof DEBUG) {
+    var DEBUG = null;
+};
+if ('undefined' === typeof GAME) {
+    var GAME = null;
+};
+if ('undefined' === typeof STATE) {
+    var STATE = null;
+};
+if ('undefined' === typeof PLAYER) {
+    var PLAYER = null;
+};
+if ('undefined' === typeof ENCOUNTERS) {
+    var ENCOUNTERS = [];
+};
+if ('undefined' === typeof GENERATEDROOMS) {
+    var GENERATEDROOMS = [];
+};
+if ('undefined' === typeof CURRENTLOCATION) {
+    var CURRENTLOCATION = null;
+};
+if ('undefined' === typeof RETURNSTACK) {
+    var RETURNSTACK = [];
+};
+if ('undefined' === typeof UNDOSTACK) {
+    var UNDOSTACK = [];
+};
+if ('undefined' === typeof MESSAGES) {
+    var MESSAGES = [];
+};
+if ('undefined' === typeof VISIBLEMESSAGES) {
+    var VISIBLEMESSAGES = [];
+};
+if ('undefined' === typeof ROOMINDEX) {
+    var ROOMINDEX = null;
+};
+function byId(id) {
+    return document.getElementById(id);
+};
+function clearElement(element) {
+    return element.innerHTML = '';
+};
+function appendText(parent, tag, className, text) {
+    var element = document.createElement(tag);
+    if (className) {
+        element.className = className;
+    };
+    element.textContent = text;
+    parent.appendChild(element);
+    return element;
+};
+function copyObject(source) {
+    var target = {  };
+    for (var key = null, _js_arrvar2 = Object.keys(source), _js_idx1 = 0; _js_idx1 < _js_arrvar2.length; _js_idx1 += 1) {
+        key = _js_arrvar2[_js_idx1];
+        target[key] = source[key];
+    };
+    return target;
+};
+function keywordP(value) {
+    return value && value.type === 'keyword';
+};
+function valueEqual(left, right) {
+    __PS_MV_REG = [];
+    return keywordP(left) && keywordP(right) ? left.name === right.name : left === right;
+};
+function truthy(value) {
+    return !(value === null || value === false || value === undefined);
+};
+function debugQueryFlagP(search) {
+    var query = search || '';
+    var matched = null;
+    if (query.length > 0 && query.charAt(0) === '?') {
+        query = query.slice(1);
+    };
+    for (var part = null, _js_arrvar4 = query.split('&'), _js_idx3 = 0; _js_idx3 < _js_arrvar4.length; _js_idx3 += 1) {
+        part = _js_arrvar4[_js_idx3];
+        if (part === 'debug=1') {
+            matched = true;
+        };
+    };
+    return matched;
+};
+function debugHashFlagP(hash) {
+    return hash === '#debug';
+};
+function debugRequestedP() {
+    __PS_MV_REG = [];
+    return truthy(window['DUNGE_GAME_DEBUG']) || debugQueryFlagP(window.location.search) || debugHashFlagP(window.location.hash);
+};
+function runtimeError(message) {
+    throw Error(message);
+};
+function encodeJson(value) {
+    return JSON.stringify(value);
+};
+function decodeJson(text) {
+    return JSON.parse(text);
+};
+function copyJsonValue(value) {
+    __PS_MV_REG = [];
+    return value === null || value === undefined ? null : decodeJson(encodeJson(value));
+};
+function storageGet(key) {
+    try {
+        return window.localStorage.getItem(key);
+    } catch (error) {
+        return null;
+    };
+};
+function storageSet(key, value) {
+    try {
+        window.localStorage.setItem(key, value);
+        return true;
+    } catch (error) {
+        return null;
+    };
+};
+function storageRemove(key) {
+    try {
+        window.localStorage.removeItem(key);
+        return true;
+    } catch (error) {
+        return null;
+    };
+};
+function initialState(stateData) {
+    __PS_MV_REG = [];
+    return copyObject(stateData.values);
+};
+function roomById(roomId) {
+    var room = roomId && ROOMINDEX[roomId];
+    __PS_MV_REG = [];
+    return room ? room : runtimeError('No room named ' + roomId + '.');
+};
+function nodeList(value) {
+    return value || [];
+};
+function pushArray(target, value) {
+    target[target.length] = value;
+    return value;
+};
+function copyArray(source) {
+    var target = [];
+    for (var value = null, _js_arrvar6 = nodeList(source), _js_idx5 = 0; _js_idx5 < _js_arrvar6.length; _js_idx5 += 1) {
+        value = _js_arrvar6[_js_idx5];
+        pushArray(target, value);
+    };
+    __PS_MV_REG = [];
+    return target;
+};
+function popArray(target) {
+    var index = target.length - 1;
+    var value = target[index];
+    target.length = index;
+    return value;
+};
+function titleizeName(name) {
+    var parts = (name || '').split('-');
+    var labels = [];
+    for (var part = null, _js_idx7 = 0; _js_idx7 < parts.length; _js_idx7 += 1) {
+        part = parts[_js_idx7];
+        if (part.length > 0) {
+            pushArray(labels, part.charAt(0).toUpperCase() + part.slice(1));
+        };
+    };
+    __PS_MV_REG = [];
+    return labels.join(' ');
+};
+function displayValue(value) {
+    if (keywordP(value)) {
+        __PS_MV_REG = [];
+        return titleizeName(value.name);
+    } else if (value === null) {
+        __PS_MV_REG = [];
+        return 'None';
+    } else if (value === undefined) {
+        __PS_MV_REG = [];
+        return 'None';
+    } else if (value === true) {
+        __PS_MV_REG = [];
+        return 'Yes';
+    } else if (value === false) {
+        __PS_MV_REG = [];
+        return 'No';
+    } else {
+        __PS_MV_REG = [];
+        return '' + value;
+    };
+};
+function appendStatusRow(listElement, label, value) {
+    appendText(listElement, 'dt', null, label);
+    __PS_MV_REG = [];
+    return appendText(listElement, 'dd', null, displayValue(value));
+};
+function appendStatusSection(panel, title) {
+    var section = document.createElement('section');
+    section.className = 'dunge-status-section';
+    appendText(section, 'h2', 'dunge-status-title', title);
+    panel.appendChild(section);
+    __PS_MV_REG = [];
+    return section;
+};
+function appendStatusGrid(section) {
+    var grid = document.createElement('dl');
+    grid.className = 'dunge-status-grid';
+    section.appendChild(grid);
+    return grid;
+};
+function keywordListText(values) {
+    var labels = [];
+    for (var value = null, _js_arrvar9 = nodeList(values), _js_idx8 = 0; _js_idx8 < _js_arrvar9.length; _js_idx8 += 1) {
+        value = _js_arrvar9[_js_idx8];
+        pushArray(labels, displayValue(value));
+    };
+    __PS_MV_REG = [];
+    return labels.length > 0 ? labels.join(', ') : 'None';
+};
+function inventoryOption(entry, option, defaultValue) {
+    var result = defaultValue;
+    var length10 = entry.length;
+    for (var offset = 0; offset < length10; offset += 1) {
+        var index = 2 + offset * 2;
+        if (index + 1 < length10) {
+            var key = entry[index];
+            if (keywordP(key) && key.name === option) {
+                result = entry[index + 1];
+            };
+        };
+    };
+    __PS_MV_REG = [];
+    return result;
+};
+function inventoryEntryCount(entry) {
+    var count = inventoryOption(entry, 'count', 1);
+    __PS_MV_REG = [];
+    return typeof count === 'number' ? count : 1;
+};
+function inventoryEntrySlots(entry) {
+    var explicit = inventoryOption(entry, 'slots', undefined);
+    if (explicit !== undefined) {
+        __PS_MV_REG = [];
+        return explicit;
+    } else {
+        var kind = keywordP(entry[0]) && entry[0].name;
+        if (kind === 'item') {
+            __PS_MV_REG = [];
+            return inventoryEntryCount(entry) * (truthy(inventoryOption(entry, 'bulky', null)) ? 2 : 1);
+        } else if (kind === 'supply') {
+            __PS_MV_REG = [];
+            return 1;
+        } else {
+            __PS_MV_REG = [];
+            return 0;
+        };
+    };
+};
+function inventoryUsedSlots() {
+    var used = PLAYER.fatigue || 0;
+    for (var entry = null, _js_arrvar12 = nodeList(PLAYER.inventory), _js_idx11 = 0; _js_idx11 < _js_arrvar12.length; _js_idx11 += 1) {
+        entry = _js_arrvar12[_js_idx11];
+        used += inventoryEntrySlots(entry);
+    };
+    __PS_MV_REG = [];
+    return used;
+};
+function inventoryEntryLabel(entry) {
+    var id = displayValue(entry[1]);
+    var count = inventoryEntryCount(entry);
+    __PS_MV_REG = [];
+    return count > 1 ? id + ' x' + count : id;
+};
+function keywordName(value) {
+    __PS_MV_REG = [];
+    return keywordP(value) && value.name;
+};
+function keywordNameP(value, name) {
+    __PS_MV_REG = [];
+    return keywordP(value) && value.name === name;
+};
+function resultKind(result) {
+    __PS_MV_REG = [];
+    return keywordName(result[0]);
+};
+function resultId(result) {
+    return result[1];
+};
+function resultOption(result, option, defaultValue) {
+    __PS_MV_REG = [];
+    return inventoryOption(result, option, defaultValue);
+};
+function resultLootP(result) {
+    var kind = resultKind(result);
+    __PS_MV_REG = [];
+    return kind === 'gold' || kind === 'item' || kind === 'supply';
+};
+function generatedRoomResultClaimedP(room, index) {
+    var claimed = null;
+    for (var claimedIndex = null, _js_arrvar14 = nodeList(room.claimedResults), _js_idx13 = 0; _js_idx13 < _js_arrvar14.length; _js_idx13 += 1) {
+        claimedIndex = _js_arrvar14[_js_idx13];
+        if (claimedIndex === index) {
+            claimed = true;
+        };
+    };
+    __PS_MV_REG = [];
+    return claimed;
+};
+function claimGeneratedRoomResult(room, index) {
+    if (!generatedRoomResultClaimedP(room, index)) {
+        pushArray(room.claimedResults, index);
+    };
+    __PS_MV_REG = [];
+    return room;
+};
+function generatedRoomDisplayWord(value) {
+    __PS_MV_REG = [];
+    return displayValue(value);
+};
+function generatedRoomDisplayLower(value) {
+    __PS_MV_REG = [];
+    return generatedRoomDisplayWord(value).toLowerCase();
+};
+function generatedRoomResultLine(result) {
+    var kind = resultKind(result);
+    if (kind === 'gold') {
+        __PS_MV_REG = [];
+        return 'Treasure: ' + displayValue(result[1]) + ' gold.';
+    } else if (kind === 'item' || kind === 'supply') {
+        var count = inventoryEntryCount(result);
+        __PS_MV_REG = [];
+        return count > 1 ? 'Find: ' + generatedRoomDisplayWord(resultId(result)) + ' x' + count + '.' : 'Find: ' + generatedRoomDisplayWord(resultId(result)) + '.';
+    } else if (kind === 'encounter') {
+        __PS_MV_REG = [];
+        return 'Sign: ' + generatedRoomDisplayWord(resultId(result)) + ' stirs here.';
+    } else if (kind === 'exit') {
+        __PS_MV_REG = [];
+        return 'Passage: ' + generatedRoomDisplayWord(result[1]) + '.';
+    } else {
+        __PS_MV_REG = [];
+        return generatedRoomDisplayWord(result[0]) + '.';
+    };
+};
+function generatedRoomLootText(result) {
+    var kind = resultKind(result);
+    if (kind === 'gold') {
+        __PS_MV_REG = [];
+        return displayValue(result[1]) + ' gold';
+    } else if (kind === 'item' || kind === 'supply') {
+        var count = inventoryEntryCount(result);
+        var name = generatedRoomDisplayLower(resultId(result));
+        __PS_MV_REG = [];
+        return count > 1 ? name + ' x' + count : name;
+    } else {
+        __PS_MV_REG = [];
+        return generatedRoomDisplayLower(result[0]);
+    };
+};
+function generatedRoomLootLabel(result) {
+    __PS_MV_REG = [];
+    return 'Take ' + generatedRoomLootText(result);
+};
+function generatedRoomLootMessage(result) {
+    __PS_MV_REG = [];
+    return 'You take ' + generatedRoomLootText(result) + '.';
+};
+function setInventoryCount(entry, count) {
+    var found = null;
+    var length15 = entry.length;
+    for (var offset = 0; offset < length15; offset += 1) {
+        var index = 2 + offset * 2;
+        if (index + 1 < length15) {
+            var key = entry[index];
+            if (keywordNameP(key, 'count')) {
+                entry[index + 1] = count;
+                found = true;
+            };
+        };
+    };
+    if (!found) {
+        pushArray(entry, { 'type' : 'keyword', 'name' : 'count' });
+        pushArray(entry, count);
+    };
+    __PS_MV_REG = [];
+    return entry;
+};
+function inventoryEntryMatchesResultP(entry, result) {
+    __PS_MV_REG = [];
+    return valueEqual(entry[0], result[0]) && valueEqual(entry[1], result[1]);
+};
+function addInventoryResult(result) {
+    var existing = null;
+    var count = inventoryEntryCount(result);
+    for (var entry = null, _js_arrvar17 = nodeList(PLAYER.inventory), _js_idx16 = 0; _js_idx16 < _js_arrvar17.length; _js_idx16 += 1) {
+        entry = _js_arrvar17[_js_idx16];
+        if (!existing && inventoryEntryMatchesResultP(entry, result)) {
+            existing = entry;
+        };
+    };
+    __PS_MV_REG = [];
+    return existing ? setInventoryCount(existing, inventoryEntryCount(existing) + count) : pushArray(PLAYER.inventory, copyJsonValue(result));
+};
+function applyLootResultToPlayer(result) {
+    var kind = resultKind(result);
+    if (kind === 'gold') {
+        __PS_MV_REG = [];
+        return PLAYER.gold = (PLAYER.gold || 0) + (result[1] || 0);
+    } else if (kind === 'item' || kind === 'supply') {
+        __PS_MV_REG = [];
+        return addInventoryResult(result);
+    };
+};
+function removeInventoryCount(kindName, idName, count) {
+    var updated = [];
+    var remaining = count;
+    for (var entry = null, _js_arrvar19 = nodeList(PLAYER.inventory), _js_idx18 = 0; _js_idx18 < _js_arrvar19.length; _js_idx18 += 1) {
+        entry = _js_arrvar19[_js_idx18];
+        if (remaining > 0 && keywordNameP(entry[0], kindName) && keywordNameP(entry[1], idName)) {
+            var entryCount = inventoryEntryCount(entry);
+            var removed = Math.min(entryCount, remaining);
+            var left = entryCount - removed;
+            remaining -= removed;
+            if (left > 0) {
+                var copy = copyJsonValue(entry);
+                setInventoryCount(copy, left);
+                pushArray(updated, copy);
+            };
+        } else {
+            pushArray(updated, entry);
+        };
+    };
+    if (remaining > 0) {
+        runtimeError('Missing inventory entry ' + idName + '.');
+    };
+    __PS_MV_REG = [];
+    return PLAYER.inventory = updated;
+};
+function removePlayerCondition(conditionName) {
+    var updated = [];
+    for (var condition = null, _js_arrvar21 = nodeList(PLAYER.conditions), _js_idx20 = 0; _js_idx20 < _js_arrvar21.length; _js_idx20 += 1) {
+        condition = _js_arrvar21[_js_idx20];
+        if (!keywordNameP(condition, conditionName)) {
+            pushArray(updated, condition);
+        };
+    };
+    __PS_MV_REG = [];
+    return PLAYER.conditions = updated;
+};
+function playerConditionP(conditionName) {
+    var present = null;
+    for (var condition = null, _js_arrvar23 = nodeList(PLAYER.conditions), _js_idx22 = 0; _js_idx22 < _js_arrvar23.length; _js_idx22 += 1) {
+        condition = _js_arrvar23[_js_idx22];
+        if (keywordNameP(condition, conditionName)) {
+            present = true;
+        };
+    };
+    __PS_MV_REG = [];
+    return present;
+};
+function recoverPlayerFromRation() {
+    removeInventoryCount('supply', 'ration', 1);
+    PLAYER.hp = Math.min(PLAYER.maxHp, PLAYER.hp + 1);
+    PLAYER.fatigue = Math.max(0, (PLAYER.fatigue || 0) - 1);
+    __PS_MV_REG = [];
+    return removePlayerCondition('deprived');
+};
+function playerRationCount() {
+    var count = 0;
+    for (var entry = null, _js_arrvar25 = nodeList(PLAYER.inventory), _js_idx24 = 0; _js_idx24 < _js_arrvar25.length; _js_idx24 += 1) {
+        entry = _js_arrvar25[_js_idx24];
+        if (keywordNameP(entry[0], 'supply') && keywordNameP(entry[1], 'ration')) {
+            count += inventoryEntryCount(entry);
+        };
+    };
+    __PS_MV_REG = [];
+    return count;
+};
+function playerCanUseRationP() {
+    __PS_MV_REG = [];
+    return PLAYER && playerRationCount() > 0 && (PLAYER.hp < PLAYER.maxHp || (PLAYER.fatigue || 0) > 0 || playerConditionP('deprived'));
+};
+function renderInventoryList(section) {
+    var inventory26 = nodeList(PLAYER.inventory);
+    if (inventory26.length > 0) {
+        var list = document.createElement('ul');
+        list.className = 'dunge-inventory';
+        for (var entry = null, _js_idx27 = 0; _js_idx27 < inventory26.length; _js_idx27 += 1) {
+            entry = inventory26[_js_idx27];
+            appendText(list, 'li', null, inventoryEntryLabel(entry));
+        };
+        __PS_MV_REG = [];
+        return section.appendChild(list);
+    } else {
+        __PS_MV_REG = [];
+        return appendText(section, 'p', 'dunge-status-meta', 'Inventory is empty.');
+    };
+};
+function renderPlayerStatus(panel) {
+    if (PLAYER) {
+        var section = appendStatusSection(panel, PLAYER.name || 'Character');
+        var used = inventoryUsedSlots();
+        var capacity = PLAYER.inventoryCapacity || 10;
+        if (PLAYER.background) {
+            appendText(section, 'p', 'dunge-status-meta', displayValue(PLAYER.background));
+        };
+        var grid = appendStatusGrid(section);
+        appendStatusRow(grid, 'HP', PLAYER.hp + '/' + PLAYER.maxHp);
+        appendStatusRow(grid, 'STR', PLAYER.str + '/' + PLAYER.maxStr);
+        appendStatusRow(grid, 'DEX', PLAYER.dex + '/' + PLAYER.maxDex);
+        appendStatusRow(grid, 'WIL', PLAYER.wil + '/' + PLAYER.maxWil);
+        appendStatusRow(grid, 'Armor', PLAYER.armor);
+        appendStatusRow(grid, 'Gold', PLAYER.gold);
+        appendStatusRow(grid, 'Fate', PLAYER.fate);
+        appendStatusRow(grid, 'Fatigue', PLAYER.fatigue);
+        appendStatusRow(grid, 'Conditions', keywordListText(PLAYER.conditions));
+        appendStatusRow(grid, 'Slots', used + '/' + capacity + ' used');
+        __PS_MV_REG = [];
+        return renderInventoryList(section);
+    };
+};
+function encounterForCurrentRoom() {
+    var roomId = fallbackCurrentRoomId();
+    var match = null;
+    if (roomId) {
+        for (var encounter = null, _js_arrvar29 = nodeList(ENCOUNTERS), _js_idx28 = 0; _js_idx28 < _js_arrvar29.length; _js_idx28 += 1) {
+            encounter = _js_arrvar29[_js_idx28];
+            if (!match && encounter.room === roomId) {
+                match = encounter;
+            };
+        };
+    };
+    __PS_MV_REG = [];
+    return match;
+};
+function renderEncounterStatus(panel, encounter) {
+    if (encounter) {
+        var grid = appendStatusGrid(appendStatusSection(panel, 'Encounter'));
+        appendStatusRow(grid, 'Enemy', encounter.enemy);
+        appendStatusRow(grid, 'Status', encounter.status);
+        appendStatusRow(grid, 'HP', encounter.hp + '/' + encounter.maxHp);
+        appendStatusRow(grid, 'STR', encounter.str + '/' + encounter.maxStr);
+        appendStatusRow(grid, 'Armor', encounter.armor);
+        appendStatusRow(grid, 'Damage', encounter.damage);
+        appendStatusRow(grid, 'Round', encounter.round);
+        __PS_MV_REG = [];
+        return encounter.reaction ? appendStatusRow(grid, 'Reaction', encounter.reaction) : null;
+    };
+};
+function renderStatusPanel() {
+    var panel = byId('dunge-status');
+    var encounter = encounterForCurrentRoom();
+    if (panel) {
+        clearElement(panel);
+        if (PLAYER || encounter) {
+            panel.hidden = false;
+            renderPlayerStatus(panel);
+            __PS_MV_REG = [];
+            return renderEncounterStatus(panel, encounter);
+        } else {
+            __PS_MV_REG = [];
+            return panel.hidden = true;
+        };
+    };
+};
+function objectKeyCount(object) {
+    return Object.keys(object).length;
+};
+function walkNodes(nodes, callback) {
+    for (var node = null, _js_arrvar31 = nodeList(nodes), _js_idx30 = 0; _js_idx30 < _js_arrvar31.length; _js_idx30 += 1) {
+        node = _js_arrvar31[_js_idx30];
+        callback(node);
+        if (node.type === 'entity') {
+            walkNodes(node.body, callback);
+        } else if (node.type === 'branch') {
+            walkNodes(node.then, callback);
+            walkNodes(node['else'], callback);
+        } else if (node.type === 'container') {
+            walkNodes(node.contents, callback);
+        };
+    };
+};
+function prepareRoom(room) {
+    room.sceneIndex = {  };
+    __PS_MV_REG = [];
+    return walkNodes(room.body, function (node) {
+        if (node.type === 'entity' && node.id) {
+            if (!node.stateData) {
+                node.stateData = node.state;
+            };
+            node.state = initialState(node.stateData);
+            node.resolvedRefs = {  };
+            __PS_MV_REG = [];
+            return room.sceneIndex[node.id] = node;
+        };
+    });
+};
+function resolveRoomRefs(room) {
+    __PS_MV_REG = [];
+    return walkNodes(room.body, function (node) {
+        if (node.type === 'entity') {
+            for (var ref = null, _js_arrvar37 = nodeList(node.refs), _js_idx36 = 0; _js_idx36 < _js_arrvar37.length; _js_idx36 += 1) {
+                ref = _js_arrvar37[_js_idx36];
+                node.resolvedRefs[ref.role] = room.sceneIndex[ref.target];
+            };
+        };
+    });
+};
+function indexRoom(room) {
+    ROOMINDEX[room.id] = room;
+    __PS_MV_REG = [];
+    return prepareRoom(room);
+};
+function rebuildRoomIndex() {
+    ROOMINDEX = {  };
+    for (var room = null, _js_arrvar41 = GAME.rooms, _js_idx40 = 0; _js_idx40 < _js_arrvar41.length; _js_idx40 += 1) {
+        room = _js_arrvar41[_js_idx40];
+        indexRoom(room);
+    };
+    for (var room = null, _js_arrvar43 = nodeList(GENERATEDROOMS), _js_idx42 = 0; _js_idx42 < _js_arrvar43.length; _js_idx42 += 1) {
+        room = _js_arrvar43[_js_idx42];
+        indexRoom(room);
+    };
+    for (var room = null, _js_arrvar45 = GAME.rooms, _js_idx44 = 0; _js_idx44 < _js_arrvar45.length; _js_idx44 += 1) {
+        room = _js_arrvar45[_js_idx44];
+        resolveRoomRefs(room);
+    };
+    for (var room = null, _js_arrvar39 = nodeList(GENERATEDROOMS), _js_idx38 = 0; _js_idx38 < _js_arrvar39.length; _js_idx38 += 1) {
+        room = _js_arrvar39[_js_idx38];
+        resolveRoomRefs(room);
+    };
+};
+function prepareGame() {
+    RETURNSTACK = [];
+    UNDOSTACK = [];
+    MESSAGES = [];
+    VISIBLEMESSAGES = [];
+    GENERATEDROOMS = copyJsonValue(GAME.generatedRooms);
+    rebuildRoomIndex();
+    STATE = { 'globals' : initialState(GAME.state), 'taken-choices' : {  } };
+    PLAYER = copyJsonValue(GAME.player);
+    ENCOUNTERS = copyJsonValue(GAME.encounters);
+    __PS_MV_REG = [];
+    return CURRENTLOCATION = roomById(GAME.start);
+};
+function roomLocationId(location) {
+    return location && (location.type === 'room' || location.type === 'generated-room') ? location.id : null;
+};
+function returnStackRoomId() {
+    var roomId = null;
+    for (var offset = 0; offset < RETURNSTACK.length; offset += 1) {
+        if (!roomId) {
+            var index = (RETURNSTACK.length - 1) - offset;
+            var candidate = roomLocationId(RETURNSTACK[index]);
+            if (candidate) {
+                roomId = candidate;
+            };
+        };
+    };
+    __PS_MV_REG = [];
+    return roomId;
+};
+function fallbackCurrentRoomId() {
+    var currentRoomId = roomLocationId(CURRENTLOCATION);
+    __PS_MV_REG = [];
+    return currentRoomId || returnStackRoomId() || GAME.start;
+};
+function captureReturnStack() {
+    var ids = [];
+    var limit = RETURNSTACK.length;
+    if (!roomLocationId(CURRENTLOCATION)) {
+        limit -= 1;
+    };
+    for (var index = 0; index < limit; index += 1) {
+        var roomId = roomLocationId(RETURNSTACK[index]);
+        if (roomId) {
+            pushArray(ids, roomId);
+        };
+    };
+    __PS_MV_REG = [];
+    return ids;
+};
+function captureLocalState() {
+    var locals = [];
+    for (var room = null, _js_arrvar47 = GAME.rooms, _js_idx46 = 0; _js_idx46 < _js_arrvar47.length; _js_idx46 += 1) {
+        room = _js_arrvar47[_js_idx46];
+        walkNodes(room.body, function (node) {
+            __PS_MV_REG = [];
+            return node.type === 'entity' && node.id && objectKeyCount(node.state) > 0 ? pushArray(locals, { 'room' : room.id,
+                                                                                            'entity' : node.id,
+                                                                                            'state' : copyObject(node.state)
+                                                                                          }) : null;
+        });
+    };
+    __PS_MV_REG = [];
+    return locals;
+};
+function captureRuntimeState() {
+    __PS_MV_REG = [];
+    return { 'version' : SAVEVERSION,
+             'signature' : SAVESIGNATURE,
+             'currentRoom' : fallbackCurrentRoomId(),
+             'returnStack' : captureReturnStack(),
+             'player' : copyJsonValue(PLAYER),
+             'generatedRooms' : copyJsonValue(GENERATEDROOMS),
+             'encounters' : copyJsonValue(ENCOUNTERS),
+             'messages' : copyArray(VISIBLEMESSAGES),
+             'globals' : copyObject(STATE.globals),
+             'locals' : captureLocalState(),
+             'takenChoices' : copyObject(STATE['taken-choices'])
+           };
+};
+function restoreReturnStack(roomIds) {
+    RETURNSTACK = [];
+    for (var roomId = null, _js_arrvar49 = nodeList(roomIds), _js_idx48 = 0; _js_idx48 < _js_arrvar49.length; _js_idx48 += 1) {
+        roomId = _js_arrvar49[_js_idx48];
+        pushArray(RETURNSTACK, roomById(roomId));
+    };
+};
+function restoreLocalState(locals) {
+    for (var entry = null, _js_arrvar51 = nodeList(locals), _js_idx50 = 0; _js_idx50 < _js_arrvar51.length; _js_idx50 += 1) {
+        entry = _js_arrvar51[_js_idx50];
+        var room52 = roomById(entry.room);
+        var entity53 = room52.sceneIndex[entry.entity];
+        if (entity53) {
+            entity53.state = copyObject(entry.state || {  });
+        } else {
+            runtimeError('No saveable entity ' + entry.entity + '.');
+        };
+    };
+};
+function validSaveP(save) {
+    return save && save['version'] === SAVEVERSION && save['signature'] === SAVESIGNATURE && save['currentRoom'];
+};
+function restoreRuntimeState(state) {
+    STATE.globals = copyObject(state['globals'] || {  });
+    STATE['taken-choices'] = copyObject(state['takenChoices'] || {  });
+    if (state['player'] !== undefined) {
+        PLAYER = copyJsonValue(state['player']);
+    };
+    if (state['generatedRooms'] !== undefined) {
+        GENERATEDROOMS = copyJsonValue(state['generatedRooms']);
+    };
+    if (state['encounters'] !== undefined) {
+        ENCOUNTERS = copyJsonValue(state['encounters']);
+    };
+    rebuildRoomIndex();
+    restoreLocalState(state['locals']);
+    restoreReturnStack(state['returnStack']);
+    MESSAGES = copyArray(state['messages']);
+    __PS_MV_REG = [];
+    return CURRENTLOCATION = roomById(state['currentRoom']);
+};
+function restoreSavedGame() {
+    try {
+        var raw = SAVEKEY && storageGet(SAVEKEY);
+        var save = raw && decodeJson(raw);
+        if (validSaveP(save)) {
+            restoreRuntimeState(save);
+            PROGRESSMADE = true;
+            __PS_MV_REG = [];
+            return true;
+        } else {
+            if (raw) {
+                storageRemove(SAVEKEY);
+            };
+            __PS_MV_REG = [];
+            return null;
+        };
+    } catch (error) {
+        if (SAVEKEY) {
+            storageRemove(SAVEKEY);
+        };
+        __PS_MV_REG = [];
+        return null;
+    };
+};
+function saveGame() {
+    __PS_MV_REG = [];
+    return SAVEKEY ? storageSet(SAVEKEY, encodeJson(captureRuntimeState())) : null;
+};
+function clearSave() {
+    __PS_MV_REG = [];
+    return SAVEKEY ? storageRemove(SAVEKEY) : null;
+};
+function rememberUndoState() {
+    if (DEBUG) {
+        pushArray(UNDOSTACK, captureRuntimeState());
+        __PS_MV_REG = [];
+        return updateUndoControl();
+    };
+};
+function undoLastChoice() {
+    if (UNDOSTACK.length > 0) {
+        restoreRuntimeState(popArray(UNDOSTACK));
+        MESSAGES = [];
+        VISIBLEMESSAGES = [];
+        PROGRESSMADE = true;
+        saveGame();
+        __PS_MV_REG = [];
+        return renderLocation();
+    };
+};
+function resolveState(reference, context) {
+    if (reference.scope === 'global') {
+        return { 'holder' : STATE.globals, 'key' : reference.key };
+    } else if (reference.scope === 'self') {
+        return { 'holder' : context.self.state, 'key' : reference.key };
+    } else if (reference.scope === 'ref') {
+        var target = context.self.resolvedRefs[reference.role];
+        return { 'holder' : target.state, 'key' : reference.key };
+    };
+};
+function evaluateExpression(expression, context) {
+    if (expression.type === 'state') {
+        var resolved = resolveState(expression, context);
+        __PS_MV_REG = [];
+        return resolved.holder[resolved.key];
+    } else {
+        __PS_MV_REG = [];
+        return expression.value;
+    };
+};
+function everyCondition(conditions, context) {
+    var result = true;
+    for (var child = null, _js_arrvar53 = nodeList(conditions), _js_idx52 = 0; _js_idx52 < _js_arrvar53.length; _js_idx52 += 1) {
+        child = _js_arrvar53[_js_idx52];
+        if (!evaluateCondition(child, context)) {
+            result = null;
+        };
+    };
+    __PS_MV_REG = [];
+    return result;
+};
+function someCondition(conditions, context) {
+    var result = null;
+    for (var child = null, _js_arrvar55 = nodeList(conditions), _js_idx54 = 0; _js_idx54 < _js_arrvar55.length; _js_idx54 += 1) {
+        child = _js_arrvar55[_js_idx54];
+        if (evaluateCondition(child, context)) {
+            result = true;
+        };
+    };
+    __PS_MV_REG = [];
+    return result;
+};
+function evaluateCondition(condition, context) {
+    if (condition.type === 'state') {
+        __PS_MV_REG = [];
+        return truthy(evaluateExpression(condition, context));
+    } else if (condition.type === 'eq') {
+        __PS_MV_REG = [];
+        return valueEqual(evaluateExpression(condition.left, context), evaluateExpression(condition.right, context));
+    } else if (condition.type === 'not') {
+        __PS_MV_REG = [];
+        return !evaluateCondition(condition.condition, context);
+    } else if (condition.type === 'and') {
+        __PS_MV_REG = [];
+        return everyCondition(condition.conditions, context);
+    } else if (condition.type === 'or') {
+        __PS_MV_REG = [];
+        return someCondition(condition.conditions, context);
+    } else {
+        __PS_MV_REG = [];
+        return truthy(evaluateExpression(condition, context));
+    };
+};
+function stateValue(reference, context) {
+    var resolved = resolveState(reference, context);
+    __PS_MV_REG = [];
+    return resolved.holder[resolved.key];
+};
+function setStateValue(reference, value, context) {
+    var resolved = resolveState(reference, context);
+    __PS_MV_REG = [];
+    return resolved.holder[resolved.key] = value;
+};
+function numericValue(value) {
+    var number = value === null || value === undefined ? 0 : value;
+    __PS_MV_REG = [];
+    return typeof number === 'number' ? number : runtimeError('Cannot increment or decrement non-numeric state value.');
+};
+function toggleValue(value) {
+    if (valueEqual(value, { 'type' : 'keyword', 'name' : 'on' })) {
+        __PS_MV_REG = [];
+        return { 'type' : 'keyword', 'name' : 'off' };
+    } else if (valueEqual(value, { 'type' : 'keyword', 'name' : 'off' })) {
+        __PS_MV_REG = [];
+        return { 'type' : 'keyword', 'name' : 'on' };
+    } else if (value === true) {
+        __PS_MV_REG = [];
+        return null;
+    } else if (value === null) {
+        __PS_MV_REG = [];
+        return true;
+    } else {
+        __PS_MV_REG = [];
+        return runtimeError('Cannot toggle non-toggleable state value.');
+    };
+};
+function encounterStatusName(encounter) {
+    __PS_MV_REG = [];
+    return keywordName(encounter.status);
+};
+function encounterActiveP(encounter) {
+    __PS_MV_REG = [];
+    return encounter && encounterStatusName(encounter) === 'active';
+};
+function encounterForRoom(room) {
+    var match = null;
+    if (room) {
+        for (var encounter = null, _js_arrvar57 = nodeList(ENCOUNTERS), _js_idx56 = 0; _js_idx56 < _js_arrvar57.length; _js_idx56 += 1) {
+            encounter = _js_arrvar57[_js_idx56];
+            if (!match && encounter.room === room.id) {
+                match = encounter;
+            };
+        };
+    };
+    __PS_MV_REG = [];
+    return match;
+};
+function encounterDamageNumber(encounter) {
+    var damage58 = encounter.damage;
+    return typeof damage58 === 'number' ? damage58 : 1;
+};
+function setEncounterStatus(encounter, statusName) {
+    return encounter.status = { 'type' : 'keyword', 'name' : statusName };
+};
+function attackEncounter(encounter) {
+    var playerDamage = Math.max(0, 1 - (encounter.armor || 0));
+    var enemyDamage = Math.max(0, encounterDamageNumber(encounter) - (PLAYER.armor || 0));
+    encounter.round = (encounter.round || 0) + 1;
+    encounter.hp = Math.max(0, encounter.hp - playerDamage);
+    if (encounter.hp <= 0) {
+        setEncounterStatus(encounter, 'defeated');
+        __PS_MV_REG = [];
+        return 'You strike for ' + playerDamage + ' damage. ' + generatedRoomDisplayWord(encounter.enemy) + ' falls.';
+    } else {
+        PLAYER.hp = Math.max(0, PLAYER.hp - enemyDamage);
+        if (PLAYER.hp <= 0) {
+            setEncounterStatus(encounter, 'player-defeated');
+        };
+        __PS_MV_REG = [];
+        return encounterStatusName(encounter) === 'player-defeated' ? 'You strike for ' + playerDamage + ' damage, but take ' + enemyDamage + ' damage and fall.' : 'You strike for ' + playerDamage + ' damage. ' + generatedRoomDisplayWord(encounter.enemy) + ' hits back for ' + enemyDamage + ' damage.';
+    };
+};
+function fleeEncounter(encounter) {
+    encounter.round = (encounter.round || 0) + 1;
+    setEncounterStatus(encounter, 'escaped');
+    __PS_MV_REG = [];
+    return 'You escape from ' + generatedRoomDisplayWord(encounter.enemy) + '.';
+};
+function executeEncounterAction(effect) {
+    var room59 = roomById(effect.room);
+    var encounter = encounterForRoom(room59);
+    if (!encounterActiveP(encounter)) {
+        runtimeError('No active encounter is available.');
+    };
+    pushArray(MESSAGES, effect.action === 'attack' ? attackEncounter(encounter) : (effect.action === 'flee' ? fleeEncounter(encounter) : runtimeError('Unknown encounter action ' + effect.action + '.')));
+    __PS_MV_REG = [];
+    return null;
+};
+function executeLootAction(effect) {
+    var room60 = roomById(effect.room);
+    var index = effect['result-index'];
+    var result = room60.results[index];
+    if (!result) {
+        runtimeError('No generated room result exists there.');
+    };
+    if (generatedRoomResultClaimedP(room60, index)) {
+        runtimeError('That generated room result is already claimed.');
+    };
+    if (!resultLootP(result)) {
+        runtimeError('That generated room result is not loot.');
+    };
+    applyLootResultToPlayer(result);
+    claimGeneratedRoomResult(room60, index);
+    pushArray(MESSAGES, generatedRoomLootMessage(result));
+    __PS_MV_REG = [];
+    return null;
+};
+function executeItemUseAction(effect) {
+    if (effect.action === 'ration') {
+        if (!playerCanUseRationP()) {
+            runtimeError('The player cannot use a ration right now.');
+        };
+        recoverPlayerFromRation();
+        pushArray(MESSAGES, 'You eat a ration and recover.');
+        __PS_MV_REG = [];
+        return null;
+    } else {
+        __PS_MV_REG = [];
+        return runtimeError('Unknown item-use action ' + effect.action + '.');
+    };
+};
+function executeEffect(effect, context) {
+    if (effect.type === 'sequence') {
+        var result = null;
+        nilBlock: {
+            for (var child = null, _js_arrvar62 = effect.effects, _js_idx61 = 0; _js_idx61 < _js_arrvar62.length; _js_idx61 += 1) {
+                child = _js_arrvar62[_js_idx61];
+                result = executeEffect(child, context);
+                if (result) {
+                    __PS_MV_REG = [];
+                    result;
+                    break nilBlock;
+                };
+            };
+        };
+        __PS_MV_REG = [];
+        return result;
+    } else if (effect.type === 'set') {
+        setStateValue(effect.target, evaluateExpression(effect.value, context), context);
+        __PS_MV_REG = [];
+        return null;
+    } else if (effect.type === 'clear') {
+        setStateValue(effect.target, null, context);
+        __PS_MV_REG = [];
+        return null;
+    } else if (effect.type === 'inc') {
+        setStateValue(effect.target, numericValue(stateValue(effect.target, context)) + evaluateExpression(effect.amount, context), context);
+        __PS_MV_REG = [];
+        return null;
+    } else if (effect.type === 'dec') {
+        setStateValue(effect.target, numericValue(stateValue(effect.target, context)) - evaluateExpression(effect.amount, context), context);
+        __PS_MV_REG = [];
+        return null;
+    } else if (effect.type === 'toggle') {
+        setStateValue(effect.target, toggleValue(stateValue(effect.target, context)), context);
+        __PS_MV_REG = [];
+        return null;
+    } else if (effect.type === 'say') {
+        pushArray(MESSAGES, evaluateExpression(effect.text, context));
+        __PS_MV_REG = [];
+        return null;
+    } else if (effect.type === 'if') {
+        __PS_MV_REG = [];
+        return executeEffect(evaluateCondition(effect.condition, context) ? effect.then : effect['else'], context);
+    } else if (effect.type === 'goto') {
+        __PS_MV_REG = [];
+        return { 'type' : 'goto', 'room' : evaluateExpression(effect.room, context) };
+    } else if (effect.type === 'gosub') {
+        __PS_MV_REG = [];
+        return { 'type' : 'gosub', 'room' : evaluateExpression(effect.room, context) };
+    } else if (effect.type === 'enter') {
+        __PS_MV_REG = [];
+        return { 'type' : 'enter', 'target' : effect.target };
+    } else if (effect.type === 'encounter-action') {
+        __PS_MV_REG = [];
+        return executeEncounterAction(effect);
+    } else if (effect.type === 'loot-action') {
+        __PS_MV_REG = [];
+        return executeLootAction(effect);
+    } else if (effect.type === 'item-use-action') {
+        __PS_MV_REG = [];
+        return executeItemUseAction(effect);
+    } else if (effect.type === 'back') {
+        __PS_MV_REG = [];
+        return { 'type' : 'back' };
+    } else if (effect.type === 'quit') {
+        __PS_MV_REG = [];
+        return { 'type' : 'quit' };
+    };
+};
+function describeNode(node, context, parent) {
+    if (node.type === 'p') {
+        __PS_MV_REG = [];
+        return appendText(parent, 'p', null, node.text);
+    } else if (node.type === 'entity') {
+        __PS_MV_REG = [];
+        return describeNodes(node.body, { 'scene' : context.scene, 'self' : node }, parent);
+    } else if (node.type === 'branch') {
+        __PS_MV_REG = [];
+        return describeNodes(evaluateCondition(node.condition, context) ? node.then : node['else'], context, parent);
+    } else if (node.type === 'item') {
+        __PS_MV_REG = [];
+        return appendText(parent, 'p', null, node.description || node.name);
+    } else if (node.type === 'container') {
+        __PS_MV_REG = [];
+        return node.description ? appendText(parent, 'p', null, node.description) : null;
+    } else if (node.type === 'placement') {
+        __PS_MV_REG = [];
+        return node.description ? appendText(parent, 'p', null, node.description) : null;
+    };
+};
+function describeNodes(nodes, context, parent) {
+    for (var node = null, _js_arrvar64 = nodeList(nodes), _js_idx63 = 0; _js_idx63 < _js_arrvar64.length; _js_idx63 += 1) {
+        node = _js_arrvar64[_js_idx63];
+        describeNode(node, context, parent);
+    };
+};
+function choiceVisibleP(choice, context) {
+    __PS_MV_REG = [];
+    return !(choice.once && STATE['taken-choices'][choice.id]) && (!choice.condition || evaluateCondition(choice.condition, context));
+};
+function collectNodeChoices(node, context, choices) {
+    if (node.type === 'choice') {
+        if (choiceVisibleP(node, context)) {
+            pushArray(choices, { 'label' : node.label,
+                                 'target' : node.target,
+                                 'id' : node.id,
+                                 'once' : node.once,
+                                 'self' : context.self
+                               });
+        };
+    } else if (node.type === 'choices') {
+        for (var choice = null, _js_arrvar66 = node.options, _js_idx65 = 0; _js_idx65 < _js_arrvar66.length; _js_idx65 += 1) {
+            choice = _js_arrvar66[_js_idx65];
+            collectNodeChoices(choice, context, choices);
+        };
+    } else if (node.type === 'entity') {
+        collectChoicesFrom(node.body, { 'scene' : context.scene, 'self' : node }, choices);
+    } else if (node.type === 'branch') {
+        collectChoicesFrom(evaluateCondition(node.condition, context) ? node.then : node['else'], context, choices);
+    } else if (node.type === 'action') {
+        pushArray(choices, { 'label' : node.label,
+                             'target' : node.effects,
+                             'self' : context.self
+                           });
+    } else if (node.type === 'container') {
+        if (node.openLabel) {
+            pushArray(choices, { 'label' : node.openLabel,
+                                 'target' : { 'type' : 'enter', 'target' : { 'type' : 'container-view', 'container' : node } },
+                                 'self' : context.self
+                               });
+        };
+    } else if (node.type === 'placement') {
+        if (node.label && node.target) {
+            pushArray(choices, { 'label' : node.label,
+                                 'target' : node.target,
+                                 'self' : context.self
+                               });
+        };
+    };
+    __PS_MV_REG = [];
+    return choices;
+};
+function collectChoicesFrom(nodes, context, choices) {
+    for (var node = null, _js_arrvar68 = nodeList(nodes), _js_idx67 = 0; _js_idx67 < _js_arrvar68.length; _js_idx67 += 1) {
+        node = _js_arrvar68[_js_idx67];
+        collectNodeChoices(node, context, choices);
+    };
+    __PS_MV_REG = [];
+    return choices;
+};
+function currentContext() {
+    return { 'scene' : CURRENTLOCATION.type === 'room' || CURRENTLOCATION.type === 'generated-room' ? CURRENTLOCATION : null, 'self' : null };
+};
+function renderMessages(body) {
+    VISIBLEMESSAGES = copyArray(MESSAGES);
+    for (var message = null, _js_idx69 = 0; _js_idx69 < MESSAGES.length; _js_idx69 += 1) {
+        message = MESSAGES[_js_idx69];
+        appendText(body, 'p', 'dunge-message', message);
+    };
+    __PS_MV_REG = [];
+    return MESSAGES = [];
+};
+function generatedRoomExitLabel(direction) {
+    var name = keywordName(direction);
+    if (name === 'back') {
+        __PS_MV_REG = [];
+        return 'Return';
+    } else if (name === 'deeper') {
+        __PS_MV_REG = [];
+        return 'Continue deeper';
+    } else if (name === 'out') {
+        __PS_MV_REG = [];
+        return 'Leave';
+    } else {
+        __PS_MV_REG = [];
+        return 'Go ' + generatedRoomDisplayLower(direction);
+    };
+};
+function generatedRoomLootChoices(room, choices) {
+    var results70 = nodeList(room.results);
+    for (var index = 0; index < results70.length; index += 1) {
+        var result = results70[index];
+        if (resultLootP(result) && !generatedRoomResultClaimedP(room, index)) {
+            pushArray(choices, { 'label' : generatedRoomLootLabel(result), 'target' : { 'type' : 'loot-action',
+                                                                                        'room' : room.id,
+                                                                                        'result-index' : index
+                                                                                      } });
+        };
+    };
+    __PS_MV_REG = [];
+    return choices;
+};
+function generatedRoomItemUseChoices(choices) {
+    if (playerCanUseRationP()) {
+        pushArray(choices, { 'label' : 'Eat ration', 'target' : { 'type' : 'item-use-action', 'action' : 'ration' } });
+    };
+    __PS_MV_REG = [];
+    return choices;
+};
+function generatedRoomExitChoices(room, choices) {
+    for (var exit = null, _js_arrvar72 = nodeList(room.exits), _js_idx71 = 0; _js_idx71 < _js_arrvar72.length; _js_idx71 += 1) {
+        exit = _js_arrvar72[_js_idx71];
+        pushArray(choices, { 'label' : generatedRoomExitLabel(exit.direction), 'target' : { 'type' : 'goto', 'room' : { 'type' : 'literal', 'value' : exit.target } } });
+    };
+    __PS_MV_REG = [];
+    return choices;
+};
+function generatedRoomEncounterLine(encounter) {
+    __PS_MV_REG = [];
+    return 'Encounter: ' + generatedRoomDisplayWord(encounter.enemy) + ' (' + displayValue(encounter.status).toLowerCase() + ', HP ' + encounter.hp + '/' + encounter.maxHp + ').';
+};
+function generatedRoomEncounterChoices(room, encounter, choices) {
+    if (encounterActiveP(encounter)) {
+        pushArray(choices, { 'label' : 'Attack ' + generatedRoomDisplayLower(encounter.enemy), 'target' : { 'type' : 'encounter-action',
+                                                                                                         'room' : room.id,
+                                                                                                         'action' : 'attack'
+                                                                                                       } });
+        generatedRoomItemUseChoices(choices);
+        pushArray(choices, { 'label' : 'Flee', 'target' : { 'type' : 'encounter-action',
+                                                            'room' : room.id,
+                                                            'action' : 'flee'
+                                                          } });
+    };
+    __PS_MV_REG = [];
+    return choices;
+};
+function collectGeneratedRoomChoices(room, encounter) {
+    var choices = [];
+    if (encounterActiveP(encounter)) {
+        generatedRoomEncounterChoices(room, encounter, choices);
+    } else {
+        generatedRoomLootChoices(room, choices);
+        generatedRoomItemUseChoices(choices);
+        generatedRoomExitChoices(room, choices);
+    };
+    __PS_MV_REG = [];
+    return choices;
+};
+function renderLocation() {
+    var title = byId('dunge-scene-title');
+    var body = byId('dunge-scene-body');
+    var choicesElement = byId('dunge-choices');
+    clearElement(body);
+    clearElement(choicesElement);
+    if (CURRENTLOCATION.type === 'container-view') {
+        renderContainerView(title, body, choicesElement);
+    } else if (CURRENTLOCATION.type === 'generated-room') {
+        renderGeneratedRoom(title, body, choicesElement);
+    } else {
+        renderRoom(title, body, choicesElement);
+    };
+    renderStatusPanel();
+    __PS_MV_REG = [];
+    return updateUndoControl();
+};
+function renderRoom(title, body, choicesElement) {
+    var context = currentContext();
+    var choices = [];
+    title.textContent = CURRENTLOCATION.title;
+    renderMessages(body);
+    describeNodes(CURRENTLOCATION.body, context, body);
+    collectChoicesFrom(CURRENTLOCATION.body, context, choices);
+    __PS_MV_REG = [];
+    return renderChoices(choices, choicesElement);
+};
+function renderGeneratedRoom(title, body, choicesElement) {
+    var room = CURRENTLOCATION;
+    var encounter = encounterForRoom(room);
+    room.visited = true;
+    title.textContent = room.title;
+    renderMessages(body);
+    if (room.description) {
+        appendText(body, 'p', null, room.description);
+    };
+    for (var result = null, _js_arrvar74 = nodeList(room.results), _js_idx73 = 0; _js_idx73 < _js_arrvar74.length; _js_idx73 += 1) {
+        result = _js_arrvar74[_js_idx73];
+        appendText(body, 'p', null, generatedRoomResultLine(result));
+    };
+    if (encounter) {
+        appendText(body, 'p', null, generatedRoomEncounterLine(encounter));
+    };
+    __PS_MV_REG = [];
+    return renderChoices(collectGeneratedRoomChoices(room, encounter), choicesElement);
+};
+function renderContainerView(title, body, choicesElement) {
+    var container75 = CURRENTLOCATION.container;
+    var context = { 'scene' : null, 'self' : null };
+    var choices = [];
+    title.textContent = container75.name;
+    renderMessages(body);
+    if (container75.contents.length > 0) {
+        describeNodes(container75.contents, context, body);
+    } else {
+        appendText(body, 'p', null, 'There is nothing here.');
+    };
+    collectChoicesFrom(container75.contents, context, choices);
+    pushArray(choices, { 'label' : container75.closeLabel || 'Back', 'target' : { 'type' : 'back' } });
+    __PS_MV_REG = [];
+    return renderChoices(choices, choicesElement);
+};
+function renderChoiceButton(choice, choicesElement) {
+    var button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'dunge-choice';
+    button.textContent = choice.label;
+    button.addEventListener('click', function () {
+        __PS_MV_REG = [];
+        return choose(choice);
+    });
+    return choicesElement.appendChild(button);
+};
+function renderChoices(choices, choicesElement) {
+    if (choices.length > 0) {
+        for (var choice = null, _js_idx78 = 0; _js_idx78 < choices.length; _js_idx78 += 1) {
+            choice = choices[_js_idx78];
+            renderChoiceButton(choice, choicesElement);
+        };
+    } else {
+        __PS_MV_REG = [];
+        return appendText(choicesElement, 'p', 'dunge-quit', 'The scene rests here.');
+    };
+};
+function choose(choice) {
+    rememberUndoState();
+    if (choice.once && choice.id) {
+        STATE['taken-choices'][choice.id] = true;
+    };
+    var context = { 'scene' : CURRENTLOCATION.type === 'room' ? CURRENTLOCATION : (CURRENTLOCATION.type === 'generated-room' ? CURRENTLOCATION : null), 'self' : choice.self };
+    PROGRESSMADE = true;
+    VISIBLEMESSAGES = [];
+    handleResult(executeEffect(choice.target, context) || { 'type' : 'refresh' });
+    __PS_MV_REG = [];
+    return saveGame();
+};
+function handleResult(result) {
+    if (result.type === 'quit') {
+        byId('dunge-choices').innerHTML = '';
+        __PS_MV_REG = [];
+        return appendText(byId('dunge-choices'), 'p', 'dunge-quit', 'The game has ended.');
+    } else {
+        if (result.type === 'refresh') {
+        } else if (result.type === 'goto') {
+            CURRENTLOCATION = roomById(result.room);
+        } else if (result.type === 'gosub') {
+            pushArray(RETURNSTACK, CURRENTLOCATION);
+            CURRENTLOCATION = roomById(result.room);
+        } else if (result.type === 'enter') {
+            pushArray(RETURNSTACK, CURRENTLOCATION);
+            CURRENTLOCATION = result.target;
+        } else if (result.type === 'back') {
+            if (RETURNSTACK.length > 0) {
+                CURRENTLOCATION = popArray(RETURNSTACK);
+            };
+        };
+        __PS_MV_REG = [];
+        return renderLocation();
+    };
+};
+function resetGame() {
+    clearSave();
+    PROGRESSMADE = null;
+    prepareGame();
+    __PS_MV_REG = [];
+    return renderLocation();
+};
+function bindNewGameControl() {
+    var button = byId('dunge-new-game');
+    __PS_MV_REG = [];
+    return button ? button.addEventListener('click', resetGame) : null;
+};
+function updateUndoControl() {
+    var button = byId('dunge-undo');
+    __PS_MV_REG = [];
+    return button ? (button.disabled = UNDOSTACK.length <= 0) : null;
+};
+function bindDebugControls() {
+    if (DEBUG) {
+        var controls = byId('dunge-controls');
+        var button = byId('dunge-undo');
+        if (controls && !button) {
+            button = document.createElement('button');
+            button.id = 'dunge-undo';
+            button.type = 'button';
+            button.textContent = 'Undo';
+            button.addEventListener('click', undoLastChoice);
+            controls.appendChild(button);
+        };
+        __PS_MV_REG = [];
+        return updateUndoControl();
+    };
+};
+function installRefreshGuard() {
+    return window.addEventListener('beforeunload', function (event) {
+        if (PROGRESSMADE) {
+            event.returnValue = '';
+            return '';
+        };
+    });
+};
+function bootDungeGame() {
+    GAME = window['DUNGE_GAME_DATA'];
+    SAVESIGNATURE = window['DUNGE_GAME_SIGNATURE'];
+    SAVEKEY = window['DUNGE_GAME_SAVE_KEY'];
+    DEBUG = debugRequestedP();
+    prepareGame();
+    restoreSavedGame();
+    bindNewGameControl();
+    bindDebugControls();
+    installRefreshGuard();
+    __PS_MV_REG = [];
+    return renderLocation();
+};
+document.addEventListener('DOMContentLoaded', bootDungeGame);</script></head><body><main id='dunge-app'><div id='dunge-controls'><button id='dunge-new-game' type='button'>New game</button></div><section id='dunge-scene' aria-live='polite'><h1 id='dunge-scene-title'></h1><div id='dunge-scene-body'></div></section><nav id='dunge-choices' aria-label='Choices'></nav><aside id='dunge-status' aria-label='Character status' hidden='hidden'></aside></main></body></html>

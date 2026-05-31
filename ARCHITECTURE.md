@@ -618,6 +618,12 @@ refresh guards, save-game UI, story rendering, and the compact status panel are
 part of this backend; generation itself is still driven by Common Lisp before
 the file is compiled.
 
+The adaptation testbed uses that boundary as a runnable vertical slice.
+`dunge-examples:write-adaptation-browser-demo` loads the adaptation, installs
+the generated player and two-room generated dungeon graph, rewires the authored
+threshold to the first generated room, and writes the committed
+`examples/adaptation/index.html` standalone build.
+
 ## Scope Cuts
 
 Dunge will not have inline links. Choices are enough.

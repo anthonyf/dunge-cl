@@ -21,10 +21,16 @@
      :str 8
      :damage 1)))
 
+(defparameter +adaptation-browser-demo-title+ "Dunge Adaptation Testbed")
+
 (defun load-adaptation-example ()
   (load-dunge-file
    (asdf:system-relative-pathname "dunge/examples"
                                   "examples/adaptation.dunge")))
+
+(defun adaptation-browser-demo-path ()
+  (asdf:system-relative-pathname "dunge/examples"
+                                 "examples/adaptation/index.html"))
 
 (defun find-adaptation-room (game room-name)
   (or (find room-name (game-rooms game) :key #'name :test #'equal)
@@ -301,6 +307,17 @@
                :background background)))
     (install-adaptation-entrance-flow game)
     game))
+
+(defun write-adaptation-browser-demo (&key
+                                        (pathname (adaptation-browser-demo-path))
+                                        (title +adaptation-browser-demo-title+)
+                                        debug
+                                        (if-exists :supersede))
+  (write-index-html (load-instanced-adaptation-example)
+                    pathname
+                    :title title
+                    :debug debug
+                    :if-exists if-exists))
 
 (defun adaptation-example ()
   (evaluate-session (make-runtime-session (load-instanced-adaptation-example))))

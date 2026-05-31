@@ -14,6 +14,10 @@ The authored Styles source lives in [styles/game.dunge](styles/game.dunge) and
 [styles/index.html](styles/index.html), and the Pages deploy copies it to
 `/styles/`.
 
+[The Dunge Crawler Testbed](https://anthonyf.github.io/dunge-cl/examples/adaptation/)
+is a smaller browser demo for generated rooms, loot, encounters, inventory, and
+save/load pressure on the engine.
+
 ## Repository Layout
 
 - [src/](src/) contains the core Dunge model, source loader, runtime, and HTML
