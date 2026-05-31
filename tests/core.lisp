@@ -2264,6 +2264,10 @@
     (is (contains-substring-p "id='dunge-scene-title'" html))
     (is (contains-substring-p "id='dunge-scene-body'" html))
     (is (contains-substring-p "id='dunge-choices'" html))
+    (is (contains-substring-p "id='dunge-status'" html))
+    (is (contains-substring-p "dunge-status-section" html))
+    (is (contains-substring-p "#dunge-status { border-color: #474035; }"
+                              html))
     (is (contains-substring-p "window.DUNGE_GAME_DATA = " html))
     (is (contains-substring-p "document.addEventListener('DOMContentLoaded', bootDungeGame);"
                               html))
@@ -2353,11 +2357,51 @@
     (is (contains-substring-p "\"background\":{\"type\":\"keyword\",\"name\":\"soldier\"}"
                               script))
     (is (contains-substring-p "\"maxStr\":12" script))
+    (is (contains-substring-p "\"inventoryCapacity\":10" script))
     (is (contains-substring-p "\"inventory\":[[{\"type\":\"keyword\",\"name\":\"item\"}"
                               script))
     (is (contains-substring-p "function copyJsonValue" script))
+    (is (contains-substring-p "function renderStatusPanel" script))
+    (is (contains-substring-p "function renderPlayerStatus" script))
+    (is (contains-substring-p "function inventoryUsedSlots" script))
+    (is (contains-substring-p "function renderInventoryList" script))
     (is (contains-substring-p "'player' : copyJsonValue(PLAYER)" script))
     (is (contains-substring-p "if (state['player'] !== undefined)" script))))
+
+(test html-compiler-lowers-encounter-state-for-browser-panel
+  (let* ((game
+           (source-game-with-player
+            '(:player
+              :name "Mara"
+              :hp 4)
+            '(:p "A shadow waits.")))
+         (encounter (make-encounter-state
+                     :room "room"
+                     :enemy-id :watchful-shadow
+                     :reaction :uncertain
+                     :hp 2
+                     :max-hp 3
+                     :str 8
+                     :max-str 10
+                     :armor 1
+                     :damage "1d4"
+                     :round 2)))
+    (register-encounter-state game encounter)
+    (let ((script (dunge-html:compile-game-script game)))
+      (is (contains-substring-p "\"encounters\":[{\"room\":\"room\""
+                                script))
+      (is (contains-substring-p "\"enemy\":{\"type\":\"keyword\",\"name\":\"watchful-shadow\"}"
+                                script))
+      (is (contains-substring-p "\"reaction\":{\"type\":\"keyword\",\"name\":\"uncertain\"}"
+                                script))
+      (is (contains-substring-p "\"damage\":\"1d4\"" script))
+      (is (contains-substring-p "\"status\":{\"type\":\"keyword\",\"name\":\"active\"}"
+                                script))
+      (is (contains-substring-p "function encounterForCurrentRoom" script))
+      (is (contains-substring-p "var roomId = fallbackCurrentRoomId();"
+                                script))
+      (is (contains-substring-p "function renderEncounterStatus" script))
+      (is (contains-substring-p "renderStatusPanel();" script)))))
 
 (test html-compiler-can-enable-debug-controls
   (let* ((game (source-game-with-body

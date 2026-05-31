@@ -123,4 +123,11 @@ This adaptation should tell us whether Dunge needs:
 
 6. **Browser Character Panel**
    Show character, inventory, slots, fatigue, conditions, and encounter status
-   in the browser runtime.
+   in the browser runtime. The current browser backend now renders a compact
+   panel for player state, inventory slot pressure, and the encounter bound to
+   the current authored room.
+
+7. **Generated Dungeon Entrance Flow**
+   Let the authored threshold enter or recall the generated first room through
+   CL graph helpers, rather than using the placeholder authored room as the
+   only player-facing path.
