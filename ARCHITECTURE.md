@@ -600,23 +600,25 @@ console evaluator.
 
 The backend emits a single self-contained `index.html` file. Lisp generates the
 static document shell, including the app mount points for scene title, scene
-body, choices, and a character/encounter status panel. Parenscript generates
-the embedded browser runtime script. The script owns game state and re-renders
-those static mount points as the player selects choices.
+body, and choices. Parenscript generates the embedded browser runtime script.
+The script owns game state and re-renders those static mount points as the
+player selects choices.
 
-The browser panel reads the same serialized player state used by save/load:
+The browser runtime keeps the same serialized player state used by save/load:
 HP, attributes, armor, gold, fate, fatigue, conditions, inventory, and slot
-pressure. The compiler also serializes current encounter states so the browser
-can show the encounter bound to the current authored or generated room. For
-pre-instanced generated rooms, the browser runtime can render generated room
-facts, claim loot, use rations, resolve the minimal attack/flee loop, follow
-generated exits, and persist those mutations in local storage.
+pressure. It does not display that state as a permanent dashboard. Character
+information should be rendered by authored narrative, character creation, or
+explicit room/action views when it is useful. The compiler also serializes
+current encounter states so generated rooms can render encounter text and
+choices in the narrative flow. For pre-instanced generated rooms, the browser
+runtime can render generated room facts, claim loot, use rations, resolve the
+minimal attack/flee loop, follow generated exits, and persist those mutations
+in local storage.
 
 The generated file does not rely on modules, fetches, or a web server. It is
 intended to run directly from `file://` in ordinary browsers. Browser storage,
-refresh guards, save-game UI, story rendering, and the compact status panel are
-part of this backend; generation itself is still driven by Common Lisp before
-the file is compiled.
+refresh guards, save-game UI, and story rendering are part of this backend;
+generation itself is still driven by Common Lisp before the file is compiled.
 
 The adaptation testbed uses that boundary as a runnable vertical slice.
 `dunge-examples:write-adaptation-browser-demo` loads the adaptation, installs

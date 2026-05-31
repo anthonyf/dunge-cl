@@ -121,11 +121,12 @@ This adaptation should tell us whether Dunge needs:
    generated room loot as claimable choices, persists claimed result indexes,
    and lets the player eat rations to recover HP/Fatigue and clear Deprived.
 
-6. **Browser Character Panel**
-   Show character, inventory, slots, fatigue, conditions, and encounter status
-   in the browser runtime. The current browser backend now renders a compact
-   panel for player state, inventory slot pressure, and the encounter bound to
-   the current authored room.
+6. **Browser Player State**
+   Keep character, inventory, slots, fatigue, conditions, and encounter state
+   serialized in the browser runtime without turning the game into a persistent
+   dashboard. The current browser backend keeps those values available for
+   narrative moments, item-use choices, generated-room loot, combat, save/load,
+   and the future character creation flow.
 
 7. **Generated Dungeon Entrance Flow**
    Let the authored threshold enter or recall the generated first room through
