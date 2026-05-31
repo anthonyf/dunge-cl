@@ -31,6 +31,8 @@
       (error "Adaptation example has no authored room named ~S." room-name)))
 
 (defun find-adaptation-choice (game choice-id)
+  (unless (keywordp choice-id)
+    (error "Adaptation choice id must be a keyword; got ~S." choice-id))
   (let ((match nil))
     (walk-node-tree
      game

@@ -2257,6 +2257,8 @@
     (is (= 2 (length (game-encounter-states game))))
     (is (= 2 (player-inventory-count (game-player game) :supply :ration)))
     (is (= 13 (length (game-roll-log game))))
+    (signals error
+      (dunge-examples:find-adaptation-choice game nil))
     (let* ((room (dunge-examples:ensure-adaptation-first-room game))
            (choice (dunge-examples:find-adaptation-choice game
                                                           :enter-first-room))
