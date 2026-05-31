@@ -2266,6 +2266,8 @@
     (is (contains-substring-p "id='dunge-choices'" html))
     (is (contains-substring-p "id='dunge-status'" html))
     (is (contains-substring-p "dunge-status-section" html))
+    (is (contains-substring-p "#dunge-status { border-color: #474035; }"
+                              html))
     (is (contains-substring-p "window.DUNGE_GAME_DATA = " html))
     (is (contains-substring-p "document.addEventListener('DOMContentLoaded', bootDungeGame);"
                               html))
@@ -2396,6 +2398,8 @@
       (is (contains-substring-p "\"status\":{\"type\":\"keyword\",\"name\":\"active\"}"
                                 script))
       (is (contains-substring-p "function encounterForCurrentRoom" script))
+      (is (contains-substring-p "var roomId = fallbackCurrentRoomId();"
+                                script))
       (is (contains-substring-p "function renderEncounterStatus" script))
       (is (contains-substring-p "renderStatusPanel();" script)))))
 

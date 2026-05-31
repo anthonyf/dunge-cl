@@ -174,7 +174,7 @@ body {
   #dunge-undo:hover,
   #dunge-undo:focus { border-color: #f4efe5; background: #25221c; }
   .dunge-quit { color: #bbb3a6; }
-  #dunge-status { border-left-color: #474035; }
+  #dunge-status { border-color: #474035; }
   .dunge-status-meta,
   .dunge-status-grid dt { color: #bbb3a6; }
 }
@@ -868,7 +868,7 @@ body {
           (render-inventory-list section))))
 
     (defun encounter-for-current-room ()
-      (let ((room-id (room-location-id *current-location*))
+      (let ((room-id (fallback-current-room-id))
             (match nil))
         (when room-id
           (dolist (encounter (node-list *encounters*))
