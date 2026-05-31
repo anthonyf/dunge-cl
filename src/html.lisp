@@ -28,15 +28,10 @@ body {
   background: #f7f4ed;
 }
 #dunge-app {
-  width: min(1120px, calc(100vw - 32px));
+  width: min(760px, calc(100vw - 32px));
   margin: 0 auto;
   padding: 48px 0;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(240px, 300px);
-  gap: 28px 36px;
-  align-items: start;
 }
-#dunge-controls { grid-column: 1 / -1; }
 #dunge-scene { min-width: 0; }
 #dunge-scene-title {
   margin: 0 0 24px;
@@ -58,54 +53,9 @@ body {
   font-style: italic;
 }
 #dunge-choices {
-  grid-column: 1;
   display: grid;
   gap: 10px;
   margin-top: 32px;
-}
-#dunge-status {
-  grid-column: 2;
-  grid-row: 2 / span 2;
-  border-left: 1px solid #c9bfae;
-  padding-left: 24px;
-  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;
-  font-size: 0.95rem;
-  line-height: 1.35;
-}
-#dunge-status[hidden] { display: none; }
-.dunge-status-section + .dunge-status-section {
-  margin-top: 24px;
-}
-.dunge-status-title {
-  margin: 0 0 10px;
-  font-size: 0.95rem;
-  font-weight: 700;
-  letter-spacing: 0;
-}
-.dunge-status-meta {
-  margin: -4px 0 12px;
-  color: #6f675c;
-}
-.dunge-status-grid {
-  display: grid;
-  grid-template-columns: max-content minmax(0, 1fr);
-  gap: 6px 14px;
-  margin: 0;
-}
-.dunge-status-grid dt {
-  color: #6f675c;
-}
-.dunge-status-grid dd {
-  margin: 0;
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-.dunge-inventory {
-  margin: 10px 0 0;
-  padding-left: 1.1rem;
-}
-.dunge-inventory li {
-  margin: 4px 0;
 }
 .dunge-choice {
   display: block;
@@ -174,22 +124,6 @@ body {
   #dunge-undo:hover,
   #dunge-undo:focus { border-color: #f4efe5; background: #25221c; }
   .dunge-quit { color: #bbb3a6; }
-  #dunge-status { border-color: #474035; }
-  .dunge-status-meta,
-  .dunge-status-grid dt { color: #bbb3a6; }
-}
-@media (max-width: 820px) {
-  #dunge-app {
-    display: block;
-    width: min(760px, calc(100vw - 32px));
-  }
-  #dunge-status {
-    margin-top: 32px;
-    padding-left: 0;
-    padding-top: 24px;
-    border-left: 0;
-    border-top: 1px solid #c9bfae;
-  }
 }")
 
 (defun html-object (&rest pairs)
@@ -802,31 +736,6 @@ body {
         (t
          (+ "" value))))
 
-    (defun append-status-row (list-element label value)
-      (append-text list-element "dt" nil label)
-      (append-text list-element "dd" nil (display-value value)))
-
-    (defun append-status-section (panel title)
-      (let ((section (chain document (create-element "section"))))
-        (setf (@ section class-name) "dunge-status-section")
-        (append-text section "h2" "dunge-status-title" title)
-        (chain panel (append-child section))
-        section))
-
-    (defun append-status-grid (section)
-      (let ((grid (chain document (create-element "dl"))))
-        (setf (@ grid class-name) "dunge-status-grid")
-        (chain section (append-child grid))
-        grid))
-
-    (defun keyword-list-text (values)
-      (let ((labels (array)))
-        (dolist (value (node-list values))
-          (push-array labels (display-value value)))
-        (if (> (@ labels length) 0)
-            (chain labels (join ", "))
-            "None")))
-
     (defun inventory-option (entry option default-value)
       (let ((result default-value)
             (length (@ entry length)))
@@ -844,34 +753,6 @@ body {
         (if (eql (typeof count) "number")
             count
             1)))
-
-    (defun inventory-entry-slots (entry)
-      (let ((explicit (inventory-option entry "slots" undefined)))
-        (if (not (eql explicit undefined))
-            explicit
-            (let ((kind (and (keyword-p (aref entry 0))
-                             (@ (aref entry 0) name))))
-              (cond
-                ((eql kind "item")
-                 (* (inventory-entry-count entry)
-                    (if (truthy (inventory-option entry "bulky" nil)) 2 1)))
-                ((eql kind "supply")
-                 1)
-                (t
-                 0))))))
-
-    (defun inventory-used-slots ()
-      (let ((used (or (@ *player* fatigue) 0)))
-        (dolist (entry (node-list (@ *player* inventory)))
-          (setf used (+ used (inventory-entry-slots entry))))
-        used))
-
-    (defun inventory-entry-label (entry)
-      (let* ((id (display-value (aref entry 1)))
-             (count (inventory-entry-count entry)))
-        (if (> count 1)
-            (+ id " x" count)
-            id)))
 
     (defun keyword-name (value)
       (and (keyword-p value) (@ value name)))
@@ -1056,93 +937,6 @@ body {
            (or (< (@ *player* hp) (@ *player* max-hp))
                (> (or (@ *player* fatigue) 0) 0)
                (player-condition-p "deprived"))))
-
-    (defun render-inventory-list (section)
-      (let ((inventory (node-list (@ *player* inventory))))
-        (if (> (@ inventory length) 0)
-            (let ((list (chain document (create-element "ul"))))
-              (setf (@ list class-name) "dunge-inventory")
-              (dolist (entry inventory)
-                (append-text list "li" nil (inventory-entry-label entry)))
-              (chain section (append-child list)))
-            (append-text section "p" "dunge-status-meta" "Inventory is empty."))))
-
-    (defun render-player-status (panel)
-      (when *player*
-        (let* ((section (append-status-section
-                         panel
-                         (or (@ *player* name) "Character")))
-               (used (inventory-used-slots))
-               (capacity (or (@ *player* inventory-capacity) 10)))
-          (when (@ *player* background)
-            (append-text section
-                         "p"
-                         "dunge-status-meta"
-                         (display-value (@ *player* background))))
-          (let ((grid (append-status-grid section)))
-            (append-status-row grid "HP" (+ (@ *player* hp)
-                                            "/"
-                                            (@ *player* max-hp)))
-            (append-status-row grid "STR" (+ (@ *player* str)
-                                             "/"
-                                             (@ *player* max-str)))
-            (append-status-row grid "DEX" (+ (@ *player* dex)
-                                             "/"
-                                             (@ *player* max-dex)))
-            (append-status-row grid "WIL" (+ (@ *player* wil)
-                                             "/"
-                                             (@ *player* max-wil)))
-            (append-status-row grid "Armor" (@ *player* armor))
-            (append-status-row grid "Gold" (@ *player* gold))
-            (append-status-row grid "Fate" (@ *player* fate))
-            (append-status-row grid "Fatigue" (@ *player* fatigue))
-            (append-status-row grid "Conditions"
-                               (keyword-list-text (@ *player* conditions)))
-            (append-status-row grid "Slots" (+ used
-                                               "/"
-                                               capacity
-                                               " used")))
-          (render-inventory-list section))))
-
-    (defun encounter-for-current-room ()
-      (let ((room-id (fallback-current-room-id))
-            (match nil))
-        (when room-id
-          (dolist (encounter (node-list *encounters*))
-            (when (and (not match)
-                       (eql (@ encounter room) room-id))
-              (setf match encounter))))
-        match))
-
-    (defun render-encounter-status (panel encounter)
-      (when encounter
-        (let ((grid (append-status-grid
-                     (append-status-section panel "Encounter"))))
-          (append-status-row grid "Enemy" (@ encounter enemy))
-          (append-status-row grid "Status" (@ encounter status))
-          (append-status-row grid "HP" (+ (@ encounter hp)
-                                          "/"
-                                          (@ encounter max-hp)))
-          (append-status-row grid "STR" (+ (@ encounter str)
-                                           "/"
-                                           (@ encounter max-str)))
-          (append-status-row grid "Armor" (@ encounter armor))
-          (append-status-row grid "Damage" (@ encounter damage))
-          (append-status-row grid "Round" (@ encounter round))
-          (when (@ encounter reaction)
-            (append-status-row grid "Reaction" (@ encounter reaction))))))
-
-    (defun render-status-panel ()
-      (let ((panel (by-id "dunge-status"))
-            (encounter (encounter-for-current-room)))
-        (when panel
-          (clear-element panel)
-          (if (or *player* encounter)
-              (progn
-                (setf (@ panel hidden) false)
-                (render-player-status panel)
-                (render-encounter-status panel encounter))
-              (setf (@ panel hidden) t)))))
 
     (defun object-key-count (object)
       (@ (chain -object (keys object)) length))
@@ -1804,7 +1598,6 @@ body {
            (render-generated-room title body choices-element))
           (t
            (render-room title body choices-element)))
-        (render-status-panel)
         (update-undo-control)))
 
     (defun render-room (title body choices-element)
@@ -1999,8 +1792,7 @@ body {
          (:section :id "dunge-scene" :aria-live "polite"
           (:h1 :id "dunge-scene-title")
           (:div :id "dunge-scene-body"))
-         (:nav :id "dunge-choices" :aria-label "Choices")
-         (:aside :id "dunge-status" :aria-label "Character status" :hidden "hidden")))))))
+         (:nav :id "dunge-choices" :aria-label "Choices")))))))
 
 (defun write-index-html (game pathname &key (title *default-title*)
                                        (style *default-style*)

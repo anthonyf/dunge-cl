@@ -30,7 +30,7 @@
 - [X] Expand generated rooms into a small dungeon graph
 - [X] Add encounter state and a minimal combat loop
 - [X] Add item-use table result procedures
-- [X] Add browser character and encounter panels
+- [X] Add browser player and encounter state for narrative actions
 - [X] Add generated dungeon entrance flow from the authored threshold
 - [X] Add browser rendering and save/load parity for generated rooms
 - [X] Add adaptation browser demo target and smoke path
@@ -40,7 +40,7 @@
 - [X] Inventory data model with stack helpers, slot accounting, Fatigue pressure, and Deprived checks
 - [ ] Character creation flow with name, background, stats, HP, armor, gold, fate, and inventory
 - [ ] Background starting gear matching the design document
-- [X] Inventory UI integration and gold handling
+- [X] Inventory state integration and gold handling
 - [X] Rest/recovery integration for Fatigue and Deprived status
 - [ ] Item use effects for healing herbs, light sources, tools, spellbooks, scrolls, and relics
 

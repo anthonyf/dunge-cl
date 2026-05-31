@@ -21,8 +21,9 @@ authored `:watchful-shadow` encounter result into persistent room-bound combat
 state with attack and flee choices. Generated rooms now expose unclaimed
 gold/item/supply results as loot choices, persist claimed result indexes, and
 let the player eat rations for basic recovery during exploration or combat. The
-browser runtime now renders character, inventory, slot pressure, condition, and
-room-bound encounter state.
+browser runtime keeps character, inventory, condition, and room-bound encounter
+state available for choices and save/load without displaying a permanent
+character panel.
 
 The console example is now the first runnable crawler slice: the CL loader
 installs a generated player, creates the persistent two-room dungeon graph, and
@@ -59,8 +60,8 @@ Repeatable smoke path:
 5. Choose **Take ration**.
 6. Choose **Continue deeper**.
 7. Choose **Flee** or **Attack** in the deeper generated room.
-8. Reload the page and confirm the deeper generated room, encounter state, and
-   ration inventory change persist.
+8. Reload the page and confirm the deeper generated room and encounter state
+   persist without a permanent character/status panel.
 
 See [PROVENANCE.md](PROVENANCE.md) for source/license notes and
 [../../ADAPTATION_SUPPORT_AUDIT.md](../../ADAPTATION_SUPPORT_AUDIT.md) for the

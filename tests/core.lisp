@@ -2300,7 +2300,13 @@
                   contents))
              (is (contains-substring-p
                   "\"room\":\"generated:dungeon:1\""
-                  contents))))
+                  contents))
+             (is (not (contains-substring-p
+                       "id='dunge-status'"
+                       contents)))
+             (is (not (contains-substring-p
+                       "renderStatusPanel"
+                       contents)))))
       (let ((directory (uiop:pathname-directory-pathname path)))
         (when (probe-file directory)
           (uiop:delete-directory-tree directory :validate t))))))
@@ -2316,10 +2322,8 @@
     (is (contains-substring-p "id='dunge-scene-title'" html))
     (is (contains-substring-p "id='dunge-scene-body'" html))
     (is (contains-substring-p "id='dunge-choices'" html))
-    (is (contains-substring-p "id='dunge-status'" html))
-    (is (contains-substring-p "dunge-status-section" html))
-    (is (contains-substring-p "#dunge-status { border-color: #474035; }"
-                              html))
+    (is (not (contains-substring-p "id='dunge-status'" html)))
+    (is (not (contains-substring-p "dunge-status-section" html)))
     (is (contains-substring-p "window.DUNGE_GAME_DATA = " html))
     (is (contains-substring-p "document.addEventListener('DOMContentLoaded', bootDungeGame);"
                               html))
@@ -2413,14 +2417,14 @@
     (is (contains-substring-p "\"inventory\":[[{\"type\":\"keyword\",\"name\":\"item\"}"
                               script))
     (is (contains-substring-p "function copyJsonValue" script))
-    (is (contains-substring-p "function renderStatusPanel" script))
-    (is (contains-substring-p "function renderPlayerStatus" script))
-    (is (contains-substring-p "function inventoryUsedSlots" script))
-    (is (contains-substring-p "function renderInventoryList" script))
+    (is (not (contains-substring-p "function renderStatusPanel" script)))
+    (is (not (contains-substring-p "function renderPlayerStatus" script)))
+    (is (not (contains-substring-p "function inventoryUsedSlots" script)))
+    (is (not (contains-substring-p "function renderInventoryList" script)))
     (is (contains-substring-p "'player' : copyJsonValue(PLAYER)" script))
     (is (contains-substring-p "if (state['player'] !== undefined)" script))))
 
-(test html-compiler-lowers-encounter-state-for-browser-panel
+(test html-compiler-lowers-encounter-state-for-browser-runtime
   (let* ((game
            (source-game-with-player
             '(:player
@@ -2449,11 +2453,10 @@
       (is (contains-substring-p "\"damage\":\"1d4\"" script))
       (is (contains-substring-p "\"status\":{\"type\":\"keyword\",\"name\":\"active\"}"
                                 script))
-      (is (contains-substring-p "function encounterForCurrentRoom" script))
-      (is (contains-substring-p "var roomId = fallbackCurrentRoomId();"
-                                script))
-      (is (contains-substring-p "function renderEncounterStatus" script))
-      (is (contains-substring-p "renderStatusPanel();" script)))))
+      (is (contains-substring-p "function encounterForRoom" script))
+      (is (contains-substring-p "function generatedRoomEncounterLine" script))
+      (is (not (contains-substring-p "function renderEncounterStatus" script)))
+      (is (not (contains-substring-p "renderStatusPanel();" script))))))
 
 (test html-compiler-lowers-generated-rooms-for-browser-runtime
   (let* ((game (dunge-examples:load-instanced-adaptation-example))
