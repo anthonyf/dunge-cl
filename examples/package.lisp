@@ -10,6 +10,8 @@
    #:ensure-adaptation-first-room
    #:ensure-adaptation-room-encounter
    #:ensure-adaptation-room-exit
+   #:find-adaptation-choice
+   #:install-adaptation-entrance-flow
    #:generated-adaptation-example
    #:instanced-adaptation-example
    #:install-adaptation-player

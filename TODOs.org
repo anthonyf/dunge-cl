@@ -31,7 +31,8 @@
 - [X] Add encounter state and a minimal combat loop
 - [X] Add item-use table result procedures
 - [X] Add browser character and encounter panels
-- [ ] Add generated dungeon entrance flow from the authored threshold
+- [X] Add generated dungeon entrance flow from the authored threshold
+- [ ] Add browser rendering and save/load parity for generated rooms
 
 * Phase 2: Character And Inventory
 - [X] Player state foundation with source validation and save/load

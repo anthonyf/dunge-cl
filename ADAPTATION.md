@@ -130,4 +130,6 @@ This adaptation should tell us whether Dunge needs:
 7. **Generated Dungeon Entrance Flow**
    Let the authored threshold enter or recall the generated first room through
    CL graph helpers, rather than using the placeholder authored room as the
-   only player-facing path.
+   only player-facing path. The console adaptation example now starts with a
+   generated player, installs the persistent two-room dungeon graph, and wires
+   the threshold's "enter generated chamber" choice to the first generated room.

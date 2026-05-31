@@ -83,10 +83,18 @@ The first adaptation target is intentionally small:
    and encounter state: HP, attributes, armor, gold, fate, fatigue, conditions,
    inventory, slots, and the encounter bound to the current authored room.
 
+7. **Generated dungeon entrance flow**
+   The console adaptation example now installs the generated player and the
+   persistent two-room dungeon graph before play, then rewires the authored
+   threshold's `:enter-first-room` choice to the first generated room id. This
+   gives the testbed a runnable camp-to-threshold-to-generated-room loop without
+   moving room instancing into `.dunge`.
+
 ## Next Recommended PR
 
-Build the **generated dungeon entrance flow** slice next. The adaptation can now
-generate rooms, link them, run a small persistent combat loop, claim loot, use
-rations, and display character state in the browser; the next pressure point is
-letting the authored threshold enter or recall the generated first room through
-the CL graph helpers instead of routing through the placeholder room.
+Build the **browser generated-room parity** slice next. The console adaptation
+can now generate rooms, link them, enter the first generated room from the
+authored threshold, run a small persistent combat loop, claim loot, use rations,
+and display character state in the browser panel. The next pressure point is
+serializing and rendering generated rooms in the browser backend so this same
+vertical slice can be clicked as a standalone HTML demo.

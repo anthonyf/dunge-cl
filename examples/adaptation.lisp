@@ -26,6 +26,21 @@
    (asdf:system-relative-pathname "dunge/examples"
                                   "examples/adaptation.dunge")))
 
+(defun find-adaptation-room (game room-name)
+  (or (find room-name (game-rooms game) :key #'name :test #'equal)
+      (error "Adaptation example has no authored room named ~S." room-name)))
+
+(defun find-adaptation-choice (game choice-id)
+  (let ((match nil))
+    (walk-node-tree
+     game
+     (lambda (node)
+       (when (and (typep node 'choice)
+                  (eq (choice-id node) choice-id))
+         (setf match node))))
+    (or match
+        (error "Adaptation example has no choice with id ~S." choice-id))))
+
 (defun adaptation-background-data (background)
   (or (find background +adaptation-backgrounds+ :key #'first :test #'eq)
       (error "Unknown adaptation background ~S." background)))
@@ -224,6 +239,14 @@
     (note-adaptation-dungeon-state game)
     room))
 
+(defun install-adaptation-entrance-flow (game)
+  (let* ((room (ensure-adaptation-first-room game))
+         (choice (find-adaptation-choice game :enter-first-room)))
+    (find-adaptation-room game "threshold")
+    (setf (target choice)
+          (make-instance 'goto :room-name (name room)))
+    (values game room)))
+
 (defun make-adaptation-player (game &key
                                       (name "Generated Delver")
                                       (background :wanderer))
@@ -274,16 +297,16 @@
   (let ((game (load-generated-adaptation-example
                :name name
                :background background)))
-    (ensure-adaptation-first-room game)
+    (install-adaptation-entrance-flow game)
     game))
 
 (defun adaptation-example ()
-  (evaluate (load-adaptation-example)))
+  (evaluate-session (make-runtime-session (load-instanced-adaptation-example))))
 
 (defun generated-adaptation-example ()
   (evaluate-session (make-runtime-session (load-generated-adaptation-example))))
 
 (defun instanced-adaptation-example ()
   (let* ((game (load-instanced-adaptation-example))
-         (room (ensure-adaptation-first-room game)))
+         (room (find-adaptation-first-room game)))
     (evaluate-session (make-runtime-session game :current-room (name room)))))
