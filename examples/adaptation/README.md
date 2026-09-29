@@ -47,7 +47,7 @@ threshold, and follows the generated-room graph prepared by the CL helper.
 Regenerate it from the repository root with:
 
 ```sh
-qlot exec sbcl --non-interactive --eval '(asdf:load-system :dunge/examples)' --eval '(dunge-examples:write-adaptation-browser-demo)'
+sbcl --non-interactive --eval '(asdf:load-system :dunge/examples)' --eval '(dunge-examples:write-adaptation-browser-demo)'
 ```
 
 Repeatable smoke path:

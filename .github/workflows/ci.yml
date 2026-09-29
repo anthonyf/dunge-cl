@@ -32,35 +32,37 @@ jobs:
           version="$(sbcl --version)"
           echo "version=${version// /-}" >> "$GITHUB_OUTPUT"
 
-      - name: Install Qlot
-        env:
-          QLOT_INSTALLER_URL: https://github.com/fukamachi/qlot/releases/download/1.8.3/qlot-installer-1.8.3.sh
-          QLOT_INSTALLER_SHA256: 8b8bb87c35600f05f38b71fb07309dfef9fb846592dee151cc92c8c294971e66
+      - name: Install ocicl
         run: |
-          installer="$(mktemp)"
-          checksum_file="$(mktemp)"
-          curl --fail --silent --show-error --location "$QLOT_INSTALLER_URL" --output "$installer"
-          echo "$QLOT_INSTALLER_SHA256  $installer" > "$checksum_file"
-          sha256sum --check "$checksum_file"
-          sh "$installer"
-          echo "$HOME/.qlot/bin" >> "$GITHUB_PATH"
+          curl -fsSL https://ocicl.github.io/ocicl/deb-repo/ocicl-archive-keyring.gpg |
+            sudo tee /usr/share/keyrings/ocicl-archive-keyring.asc > /dev/null
+          echo "deb [signed-by=/usr/share/keyrings/ocicl-archive-keyring.asc] https://ocicl.github.io/ocicl/deb-repo stable main" |
+            sudo tee /etc/apt/sources.list.d/ocicl.list
+          sudo apt-get update
+          sudo apt-get install --yes ocicl
+          ocicl setup >> ~/.sbclrc
+          cat >> ~/.sbclrc <<'LISP'
+          (asdf:initialize-source-registry
+           (list :source-registry (list :directory (uiop:getcwd)) :inherit-configuration))
+          LISP
 
       - name: Cache Lisp dependencies
         uses: actions/cache@v4
         with:
           path: |
+            ocicl
             ~/.cache/common-lisp
-          key: ${{ runner.os }}-${{ steps.sbcl.outputs.version }}-${{ hashFiles('qlfile.lock') }}
+          key: ${{ runner.os }}-${{ steps.sbcl.outputs.version }}-${{ hashFiles('ocicl.csv') }}
           restore-keys: |
             ${{ runner.os }}-${{ steps.sbcl.outputs.version }}-
 
       - name: Install dependencies
-        run: qlot install
+        run: ocicl install
 
       - name: Run tests
         run: |
-          qlot exec sbcl --non-interactive --eval '(asdf:test-system :dunge/tests)'
-          qlot exec sbcl --non-interactive --eval '(asdf:test-system :dunge-styles/tests)'
+          sbcl --non-interactive --eval '(asdf:test-system :dunge/tests)'
+          sbcl --non-interactive --eval '(asdf:test-system :dunge-styles/tests)'
 
   deploy-pages:
     name: Deploy GitHub Pages
