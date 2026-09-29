@@ -5,6 +5,87 @@ declarative: source files describe what content exists, what it means, and when
 it is eligible. Common Lisp decides how content is rolled, generated, resolved,
 mutated, and saved.
 
+## Expressions and Conditions
+
+Wherever a form takes a value, such as `:say`, `:set :value`, `:inc :amount`,
+or the operands of a comparison, it takes an **expression**. Expressions run
+the same way in the console and in the browser.
+
+### Values
+
+An expression is a literal or an expression form:
+
+- Literals: strings, integers, keywords, `t`, and `nil`.
+- State references: `(:global key)`, `(:self key)`, and `(:ref role key)`.
+- Arithmetic: `(:add a b ...)`, `(:sub a b ...)`, `(:mul a b ...)`,
+  `(:min a b ...)`, and `(:max a b ...)`. `:sub` subtracts each later operand
+  from the first and needs at least two; the others take one or more.
+- Text: `(:concat a b ...)` joins its parts as text, and strings may
+  interpolate state (see below).
+
+Arithmetic works on integers only. An unset or cleared state value counts as
+`0`, as it does for `:inc` and `:dec`. Any other non-integer operand, such as a
+keyword or a string, is a runtime error. So is any result, including one from
+`:inc` or `:dec`, beyond plus or minus 2^53 - 1 (9007199254740991), the
+largest integer both runtimes represent exactly. The validator rejects integer
+literals outside that range and non-integer literals used as arithmetic or
+comparison operands.
+
+```lisp
+(:set :target (:global :hp)
+      :value (:max 0 (:sub (:global :hp) (:self :damage))))
+```
+
+### Conditions
+
+A condition is used by `:when`, `:if`, `:branch`, and choice `:when` fields:
+
+- A state reference is true when its value is neither `nil` nor unset.
+- `(:eq a b)` compares any two values. Strings, integers, and keywords are
+  equal when they are the same value. `nil` equals unset and cleared state.
+- `(:lt a b)`, `(:lte a b)`, `(:gt a b)`, and `(:gte a b)` compare integers,
+  with the same operand rules as arithmetic.
+- `(:not c)`, `(:and c ...)`, and `(:or c ...)` combine conditions.
+
+```lisp
+(:choice "Rest" (:set :target (:global :hp) :value (:global :max-hp))
+ :when (:and (:lt (:global :hp) (:global :max-hp))
+             (:gte (:global :rations) 1)))
+```
+
+Every positional form has a canonical keyword-field spelling: `(:lt a b)` is
+`(:lt :left a :right b)`, and `(:add 1 2)` is `(:add :operands (1 2))`.
+
+### Interpolation
+
+A string expression may name state in braces:
+
+- `{global:key}`, `{self:key}`, and `{ref:role:key}` read state the same way as
+  the forms above.
+- `{{` and `}}` write literal braces. Any other `{` or `}` is a source error.
+
+```lisp
+(:say "The chest holds {self:coins} coins; you carry {global:gold}.")
+```
+
+An interpolated string compiles to `:concat`. Room paragraphs (`:p`), labels,
+and titles are plain text and are not interpolated.
+
+### How Values Display
+
+`:say` and interpolation display values the same way in both runtimes:
+
+| Value | Displays as |
+|---|---|
+| string | the string itself |
+| integer | decimal digits, with a leading `-` when negative |
+| keyword | its lower-case name without the colon: `:calm` shows `calm` |
+| `t` | `true` |
+| `nil`, and state that is unset or removed with `:clear` | nothing (the empty string) |
+
+To show a flag as words, branch on it:
+`(:if :when (:global :lit) :then ((:say "lit")) :else ((:say "dark")))`.
+
 ## Table Result Conventions
 
 Random table entries use `:result` to return safe data. Today, only nested

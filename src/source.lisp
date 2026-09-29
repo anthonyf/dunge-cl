@@ -209,17 +209,54 @@ written."
 (defun state-source-form (scope key &optional role)
   `(:state :scope ,scope ,@(when role (list :role role)) :key ,key))
 
+(defun field-arguments-p (arguments fields)
+  "True when ARGUMENTS start with one of the keyword field names FIELDS.
+Unlike POSITIONAL-ARGUMENTS-P, this lets a positional form start with a
+keyword value, as in (:say :open) or (:eq :open (:self :status))."
+  (and arguments
+       (member (first arguments) fields :test #'eq)))
+
 (defmacro define-single-field-shorthand (tag field)
   "Let (TAG VALUE) stand for (TAG FIELD VALUE)."
   `(define-dunge-shorthand ,tag (arguments)
-     (when (positional-arguments-p arguments)
+     (unless (field-arguments-p arguments '(,field))
        (list ,tag ,field (exactly-one-shorthand-argument ,tag arguments)))))
+
+(defmacro define-binary-shorthand (tag)
+  "Let (TAG LEFT RIGHT) stand for (TAG :LEFT LEFT :RIGHT RIGHT)."
+  `(define-dunge-shorthand ,tag (arguments)
+     (unless (field-arguments-p arguments '(:left :right))
+       (unless (= 2 (length arguments))
+         (source-error "~S expects two operands; got ~S." ,tag arguments))
+       (list ,tag :left (first arguments) :right (second arguments)))))
+
+(defmacro define-list-field-shorthand (tag field)
+  "Let (TAG VALUE ...) stand for (TAG FIELD (VALUE ...))."
+  `(define-dunge-shorthand ,tag (arguments)
+     (unless (field-arguments-p arguments '(,field))
+       (list ,tag ,field arguments))))
 
 (define-single-field-shorthand :p :text)
 (define-single-field-shorthand :say :text)
 (define-single-field-shorthand :go :room)
 (define-single-field-shorthand :gosub :room)
 (define-single-field-shorthand :not :condition)
+
+;;; Expressions: (:add 1 (:self :hp)) stands for (:add :operands (...)), and
+;;; (:lt a b) for (:lt :left a :right b).
+
+(define-binary-shorthand :eq)
+(define-binary-shorthand :lt)
+(define-binary-shorthand :lte)
+(define-binary-shorthand :gt)
+(define-binary-shorthand :gte)
+
+(define-list-field-shorthand :add :operands)
+(define-list-field-shorthand :sub :operands)
+(define-list-field-shorthand :mul :operands)
+(define-list-field-shorthand :min :operands)
+(define-list-field-shorthand :max :operands)
+(define-list-field-shorthand :concat :parts)
 
 (define-dunge-shorthand :and (arguments)
   (when (positional-arguments-p arguments)
@@ -377,26 +414,100 @@ written."
       (eq value t)
       (null value)))
 
+(defun interpolation-placeholder-form (placeholder)
+  "Return the state reference source form for the text of a {...} PLACEHOLDER."
+  (flet ((key (name)
+           (when (or (zerop (length name))
+                     (find-if (lambda (char)
+                                (member char '(#\Space #\Tab #\Newline #\{)))
+                              name))
+             (source-error "Malformed interpolation key ~S in {~A}."
+                           name
+                           placeholder))
+           (intern (string-upcase name) :keyword)))
+    (let ((parts (uiop:split-string placeholder :separator ":")))
+      (cond
+        ((and (= 2 (length parts))
+              (member (first parts) '("self" "global") :test #'string=))
+         (state-source-form (intern (string-upcase (first parts)) :keyword)
+                            (key (second parts))))
+        ((and (= 3 (length parts))
+              (string= (first parts) "ref"))
+         (state-source-form :ref (key (third parts)) (key (second parts))))
+        (t
+         (source-error "Unknown interpolation {~A}; expected {self:key}, ~
+                        {global:key}, or {ref:role:key}."
+                       placeholder))))))
+
+(defun parse-interpolated-string (string)
+  "Split STRING into a list of literal strings and state reference source forms.
+{scope:key} marks a reference; {{ and }} stand for literal braces."
+  (let ((parts nil)
+        (literal (make-string-output-stream))
+        (index 0)
+        (length (length string)))
+    (flet ((flush-literal ()
+             (let ((text (get-output-stream-string literal)))
+               (when (plusp (length text))
+                 (push text parts)))))
+      (loop while (< index length)
+            do (let ((char (char string index))
+                     (next (and (< (1+ index) length)
+                                (char string (1+ index)))))
+                 (cond
+                   ((and (member char '(#\{ #\}))
+                         (eql next char))
+                    (write-char char literal)
+                    (incf index 2))
+                   ((char= char #\})
+                    (source-error "Unmatched } in ~S; write }} for a literal brace."
+                                  string))
+                   ((char= char #\{)
+                    (let ((close (position #\} string :start index)))
+                      (unless close
+                        (source-error "Unclosed { in ~S; write {{ for a literal brace."
+                                      string))
+                      (flush-literal)
+                      (push (interpolation-placeholder-form
+                             (subseq string (1+ index) close))
+                            parts)
+                      (setf index (1+ close))))
+                   (t
+                    (write-char char literal)
+                    (incf index)))))
+      (flush-literal))
+    (nreverse parts)))
+
+(defun compile-dunge-string-expression (string context)
+  "Compile STRING, which may contain {scope:key} interpolations, to either a
+plain string or a CONCAT node."
+  (let ((parts (parse-interpolated-string string)))
+    (if (every #'stringp parts)
+        (apply #'concatenate 'string parts)
+        (%make-concat
+         :parts (mapcar (lambda (part)
+                          (if (stringp part)
+                              part
+                              (compile-dunge-source-form part context)))
+                        parts)))))
+
 (defun compile-dunge-expression (value context)
   (cond
+    ((stringp value)
+     (compile-dunge-string-expression value context))
     ((source-literal-p value)
      value)
     ((consp value)
      (let ((node (compile-dunge-source-form value context)))
-       (unless (typep node 'state-ref)
-         (source-error "Expressions may only contain literals or state references; got ~S."
-                       value))
+       (unless (typep node 'expression-node)
+         (source-error "Expected an expression form, got ~S." value))
        node))
     (t
      (source-error "Unsupported expression value ~S." value))))
 
 (defun compile-dunge-condition (value context)
   (let ((node (compile-dunge-source-form value context)))
-    (unless (or (typep node 'state-ref)
-                (typep node 'condition-eq)
-                (typep node 'condition-not)
-                (typep node 'condition-and)
-                (typep node 'condition-or))
+    (unless (typep node 'condition-node)
       (source-error "Expected a condition form, got ~S." value))
     node))
 

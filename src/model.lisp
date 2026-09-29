@@ -569,7 +569,22 @@
                   (scene-id-key (second ref))))
           value))
 
-(define-dunge-node state-ref ()
+;;; Expressions and conditions
+;;;
+;;; An expression is a literal (string, integer, keyword, T or NIL) or an
+;;; EXPRESSION-NODE. A condition is a CONDITION-NODE. A state reference is
+;;; both: as a condition it tests its value for truth.
+
+(defclass expression-node () ())
+
+(defclass condition-node () ())
+
+(define-dunge-field-type :expression-list (value context)
+  (mapcar (lambda (form)
+            (compile-dunge-expression form context))
+          (ensure-source-list :expression-list value)))
+
+(define-dunge-node state-ref (expression-node condition-node)
   ((scope :reader state-ref-scope :initarg :scope :initform :global)
    (role :reader state-ref-role :initarg :role :initform nil)
    (key :reader state-ref-key :initarg :key :initform nil))
@@ -579,27 +594,63 @@
     (:role :keyword)
     (:key :state-key :required t))))
 
-(define-dunge-node condition-eq ()
+(define-dunge-node arithmetic (expression-node)
+  ((operator :reader arithmetic-operator :initarg :operator :initform nil)
+   (operands :reader arithmetic-operands :initarg :operands :initform nil)))
+
+(define-dunge-node concat (expression-node)
+  ((parts :reader concat-parts :initarg :parts :initform nil))
+  (:source :concat
+   (:fields
+    (:parts :expression-list :required t))))
+
+(defclass binary-condition (condition-node)
   ((left :reader condition-left :initarg :left :initform nil)
-   (right :reader condition-right :initarg :right :initform nil))
+   (right :reader condition-right :initarg :right :initform nil)))
+
+(define-dunge-node condition-eq (binary-condition)
+  ()
   (:source :eq
    (:fields
     (:left :expression :required t)
     (:right :expression :required t))))
 
-(define-dunge-node condition-not ()
+(define-dunge-node condition-compare (binary-condition)
+  ((operator :reader comparison-operator :initarg :operator :initform nil)))
+
+(defparameter *arithmetic-operators* '(:add :sub :mul :min :max))
+(defparameter *comparison-operators* '(:lt :lte :gt :gte))
+
+(dolist (operator *arithmetic-operators*)
+  (let ((operator operator))
+    (register-dunge-source-form
+     operator
+     (lambda (&rest initargs)
+       (apply #'%make-arithmetic :operator operator initargs))
+     '((:operands :expression-list :required t)))))
+
+(dolist (operator *comparison-operators*)
+  (let ((operator operator))
+    (register-dunge-source-form
+     operator
+     (lambda (&rest initargs)
+       (apply #'%make-condition-compare :operator operator initargs))
+     '((:left :expression :required t)
+       (:right :expression :required t)))))
+
+(define-dunge-node condition-not (condition-node)
   ((condition :reader condition-child :initarg :condition :initform nil))
   (:source :not
    (:fields
     (:condition :condition :required t))))
 
-(define-dunge-node condition-and ()
+(define-dunge-node condition-and (condition-node)
   ((conditions :reader conditions :initarg :conditions :initform nil))
   (:source :and
    (:fields
     (:conditions :condition-list :required t))))
 
-(define-dunge-node condition-or ()
+(define-dunge-node condition-or (condition-node)
   ((conditions :reader conditions :initarg :conditions :initform nil))
   (:source :or
    (:fields
@@ -1582,8 +1633,13 @@
   (let ((seen (make-hash-table :test 'eql)))
     (dolist (declaration declarations)
       (destructuring-bind (key value) declaration
-        (declare (ignore value))
         (let ((state-key (state-key key)))
+          (when (and (integerp value) (not (safe-integer-p value)))
+            (validation-error "~A state key ~S starts at ~D, outside the supported range of plus or minus ~D."
+                              owner-label
+                              state-key
+                              value
+                              +max-safe-integer+))
           (if (nth-value 1 (gethash state-key seen))
               (validation-error "~A declares state key ~S more than once."
                                 owner-label
@@ -1597,41 +1653,48 @@
                       current
                       maximum)))
 
-(defun condition-literal-p (thing)
+(defconstant +max-safe-integer+ (1- (expt 2 53))
+  "The largest integer both runtimes represent exactly. Arithmetic results
+beyond plus or minus this value are errors.")
+
+(defun safe-integer-p (value)
+  (and (integerp value)
+       (<= (- +max-safe-integer+) value +max-safe-integer+)))
+
+(defun expression-literal-p (thing)
   (or (stringp thing)
       (keywordp thing)
-      (numberp thing)
+      (integerp thing)
       (eq thing t)
       (null thing)))
 
-(defun validate-condition-operand (thing game context)
+(defun validate-expression (thing game context)
   (cond
-    ((typep thing 'state-ref)
+    ((typep thing 'expression-node)
      (validate-node thing game context))
-    ((condition-literal-p thing)
+    ((and (integerp thing) (not (safe-integer-p thing)))
+     (validation-error "Integer ~D is outside the supported range of plus or minus ~D."
+                       thing
+                       +max-safe-integer+))
+    ((expression-literal-p thing)
      nil)
     (t
-     (validation-error "Condition operands must be a state-ref or literal; got ~S."
+     (validation-error "Expressions must be a literal or an expression node; got ~S."
                        thing))))
 
+(defun validate-integer-expression (thing game context)
+  "Validate THING as an expression that must produce an integer."
+  (if (or (typep thing 'concat)
+          (and (expression-literal-p thing)
+               (not (integerp thing))))
+      (validation-error "Expected an integer expression; got ~S." thing)
+      (validate-expression thing game context)))
+
 (defun validate-condition (condition game context)
-  (cond
-    ((typep condition 'condition-eq)
-     (validate-condition-operand (condition-left condition) game context)
-     (validate-condition-operand (condition-right condition) game context))
-    ((typep condition 'condition-not)
-     (validate-condition (condition-child condition) game context))
-    ((typep condition 'condition-and)
-     (dolist (child (conditions condition))
-       (validate-condition child game context)))
-    ((typep condition 'condition-or)
-     (dolist (child (conditions condition))
-       (validate-condition child game context)))
-    ((typep condition 'state-ref)
-     (validate-node condition game context))
-    (t
-     (validation-error "Condition must be a condition-* or state-ref node; got ~S."
-                       condition))))
+  (if (typep condition 'condition-node)
+      (validate-node condition game context)
+      (validation-error "Condition must be a condition node; got ~S."
+                        condition)))
 
 (defun signal-validation-errors (label)
   (when *validation-errors*
@@ -1805,16 +1868,38 @@
     (validate-node (interaction-target thing) game context)))
 
 (defmethod validate-node ((thing condition-eq) game context)
-  (validate-condition thing game context))
+  (validate-expression (condition-left thing) game context)
+  (validate-expression (condition-right thing) game context))
+
+(defmethod validate-node ((thing condition-compare) game context)
+  (validate-integer-expression (condition-left thing) game context)
+  (validate-integer-expression (condition-right thing) game context))
 
 (defmethod validate-node ((thing condition-not) game context)
-  (validate-condition thing game context))
+  (validate-condition (condition-child thing) game context))
 
 (defmethod validate-node ((thing condition-and) game context)
-  (validate-condition thing game context))
+  (dolist (child (conditions thing))
+    (validate-condition child game context)))
 
 (defmethod validate-node ((thing condition-or) game context)
-  (validate-condition thing game context))
+  (dolist (child (conditions thing))
+    (validate-condition child game context)))
+
+(defmethod validate-node ((thing arithmetic) game context)
+  (let ((operands (arithmetic-operands thing)))
+    (when (< (length operands)
+             (if (eq (arithmetic-operator thing) :sub) 2 1))
+      (validation-error "~S needs ~:[at least one operand~;at least two operands~]; got ~S."
+                        (arithmetic-operator thing)
+                        (eq (arithmetic-operator thing) :sub)
+                        operands))
+    (dolist (operand operands)
+      (validate-integer-expression operand game context))))
+
+(defmethod validate-node ((thing concat) game context)
+  (dolist (part (concat-parts thing))
+    (validate-expression part game context)))
 
 (defmethod validate-node ((thing state-ref) game context)
   (declare (ignore context))
@@ -1860,18 +1945,18 @@
 
 (defmethod validate-node ((thing state-set) game context)
   (call-next-method)
-  (validate-node (effect-value thing) game context))
+  (validate-expression (effect-value thing) game context))
 
 (defmethod validate-node ((thing state-inc) game context)
   (call-next-method)
-  (validate-node (effect-amount thing) game context))
+  (validate-integer-expression (effect-amount thing) game context))
 
 (defmethod validate-node ((thing state-dec) game context)
   (call-next-method)
-  (validate-node (effect-amount thing) game context))
+  (validate-integer-expression (effect-amount thing) game context))
 
 (defmethod validate-node ((thing say) game context)
-  (validate-node (say-text thing) game context))
+  (validate-expression (say-text thing) game context))
 
 (defmethod validate-node ((thing conditional-effect) game context)
   (validate-condition (conditional-effect-condition thing) game context)
