@@ -2,9 +2,10 @@
 
 ;;; Evaluator and console runtime
 ;;; Control protocol: control AST nodes evaluate to themselves and are
-;;; propagated upward unchanged. Rooms with no choices return FALL-THROUGH
-;;; instead of returning the room. The game loop consumes these objects and
-;;; dispatches on their type.
+;;; propagated upward unchanged. A room with no choices offers a Continue
+;;; choice back to its caller when the return stack is not empty, and
+;;; otherwise returns FALL-THROUGH, which ends play. The game loop consumes
+;;; these objects and dispatches on their type.
 
 (defvar *input* *standard-input*)
 (defvar *output* *standard-output*)
@@ -208,10 +209,7 @@ can TYPEP the result against QUIT, BACK, and related classes."))
                               (pop (runtime-session-return-stack session)))
                         (return result)))
                    ((fall-through)
-                    (if (runtime-session-return-stack session)
-                        (setf (runtime-session-location session)
-                              (pop (runtime-session-return-stack session)))
-                        (return location)))
+                    (return location))
                    (_
                     (return result))))))))
 
@@ -232,11 +230,30 @@ can TYPEP the result against QUIT, BACK, and related classes."))
     (let ((result (describe-children (entities room) room-context)))
       (when result
         (return-from evaluate result)))
-    (let ((collected-options (collect-options-from (entities room) room-context)))
-      (if (or collected-options
-              (runtime-debug-undo-available-p room-context))
-          (evaluate (%make-choices :options collected-options) room-context)
-          (%make-fall-through)))))
+    (present-location-choices (collect-options-from (entities room) room-context)
+                              room-context)))
+
+(defun runtime-return-stack-p (context)
+  (let ((session (and context (runtime-context-session context))))
+    (and session
+         (runtime-session-return-stack session)
+         t)))
+
+(defun continue-choice ()
+  (%make-choice :label "Continue" :target (%make-back)))
+
+(defun present-location-choices (options context)
+  "Offer OPTIONS for the current location.
+A location with no choices offers a single Continue choice back to its caller
+when the return stack is not empty, and otherwise ends play with FALL-THROUGH."
+  (let ((options (if (and (null options)
+                          (runtime-return-stack-p context))
+                     (list (continue-choice))
+                     options)))
+    (if (or options
+            (runtime-debug-undo-available-p context))
+        (evaluate (%make-choices :options options) context)
+        (%make-fall-through))))
 
 (defun generated-room-display-word (value)
   (let ((text (etypecase value
@@ -367,17 +384,14 @@ can TYPEP the result against QUIT, BACK, and related classes."))
         (format *output* "~A~%~%" (generated-room-encounter-line encounter)))
       (let* ((player (game-player (runtime-context-game room-context)))
              (encounter-options
-               (generated-room-encounter-choices room encounter player))
-             (collected-options
-               (or encounter-options
-                   (append (generated-room-loot-choices room)
-                           (generated-room-item-use-choices player)
-                           (mapcar #'generated-room-exit-choice
-                                   (generated-room-exits room))))))
-        (if (or collected-options
-                (runtime-debug-undo-available-p room-context))
-            (evaluate (%make-choices :options collected-options) room-context)
-            (%make-fall-through))))))
+               (generated-room-encounter-choices room encounter player)))
+        (present-location-choices
+         (or encounter-options
+             (append (generated-room-loot-choices room)
+                     (generated-room-item-use-choices player)
+                     (mapcar #'generated-room-exit-choice
+                             (generated-room-exits room))))
+         room-context)))))
 
 (defmethod describe-entity ((thing t) &optional context)
   (declare (ignore context))

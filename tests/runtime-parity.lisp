@@ -114,33 +114,70 @@ never allow, to check that the browser still initializes its state."
     (load-dunge-string *parity-lamp-game*)
   '(1 1 2))
 
-;;; Known divergences. Each asserts that the runtimes still differ, so the fix
-;;; for a divergence fails its test until the marker is removed.
+(defparameter *parity-nook-game*
+  "(:game
+    :start \"hub\"
+    :rooms
+    ((:room
+      :id \"hub\"
+      :title \"Hub\"
+      :body
+      ((:p \"You are at the hub.\")
+       (:choice \"Peek into the nook\" (:gosub \"nook\"))
+       (:choice \"Walk to the alcove\" (:go \"alcove\"))
+       (:choice \"Quit\" (:quit))))
+     (:room
+      :id \"nook\"
+      :title \"Nook\"
+      :body
+      ((:p \"The nook is empty.\")))
+     (:room
+      :id \"alcove\"
+      :title \"Alcove\"
+      :body
+      ((:p \"The alcove is a dead end.\")))))")
 
-(def-parity-test parity-gosub-into-room-without-choices
-    (:known-divergence
-     "The console returns from a choiceless room; the browser dead-ends.")
-    (load-dunge-string
-     "(:game
-       :start \"hub\"
-       :rooms
-       ((:room
-         :id \"hub\"
-         :title \"Hub\"
-         :body
-         ((:p \"You are at the hub.\")
-          (:choice \"Peek into the nook\" (:gosub \"nook\"))
-          (:choice \"Quit\" (:quit))))
-        (:room
-         :id \"nook\"
-         :title \"Nook\"
-         :body
-         ((:p \"The nook is empty.\")))))")
-  '(1 2))
+(def-parity-test parity-gosub-into-room-without-choices-offers-continue ()
+    (load-dunge-string *parity-nook-game*)
+  ;; Peek into the nook, continue back to the hub, quit.
+  '(1 1 3))
 
-(def-parity-test parity-say-before-quit
-    (:known-divergence
-     "The browser never shows :say text from the choice that quits.")
+(def-parity-test parity-room-without-choices-or-caller-ends-play ()
+    (load-dunge-string *parity-nook-game*)
+  '(2))
+
+(defun load-parity-generated-cellar-game ()
+  "A game whose hall leads into a generated room that has no exits, loot, or
+encounter, so the generated room itself has no choices."
+  (let ((game (load-dunge-string
+               "(:game
+                 :start \"hall\"
+                 :rooms
+                 ((:room
+                   :id \"hall\"
+                   :title \"Hall\"
+                   :body
+                   ((:p \"A trapdoor opens onto a cellar.\")
+                    (:choice \"Peer into the cellar\" (:gosub \"generated:cellar:1\"))
+                    (:choice \"Drop into the cellar\" (:go \"generated:cellar:1\"))
+                    (:choice \"Quit\" (:quit))))))")))
+    (create-generated-room game
+                           :id "generated:cellar:1"
+                           :zone :cellar
+                           :title "Cellar"
+                           :description "A bare cellar with no way onward.")
+    game))
+
+(def-parity-test parity-generated-room-without-choices-offers-continue ()
+    (load-parity-generated-cellar-game)
+  ;; Peer into the cellar, continue back to the hall, quit.
+  '(1 1 3))
+
+(def-parity-test parity-generated-room-without-choices-or-caller-ends-play ()
+    (load-parity-generated-cellar-game)
+  '(2))
+
+(def-parity-test parity-say-before-quit-is-shown ()
     (load-dunge-string
      "(:game
        :start \"door\"
@@ -153,6 +190,23 @@ never allow, to check that the browser still initializes its state."
            ((:say \"You close the door behind you.\")
             (:quit)))))))")
   '(1))
+
+(def-parity-test parity-back-without-caller-ends-play ()
+    (load-dunge-string
+     "(:game
+       :start \"door\"
+       :rooms
+       ((:room
+         :id \"door\"
+         :title \"Door\"
+         :body
+         ((:choice \"Step back\"
+           ((:say \"There is nowhere to step back to.\")
+            (:back)))))))")
+  '(1))
+
+;;; Known divergences. Each asserts that the runtimes still differ, so the fix
+;;; for a divergence fails its test until the marker is removed.
 
 (def-parity-test parity-adaptation-generated-room
     (:known-divergence

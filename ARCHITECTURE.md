@@ -211,6 +211,12 @@ targets point at room IDs:
 (:gosub "cupboard")
 ```
 
+`:gosub` and container views push the current location onto a return stack;
+`:back` returns to it. A room with no available choices offers a single
+**Continue** choice back to its caller when the return stack is not empty, and
+otherwise ends play. `:back` with an empty return stack also ends play. Both
+the console and browser runtimes behave this way, and the parity tests check it.
+
 Choices remain the only player interaction primitive. Dunge does not need
 Twine-style inline links. Removing links keeps the source schema, AST, renderer,
 validator, and future compiler simpler.
