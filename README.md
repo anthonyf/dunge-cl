@@ -33,14 +33,9 @@ save/load pressure on the engine.
 
 Dependencies are managed with [ocicl](https://github.com/ocicl/ocicl) and
 pinned in [ocicl.csv](ocicl.csv). One-time setup: install ocicl (`brew install
-ocicl` on macOS), add the snippet printed by `ocicl setup` to `~/.sbclrc`, and
-follow it with this form so ASDF finds this repository's systems when SBCL
-starts in the repository root:
-
-```lisp
-(asdf:initialize-source-registry
- (list :source-registry (list :directory (uiop:getcwd)) :inherit-configuration))
-```
+ocicl` on macOS) and add the snippet printed by `ocicl setup` to `~/.sbclrc`.
+That snippet loads the ocicl runtime and lets ASDF find this repository's
+systems when SBCL starts in the repository root.
 
 Install the pinned dependencies into `ocicl/`:
 
