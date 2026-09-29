@@ -9,8 +9,8 @@
    ((:p "The first generated chamber waits in the run log. The CL adaptation helper can recall that same persistent room from here.")))
   (:choice
    "Sketch the first generated chamber"
-   ((:inc :target (:state :scope :global :key :rooms-generated))
-    (:inc :target (:state :scope :global :key :dungeon-depth))
+   ((:inc :target (:global :rooms-generated))
+    (:inc :target (:global :dungeon-depth))
     (:mark :first-room-generated)
     (:say "The static source path still enters the placeholder room. The playable CL loader replaces the remembered chamber link with a generated room.")
     (:go "placeholder-room"))

@@ -152,11 +152,6 @@
           do (return value)
         finally (return marker)))
 
-(defun private-source-tag-p (tag)
-  (let ((name (symbol-name tag)))
-    (and (plusp (length name))
-         (char= (char name 0) #\%))))
-
 (defun parse-source-plist (tag arguments)
   (unless (evenp (length arguments))
     (source-error "~S expects keyword fields, got ~S." tag arguments))
@@ -171,8 +166,38 @@
         do (push key seen)
         append (list key value)))
 
-(defun global-state-source-form (key)
-  `(:state :scope :global :key ,key))
+;;; Shorthand forms
+;;;
+;;; Every node has one canonical keyword-field spelling, checked by its source
+;;; schema, such as (:go :room "hall"). Shorthands are registered rewrites
+;;; into those canonical forms, such as (:go "hall"). A shorthand tag may be
+;;; shorthand-only, like :MARK, or share its tag with a node, like :GO; the
+;;; latter rewrite only their positional spelling and leave the keyword-field
+;;; spelling to the schema. Expansion happens once, before schema compilation.
+
+(defvar *dunge-shorthands* (make-hash-table :test 'eq))
+
+(defmacro define-dunge-shorthand (tag (arguments) &body body)
+  "Register a shorthand for source forms beginning with TAG.
+BODY is evaluated with ARGUMENTS bound to the form's arguments, and returns the
+canonical source form to compile instead, or NIL to compile the form as
+written."
+  `(progn
+     (setf (gethash ,tag *dunge-shorthands*)
+           (lambda (,arguments)
+             ,@body))
+     ,tag))
+
+(defun expand-dunge-source-form (form)
+  (let ((expander (gethash (first form) *dunge-shorthands*)))
+    (or (and expander
+             (funcall expander (rest form)))
+        form)))
+
+(defun positional-arguments-p (arguments)
+  "True when ARGUMENTS start with a value rather than a keyword field name."
+  (and arguments
+       (not (keywordp (first arguments)))))
 
 (defun exactly-one-shorthand-argument (tag arguments)
   (unless (= 1 (length arguments))
@@ -181,22 +206,46 @@
                   arguments))
   (first arguments))
 
-(defun expand-choice-source-form (arguments)
-  (unless (and (>= (length arguments) 2)
-               (stringp (first arguments)))
-    (source-error
-     ":CHOICE expects (:CHOICE label effect &key id when once); got ~S."
-     arguments))
-  (unless (evenp (length (cddr arguments)))
-    (source-error
-     ":CHOICE keyword metadata must contain an even number of entries; got ~S."
-     (cddr arguments)))
-  `(:%choice
-    :label ,(first arguments)
-    :do ,(second arguments)
-    ,@(cddr arguments)))
+(defun state-source-form (scope key &optional role)
+  `(:state :scope ,scope ,@(when role (list :role role)) :key ,key))
 
-(defun expand-once-source-form (arguments)
+(defmacro define-single-field-shorthand (tag field)
+  "Let (TAG VALUE) stand for (TAG FIELD VALUE)."
+  `(define-dunge-shorthand ,tag (arguments)
+     (when (positional-arguments-p arguments)
+       (list ,tag ,field (exactly-one-shorthand-argument ,tag arguments)))))
+
+(define-single-field-shorthand :p :text)
+(define-single-field-shorthand :say :text)
+(define-single-field-shorthand :go :room)
+(define-single-field-shorthand :gosub :room)
+(define-single-field-shorthand :not :condition)
+
+(define-dunge-shorthand :and (arguments)
+  (when (positional-arguments-p arguments)
+    `(:and :conditions ,arguments)))
+
+(define-dunge-shorthand :or (arguments)
+  (when (positional-arguments-p arguments)
+    `(:or :conditions ,arguments)))
+
+(define-dunge-shorthand :choice (arguments)
+  (when (positional-arguments-p arguments)
+    (unless (and (>= (length arguments) 2)
+                 (stringp (first arguments)))
+      (source-error
+       ":CHOICE expects (:CHOICE label effect &key id when once); got ~S."
+       arguments))
+    (unless (evenp (length (cddr arguments)))
+      (source-error
+       ":CHOICE keyword metadata must contain an even number of entries; got ~S."
+       (cddr arguments)))
+    `(:choice
+      :label ,(first arguments)
+      :do ,(second arguments)
+      ,@(cddr arguments))))
+
+(define-dunge-shorthand :once (arguments)
   (unless (and (= 3 (length arguments))
                (eq (first arguments) :id))
     (source-error
@@ -206,67 +255,47 @@
     (unless (and (consp choice)
                  (eq (first choice) :choice))
       (source-error ":ONCE wraps a :CHOICE form; got ~S." choice))
-    (append (expand-choice-source-form (rest choice))
+    (append (expand-dunge-source-form choice)
             (list :id (second arguments)
                   :once t))))
 
-(defun expand-dunge-source-form (form)
-  (let ((tag (first form))
-        (arguments (rest form)))
-    (case tag
-      (:p
-       (if (and (= 1 (length arguments))
-                (stringp (first arguments)))
-           `(:p :text ,(first arguments))
-           form))
-      (:say
-       (if (and (= 1 (length arguments))
-                (stringp (first arguments)))
-           `(:say :text ,(first arguments))
-           form))
-      (:go
-       `(:%goto :room ,(exactly-one-shorthand-argument tag arguments)))
-      (:gosub
-       `(:%gosub :room ,(exactly-one-shorthand-argument tag arguments)))
-      (:choice
-       (expand-choice-source-form arguments))
-      (:once
-       (expand-once-source-form arguments))
-      (:mark
-       `(:set
-         :target ,(global-state-source-form
-                   (exactly-one-shorthand-argument tag arguments))
+(define-dunge-shorthand :when (arguments)
+  (unless (>= (length arguments) 2)
+    (source-error ":WHEN expects a condition and at least one body form; got ~S."
+                  arguments))
+  `(:branch :when ,(first arguments) :then ,(rest arguments)))
+
+;;; State references: (:global key), (:self key), and (:ref role key) stand
+;;; for (:state :scope SCOPE [:role ROLE] :key KEY).
+
+(define-dunge-shorthand :global (arguments)
+  (state-source-form :global (exactly-one-shorthand-argument :global arguments)))
+
+(define-dunge-shorthand :self (arguments)
+  (state-source-form :self (exactly-one-shorthand-argument :self arguments)))
+
+(define-dunge-shorthand :ref (arguments)
+  (unless (= 2 (length arguments))
+    (source-error ":REF expects a role and a key, as in (:REF :door :open); got ~S."
+                  arguments))
+  (state-source-form :ref (second arguments) (first arguments)))
+
+;;; Story flags are global booleans.
+
+(define-dunge-shorthand :marked? (arguments)
+  (state-source-form :global (exactly-one-shorthand-argument :marked? arguments)))
+
+(define-dunge-shorthand :mark (arguments)
+  `(:set :target ,(state-source-form
+                   :global
+                   (exactly-one-shorthand-argument :mark arguments))
          :value t))
-      (:unmark
-       `(:set
-         :target ,(global-state-source-form
-                   (exactly-one-shorthand-argument tag arguments))
+
+(define-dunge-shorthand :unmark (arguments)
+  `(:set :target ,(state-source-form
+                   :global
+                   (exactly-one-shorthand-argument :unmark arguments))
          :value nil))
-      (:marked?
-       (global-state-source-form
-        (exactly-one-shorthand-argument tag arguments)))
-      (:not
-       (if (and (= 1 (length arguments))
-                (not (eq (first arguments) :condition)))
-           `(:not :condition ,(first arguments))
-           form))
-      (:and
-       (if (and arguments
-                (not (eq (first arguments) :conditions)))
-           `(:and :conditions ,arguments)
-           form))
-      (:or
-       (if (and arguments
-                (not (eq (first arguments) :conditions)))
-           `(:or :conditions ,arguments)
-           form))
-      (:when
-       (unless (>= (length arguments) 2)
-         (source-error ":WHEN expects a condition and at least one body form; got ~S."
-                       arguments))
-       `(:branch :when ,(first arguments) :then ,(rest arguments)))
-      (otherwise
-       form))))
 
 (defun compile-field-value (field value context)
   (let ((*dunge-source-context* (or context *dunge-source-context*)))
@@ -326,8 +355,6 @@
              (form (expand-dunge-source-form form))
              (tag (first form))
              (descriptor (gethash tag *dunge-source-forms*)))
-        (when (private-source-tag-p source-tag)
-          (source-error "Unknown source form ~S." source-tag))
         (unless descriptor
           (source-error "Unknown source form ~S." tag))
         (let ((*dunge-source-context* form-context))

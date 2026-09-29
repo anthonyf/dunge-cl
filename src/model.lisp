@@ -453,13 +453,13 @@
 
 (define-dunge-node goto (control-node)
   ((room-name :reader room-name :initarg :room-name :initform nil))
-  (:source :%goto
+  (:source :go
    (:fields
     (:room :scene-id :required t :to :room-name))))
 
 (define-dunge-node gosub (control-node)
   ((room-name :reader room-name :initarg :room-name :initform nil))
-  (:source :%gosub
+  (:source :gosub
    (:fields
     (:room :scene-id :required t :to :room-name))))
 
@@ -754,7 +754,7 @@
 (define-dunge-node choice (availability-mixin consumable-mixin)
   ((label :accessor label :initarg :label :initform nil)
    (target :accessor target :initarg :target :initform nil))
-  (:source :%choice
+  (:source :choice
    (:fields
     (:label :string :required t)
     (:do :effect-or-block :required t :to :target)

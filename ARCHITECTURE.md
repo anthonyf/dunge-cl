@@ -91,6 +91,17 @@ Only registered source tags and field kinds are valid. Unknown tags, unknown
 fields, duplicate fields, missing required fields, and malformed values are
 hard errors.
 
+Every node has one canonical keyword-field spelling, checked by its schema, such
+as `(:go :room "hallway")` or `(:choice :label "Leave" :do (:quit))`. Shorthands
+are registered with `define-dunge-shorthand` and rewrite a form into canonical
+source before the schema sees it, so `(:go "hallway")` and
+`(:choice "Leave" (:quit))` compile to the same nodes. A shorthand either has
+its own tag, such as `:mark` or `:when`, or shares a node's tag and rewrites only
+the positional spelling, leaving the keyword-field spelling to the schema. The
+registered shorthands are `:p`, `:say`, `:go`, `:gosub`, `:not`, `:and`, `:or`,
+`:choice`, `:once`, `:when`, `:global`, `:self`, `:ref`, `:marked?`, `:mark`, and
+`:unmark`.
+
 Source diagnostics preserve file and schema context while forms are compiled.
 For split games, an error in a referenced room file reports the room file first
 and then the manifest field that included it. Diagnostics intentionally track
@@ -396,17 +407,17 @@ Global state is the first-class primitive for flags, counters, and simple
 inventory-like facts. Entity-local state and ref-scope state are also supported
 for scene-local mechanisms.
 
-Source state references are explicit:
+Source state references name a scope and a key. The canonical form spells both
+out, and each scope has a shorthand:
 
 ```lisp
-(:marked? :recipe)
-(:state :scope :global :key :recipe)
-(:state :scope :self :key :switch)
-(:state :scope :ref :role :door :key :open)
+(:state :scope :global :key :recipe)          ; (:global :recipe)
+(:state :scope :self :key :switch)            ; (:self :switch)
+(:state :scope :ref :role :door :key :open)   ; (:ref :door :open)
 ```
 
-`:marked?` is the author-facing predicate for global story flags. It expands to
-the explicit global state reference above. `:mark` and `:unmark` are the matching
+`(:marked? :recipe)` is the author-facing predicate for global story flags. It
+expands to the same global state reference as `(:global :recipe)`. `:mark` and `:unmark` are the matching
 effects:
 
 ```lisp

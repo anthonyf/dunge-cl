@@ -11,7 +11,7 @@
    :body
    ((:branch
      :when (:eq
-            :left (:state :scope :self :key :open)
+            :left (:self :open)
             :right t)
      :then
      ((:p "A secret door stands open in the east wall.")
@@ -27,13 +27,13 @@
    ((:p "A metal control panel is mounted beside the wall.")
     (:branch
      :when (:eq
-            :left (:state :scope :self :key :switch)
+            :left (:self :switch)
             :right :off)
      :then
      ((:p "The switch is down.")))
     (:branch
      :when (:eq
-            :left (:state :scope :self :key :switch)
+            :left (:self :switch)
             :right :on)
      :then
      ((:p "The switch is up.")))
@@ -41,18 +41,18 @@
      :label "Flip the switch"
      :do
      ((:toggle
-       :target (:state :scope :self :key :switch))
+       :target (:self :switch))
       (:say "You flip the switch.")))
     (:action
      :label "Press the button"
      :do
      ((:if
        :when (:eq
-              :left (:state :scope :self :key :switch)
+              :left (:self :switch)
               :right :on)
        :then
        ((:set
-         :target (:state :scope :ref :role :door :key :open)
+         :target (:ref :door :open)
          :value t)
         (:say "Something heavy slides open nearby."))
        :else

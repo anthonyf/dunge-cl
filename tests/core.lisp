@@ -168,6 +168,65 @@
        ()
        (:unknown-option t)))))
 
+(test source-shorthands-expand-to-canonical-forms
+  (flet ((expands (shorthand canonical)
+           (is (equal canonical (dunge::expand-dunge-source-form shorthand)))))
+    (expands '(:p "Hi.") '(:p :text "Hi."))
+    (expands '(:say "Hi.") '(:say :text "Hi."))
+    (expands '(:say (:self :hp)) '(:say :text (:self :hp)))
+    (expands '(:go "hall") '(:go :room "hall"))
+    (expands '(:gosub "hall") '(:gosub :room "hall"))
+    (expands '(:not (:marked? :x)) '(:not :condition (:marked? :x)))
+    (expands '(:and (:marked? :x) (:marked? :y))
+             '(:and :conditions ((:marked? :x) (:marked? :y))))
+    (expands '(:or (:marked? :x) (:marked? :y))
+             '(:or :conditions ((:marked? :x) (:marked? :y))))
+    (expands '(:choice "Leave" (:quit) :when (:marked? :x))
+             '(:choice :label "Leave" :do (:quit) :when (:marked? :x)))
+    (expands '(:once :id :leave (:choice "Leave" (:quit)))
+             '(:choice :label "Leave" :do (:quit) :id :leave :once t))
+    (expands '(:when (:marked? :x) (:p "A.") (:p "B."))
+             '(:branch :when (:marked? :x) :then ((:p "A.") (:p "B."))))
+    (expands '(:global :lamp) '(:state :scope :global :key :lamp))
+    (expands '(:self :switch) '(:state :scope :self :key :switch))
+    (expands '(:ref :door :open) '(:state :scope :ref :role :door :key :open))
+    (expands '(:marked? :lamp) '(:state :scope :global :key :lamp))
+    (expands '(:mark :lamp)
+             '(:set :target (:state :scope :global :key :lamp) :value t))
+    (expands '(:unmark :lamp)
+             '(:set :target (:state :scope :global :key :lamp) :value nil))
+    ;; Keyword-field spellings are canonical and compile as written.
+    (dolist (form '((:p :text "Hi.")
+                    (:say :text "Hi.")
+                    (:go :room "hall")
+                    (:gosub :room "hall")
+                    (:choice :label "Leave" :do (:quit))
+                    (:not :condition (:global :x))
+                    (:and :conditions ((:global :x)))
+                    (:state :scope :self :key :switch)))
+      (expands form form))))
+
+(test source-canonical-and-shorthand-spellings-compile-alike
+  (is (typep (source-node '(:go :room "hall")) 'goto))
+  (is (equal "hall" (room-name (source-node '(:go "hall")))))
+  (is (typep (source-node '(:gosub :room "hall")) 'gosub))
+  (let ((choice (source-node '(:choice :label "Leave" :do (:quit) :id :leave :once t))))
+    (is (typep choice 'choice))
+    (is (eq :leave (choice-id choice)))
+    (is (choice-once-p choice)))
+  (let ((reference (source-node '(:ref :door :open))))
+    (is (eq :ref (dunge::state-ref-scope reference)))
+    (is (eq :door (dunge::state-ref-role reference)))
+    (is (eq :open (dunge::state-ref-key reference))))
+  (is (eq :self (dunge::state-ref-scope (source-node '(:self :switch)))))
+  (is (eq :global (dunge::state-ref-scope (source-node '(:global :lamp)))))
+  ;; Malformed shorthands are source errors.
+  (signals dunge-source-error (source-node '(:self)))
+  (signals dunge-source-error (source-node '(:global :a :b)))
+  (signals dunge-source-error (source-node '(:ref :door)))
+  (signals dunge-source-error (source-node '(:go "hall" "yard")))
+  (signals dunge-source-error (source-node '(:choice "Label only"))))
+
 (test source-schema-rejects-malformed-input
   (signals error
     (source-node '(:missing :x t)))
@@ -188,8 +247,6 @@
        ((:option :label "Retired" :do (:quit))))))
   (signals error
     (source-node '(:goto :room "retired")))
-  (signals error
-    (source-node '(:gosub :room "retired")))
   (signals error
     (source-node '(:%choice :label "Private" :do (:quit))))
   (signals error
