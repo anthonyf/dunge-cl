@@ -19,8 +19,7 @@
 ;;; Frames:
 ;;;   (:title TITLE :text (LINE ...) :choices (LABEL ...))  one rendered location
 ;;;   (:end t)                  the game ended, or a location had no choices
-;;;   (:end t :text (LINE ...)) the console printed text the game never showed
-;;;                             again before ending
+;;;   (:end t :text (LINE ...)) the game ended after showing final messages
 ;;;   (:missing-choice N)       the browser did not render choice N
 ;;;   (:error MESSAGE)          the runtime signalled an error
 ;;;

@@ -9,6 +9,7 @@
 // Frames:
 //   (:title "..." :text ("..." ...) :choices ("..." ...))  after each render
 //   (:end t)                   the game ended or the scene has no choices
+//   (:end t :text ("..." ...)) the game ended and showed final messages
 //   (:missing-choice N)        choice N was requested but not rendered
 //   (:error "...")             the runtime threw
 
@@ -139,17 +140,25 @@ function main(argv) {
   }
   const choices = choiceArgs.map(Number);
   const frames = [];
+  // Body paragraphs shown by the last recorded frame. Ending the game appends
+  // any final messages after them without re-rendering the scene.
+  let shownBodyLength = 0;
 
   function record(elements) {
+    const body = elements['dunge-scene-body'].children;
     const choiceNodes = elements['dunge-choices'].children;
     const buttons = choiceNodes.filter((node) => node.tagName === 'BUTTON');
     const notes = choiceNodes
       .filter((node) => node.tagName !== 'BUTTON')
       .map((node) => node.textContent);
     if (notes.includes(GAME_ENDED_TEXT)) {
-      frames.push('(:end t)');
+      const finalText = body.slice(shownBodyLength).map((node) => sexpString(node.textContent));
+      frames.push(finalText.length > 0
+        ? sexpList([':end', 't', ':text', sexpList(finalText)])
+        : '(:end t)');
       return { ended: true, buttons: [] };
     }
+    shownBodyLength = body.length;
     frames.push(sexpList([
       ':title', sexpString(elements['dunge-scene-title'].textContent),
       ':text', sexpList(elements['dunge-scene-body'].children

@@ -1604,6 +1604,15 @@ body {
            (render-room title body choices-element)))
         (update-undo-control)))
 
+    (defun with-continue-choice (choices)
+      "Give a location with no choices a Continue choice back to its caller."
+      (when (and (eql (@ choices length) 0)
+                 (> (@ *return-stack* length) 0))
+        (push-array choices
+                    (create :label "Continue"
+                            :target (create :type "back"))))
+      choices)
+
     (defun render-room (title body choices-element)
       (let ((context (current-context))
             (choices (array)))
@@ -1611,7 +1620,7 @@ body {
         (render-messages body)
         (describe-nodes (@ *current-location* body) context body)
         (collect-choices-from (@ *current-location* body) context choices)
-        (render-choices choices choices-element)))
+        (render-choices (with-continue-choice choices) choices-element)))
 
     (defun render-generated-room (title body choices-element)
       (let* ((room *current-location*)
@@ -1628,7 +1637,8 @@ body {
                        "p"
                        nil
                        (generated-room-encounter-line encounter)))
-        (render-choices (collect-generated-room-choices room encounter)
+        (render-choices (with-continue-choice
+                         (collect-generated-room-choices room encounter))
                         choices-element)))
 
     (defun render-container-view (title body choices-element)
@@ -1683,32 +1693,43 @@ body {
                            (create :type "refresh")))
         (save-game)))
 
+    (defun end-game ()
+      "Show any messages from the final choice below the current scene and
+replace the choices with the end-of-game note."
+      (let ((body (by-id "dunge-scene-body"))
+            (choices-element (by-id "dunge-choices")))
+        (setf *visible-messages* (copy-array *messages*))
+        (dolist (message *messages*)
+          (append-text body "p" "dunge-message" message))
+        (setf *messages* (array))
+        (clear-element choices-element)
+        (append-text choices-element "p" "dunge-quit" "The game has ended.")))
+
     (defun handle-result (result)
-      (if (eql (@ result type) "quit")
-          (progn
-            (setf (@ (by-id "dunge-choices") inner-h-t-m-l) "")
-            (append-text (by-id "dunge-choices")
-                         "p"
-                         "dunge-quit"
-                         "The game has ended."))
-          (progn
-            (cond
-              ((eql (@ result type) "refresh")
-               nil)
-              ((eql (@ result type) "goto")
-               (setf *current-location* (room-by-id (@ result room))))
-              ((eql (@ result type) "gosub")
-               (progn
-                 (push-array *return-stack* *current-location*)
-                 (setf *current-location* (room-by-id (@ result room)))))
-              ((eql (@ result type) "enter")
-               (progn
-                 (push-array *return-stack* *current-location*)
-                 (setf *current-location* (@ result target))))
-              ((eql (@ result type) "back")
-               (when (> (@ *return-stack* length) 0)
-                 (setf *current-location* (pop-array *return-stack*)))))
-            (render-location))))
+      (cond
+        ((eql (@ result type) "quit")
+         (end-game))
+        ;; BACK with nowhere to return to ends play, as in the console.
+        ((and (eql (@ result type) "back")
+              (eql (@ *return-stack* length) 0))
+         (end-game))
+        (t
+         (cond
+           ((eql (@ result type) "refresh")
+            nil)
+           ((eql (@ result type) "goto")
+            (setf *current-location* (room-by-id (@ result room))))
+           ((eql (@ result type) "gosub")
+            (progn
+              (push-array *return-stack* *current-location*)
+              (setf *current-location* (room-by-id (@ result room)))))
+           ((eql (@ result type) "enter")
+            (progn
+              (push-array *return-stack* *current-location*)
+              (setf *current-location* (@ result target))))
+           ((eql (@ result type) "back")
+            (setf *current-location* (pop-array *return-stack*))))
+         (render-location))))
 
     (defun reset-game ()
       (clear-save)
