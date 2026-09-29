@@ -634,8 +634,17 @@ generation itself is still driven by Common Lisp before the file is compiled.
 The adaptation testbed uses that boundary as a runnable vertical slice.
 `dunge-examples:write-adaptation-browser-demo` loads the adaptation, installs
 the generated player and two-room generated dungeon graph, rewires the authored
-threshold to the first generated room, and writes the committed
+threshold to the first generated room, and writes the
 `examples/adaptation/index.html` standalone build.
+
+Builds are reproducible: the runtime script is expanded with `ps:ps-doc`, which
+resets Parenscript's gensym counter, so identical sources produce identical
+HTML regardless of what the Lisp image compiled first. Browser saves are keyed
+by a hash of the game data and the runtime script, so a save only restores into
+a build that can read it. Built HTML is not committed; `dunge-pages:build-site`
+(system `dunge/pages`) writes the whole Pages site, and `site/check.sh` builds
+it twice under different compiler state, diffs the results, and boots each page
+under the parity harness. CI runs that script and deploys its output.
 
 ## Scope Cuts
 

@@ -67,6 +67,17 @@ jobs:
           sbcl --non-interactive --eval '(asdf:test-system :dunge/tests)'
           sbcl --non-interactive --eval '(asdf:test-system :dunge-styles/tests)'
 
+      - name: Build and check Pages site
+        run: sh site/check.sh public
+
+      - name: Upload Pages site
+        uses: actions/upload-artifact@v4
+        with:
+          name: pages-site
+          path: public
+          include-hidden-files: true
+          if-no-files-found: error
+
   deploy-pages:
     name: Deploy GitHub Pages
     runs-on: ubuntu-latest
@@ -79,24 +90,11 @@ jobs:
       cancel-in-progress: false
 
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Build Pages directory
-        run: |
-          rm -rf public
-          mkdir -p public
-          cp .github/pages/index.html public/index.html
-          find . -mindepth 2 -name index.html \
-            ! -path './.*/*' \
-            ! -path './public/*' \
-            -print0 |
-          while IFS= read -r -d '' page; do
-            target="public/$(dirname "${page#./}")"
-            mkdir -p "$target"
-            cp "$page" "$target/index.html"
-          done
-          touch public/.nojekyll
+      - name: Download Pages site
+        uses: actions/download-artifact@v4
+        with:
+          name: pages-site
+          path: public
 
       - name: Deploy to gh-pages
         env:

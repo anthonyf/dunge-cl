@@ -1,2 +1,5 @@
 ocicl/
 *.fasl
+/public/
+/styles/index.html
+/examples/adaptation/index.html
