@@ -146,6 +146,37 @@ never allow, to check that the browser still initializes its state."
     (load-dunge-string *parity-nook-game*)
   '(2))
 
+(defun load-parity-generated-cellar-game ()
+  "A game whose hall leads into a generated room that has no exits, loot, or
+encounter, so the generated room itself has no choices."
+  (let ((game (load-dunge-string
+               "(:game
+                 :start \"hall\"
+                 :rooms
+                 ((:room
+                   :id \"hall\"
+                   :title \"Hall\"
+                   :body
+                   ((:p \"A trapdoor opens onto a cellar.\")
+                    (:choice \"Peer into the cellar\" (:gosub \"generated:cellar:1\"))
+                    (:choice \"Drop into the cellar\" (:go \"generated:cellar:1\"))
+                    (:choice \"Quit\" (:quit))))))")))
+    (create-generated-room game
+                           :id "generated:cellar:1"
+                           :zone :cellar
+                           :title "Cellar"
+                           :description "A bare cellar with no way onward.")
+    game))
+
+(def-parity-test parity-generated-room-without-choices-offers-continue ()
+    (load-parity-generated-cellar-game)
+  ;; Peer into the cellar, continue back to the hall, quit.
+  '(1 1 3))
+
+(def-parity-test parity-generated-room-without-choices-or-caller-ends-play ()
+    (load-parity-generated-cellar-game)
+  '(2))
+
 (def-parity-test parity-say-before-quit-is-shown ()
     (load-dunge-string
      "(:game
