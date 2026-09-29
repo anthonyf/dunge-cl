@@ -24,28 +24,30 @@
     (dolist (choice choices)
       (format stream "~A~%" choice))))
 
+(defparameter *styles-shared-investigation-choices*
+  '(;; Station.
+    1 1 1 1
+    ;; Road to Styles: Emily, Alfred, arrive.
+    1 1 1
+    ;; Tea table: Evelyn, Cynthia, Mary, retire.
+    1 1 1 1
+    ;; Night crisis: force door, bell, Cynthia, bedroom.
+    1 1 1 1
+    ;; Bedroom: collect five clues, then servants.
+    1 1 1 1 1 1
+    ;; Servants: collect three testimony clues, then Poirot.
+    1 1 1 1
+    ;; Poirot to chemist.
+    2
+    ;; Chemist: sale, time, description, return.
+    1 1 1 1
+    ;; Poirot to dispensary.
+    3
+    ;; Dispensary: bromides, taste, final-dose, return.
+    1 1 1 1))
+
 (defparameter *styles-shared-investigation-script*
-  (lines
-   ;; Station.
-   1 1 1 1
-   ;; Road to Styles: Emily, Alfred, arrive.
-   1 1 1
-   ;; Tea table: Evelyn, Cynthia, Mary, retire.
-   1 1 1 1
-   ;; Night crisis: force door, bell, Cynthia, bedroom.
-   1 1 1 1
-   ;; Bedroom: collect five clues, then servants.
-   1 1 1 1 1 1
-   ;; Servants: collect three testimony clues, then Poirot.
-   1 1 1 1
-   ;; Poirot to chemist.
-   2
-   ;; Chemist: sale, time, description, return.
-   1 1 1 1
-   ;; Poirot to dispensary.
-   3
-   ;; Dispensary: bromides, taste, final-dose, return.
-   1 1 1 1))
+  (apply #'lines *styles-shared-investigation-choices*))
 
 (test styles-game-loads-with-room-catalog
   (let ((game (load-styles-game)))

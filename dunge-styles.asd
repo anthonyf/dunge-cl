@@ -27,12 +27,17 @@
 
 (asdf:defsystem "dunge-styles/tests"
   :depends-on ("dunge-styles"
+               "dunge/parity"
                :fiveam)
   :serial t
   :description "Tests for the Styles Dunge adaptation"
   :components ((:module "styles-tests"
                 :pathname "styles/tests"
                 :components ((:file "package")
-                             (:file "core"))))
+                             (:file "core")
+                             (:file "parity"))))
   :perform (test-op (op c)
-             (uiop:symbol-call :fiveam :run! :dunge-styles-tests)))
+             ;; FiveAM's RUN! only returns NIL on failure; signal so that
+             ;; `sbcl --non-interactive` (and CI) exits non-zero.
+             (unless (uiop:symbol-call :fiveam :run! :dunge-styles-tests)
+               (error "Dunge Styles tests failed."))))

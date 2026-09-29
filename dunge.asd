@@ -43,13 +43,28 @@
                                            (:static-file "PROVENANCE.md")))
                              (:file "adaptation")))))
 
+(asdf:defsystem "dunge/parity"
+  :depends-on ("dunge"
+               :fiveam)
+  :serial t
+  :description "Console/browser runtime parity harness for Dunge tests"
+  :components ((:module "parity"
+                :pathname "tests/parity"
+                :components ((:static-file "harness.js")
+                             (:file "support")))))
+
 (asdf:defsystem "dunge/tests"
   :depends-on ("dunge/examples"
+               "dunge/parity"
                :fiveam)
   :serial t
   :description "Tests for Dunge"
   :components ((:module "tests"
                 :components ((:file "package")
-                             (:file "core"))))
+                             (:file "core")
+                             (:file "runtime-parity"))))
   :perform (test-op (op c)
-             (uiop:symbol-call :fiveam :run! :dunge-tests)))
+             ;; FiveAM's RUN! only returns NIL on failure; signal so that
+             ;; `sbcl --non-interactive` (and CI) exits non-zero.
+             (unless (uiop:symbol-call :fiveam :run! :dunge-tests)
+               (error "Dunge tests failed."))))
