@@ -171,9 +171,11 @@ paragraph. A choice-shaped line (\"N. label\") is always read as a choice."
         (*package* (find-package '#:dunge-parity)))
     (read-from-string output)))
 
-(defun browser-frames (game inputs node)
-  "Compile GAME for the browser, play INPUTS in NODE, and return the frames."
-  (let ((script (dunge-html:compile-game-script game))
+(defun browser-frames (game inputs node &key (transform-script #'identity))
+  "Compile GAME for the browser, play INPUTS in NODE, and return the frames.
+TRANSFORM-SCRIPT receives and returns the compiled script text, which lets a
+test run the browser runtime on data the compiler would never emit."
+  (let ((script (funcall transform-script (dunge-html:compile-game-script game)))
         (pathname (temporary-script-pathname)))
     (unwind-protect
          (progn
@@ -208,12 +210,14 @@ paragraph. A choice-shaped line (\"N. label\") is always read as a choice."
             (nth index console)
             (nth index browser))))
 
-(defun check-parity (make-game inputs &key known-divergence)
+(defun check-parity (make-game inputs &key known-divergence
+                                           (transform-script #'identity))
   "Assert that both runtimes render the same frames for INPUTS.
 
 MAKE-GAME is called once per runtime so each gets a fresh game. When
 KNOWN-DIVERGENCE is a string, assert instead that the runtimes still differ, so
-a fix makes the test fail until the marker is removed."
+a fix makes the test fail until the marker is removed. TRANSFORM-SCRIPT is
+passed to BROWSER-FRAMES."
   (let ((node (node-program)))
     (cond
       ((null node)
@@ -223,7 +227,8 @@ a fix makes the test fail until the marker is removed."
            (fiveam:skip "Node.js not found; set DUNGE_NODE to run parity tests.")))
       (t
        (let ((console (console-frames (funcall make-game) inputs))
-             (browser (browser-frames (funcall make-game) inputs node)))
+             (browser (browser-frames (funcall make-game) inputs node
+                                      :transform-script transform-script)))
          (cond
            (known-divergence
             (if (equal console browser)
@@ -236,11 +241,14 @@ a fix makes the test fail until the marker is removed."
            (t
             (fiveam:fail "~A" (describe-frame-mismatch console browser)))))))))
 
-(defmacro def-parity-test (name (&key known-divergence) game-form inputs-form)
+(defmacro def-parity-test (name (&key known-divergence
+                                      (transform-script '#'identity))
+                           game-form inputs-form)
   "Define a FiveAM test that plays the choice numbers from INPUTS-FORM through
 the console and browser runtimes and compares the rendered frames.
-GAME-FORM is evaluated once per runtime."
+GAME-FORM is evaluated once per runtime. See CHECK-PARITY for the options."
   `(fiveam:test ,name
      (check-parity (lambda () ,game-form)
                    ,inputs-form
-                   :known-divergence ,known-divergence)))
+                   :known-divergence ,known-divergence
+                   :transform-script ,transform-script)))

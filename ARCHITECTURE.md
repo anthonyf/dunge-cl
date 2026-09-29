@@ -418,6 +418,10 @@ incrementing, clearing, or toggling a key that the target entity did not declare
 in `:state` is an error. This catches typos instead of silently creating
 phantom slots.
 
+An entity that declares `:state` must also declare an `:id`. Saves key
+entity-local state by room ID and entity ID, so a stateful entity without one
+would silently lose its state on save and load.
+
 Game-level global state can also be declared:
 
 ```lisp
@@ -586,7 +590,8 @@ authoring errors before play:
 - undeclared global state references when game-level state declarations are present;
 - once-only choices without stable IDs;
 - duplicate room IDs and duplicate scene IDs;
-- unresolved entity refs.
+- unresolved entity refs;
+- entities that declare `:state` without an `:id`.
 
 Dynamic values that cannot be statically resolved should be reported as such
 rather than silently accepted as validated.

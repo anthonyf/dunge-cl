@@ -959,12 +959,16 @@ body {
       (walk-nodes
        (@ room body)
        (lambda (node)
-         (when (and (eql (@ node type) "entity") (@ node id))
+         ;; Every entity gets live state and refs; only entities with an id
+         ;; can be found by refs and saves. The validator requires ids on
+         ;; stateful entities, so this only guards hand-built data.
+         (when (eql (@ node type) "entity")
            (unless (@ node state-data)
              (setf (@ node state-data) (@ node state)))
            (setf (@ node state) (initial-state (@ node state-data)))
            (setf (@ node resolved-refs) (create))
-           (setf (getprop (@ room scene-index) (@ node id)) node)))))
+           (when (@ node id)
+             (setf (getprop (@ room scene-index) (@ node id)) node))))))
 
     (defun resolve-room-refs (room)
       (walk-nodes
