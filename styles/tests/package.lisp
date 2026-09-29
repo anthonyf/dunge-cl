@@ -2,4 +2,6 @@
   (:use #:cl #:fiveam #:dunge #:dunge-styles)
   (:shadowing-import-from #:dunge
                           #:room
-                          #:sequence))
+                          #:sequence)
+  (:import-from #:dunge-parity
+                #:def-parity-test))

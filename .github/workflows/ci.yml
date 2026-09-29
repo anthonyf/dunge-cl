@@ -55,7 +55,14 @@ jobs:
       - name: Install dependencies
         run: ocicl install
 
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
       - name: Run tests
+        env:
+          DUNGE_REQUIRE_NODE: "1"
         run: |
           sbcl --non-interactive --eval '(asdf:test-system :dunge/tests)'
           sbcl --non-interactive --eval '(asdf:test-system :dunge-styles/tests)'
