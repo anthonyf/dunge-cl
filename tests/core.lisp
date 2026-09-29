@@ -2289,13 +2289,11 @@
       (is (equal (name room) (room-name effect))))))
 
 (test adaptation-browser-demo-writes-repeatable-html-target
-  (let* ((path (merge-pathnames
-                (format nil "adaptation-demo-~A/index.html" (gensym))
-                (uiop:temporary-directory)))
-         (committed-path (dunge-examples:adaptation-browser-demo-path)))
+  (let ((path (merge-pathnames
+               (format nil "adaptation-demo-~A/index.html" (gensym))
+               (uiop:temporary-directory))))
     (unwind-protect
          (progn
-           (is (probe-file committed-path))
            (is (equal path
                       (dunge-examples:write-adaptation-browser-demo
                        :pathname path
@@ -2585,3 +2583,20 @@
       (let ((directory (uiop:pathname-directory-pathname path)))
         (when (probe-file directory)
           (uiop:delete-directory-tree directory :validate t))))))
+
+(test html-compiler-output-is-repeatable
+  ;; site/check.sh checks reproducibility across fresh builds; this catches
+  ;; nondeterminism within one image, such as hash-table ordering.
+  (flet ((build ()
+           (dunge-html:compile-index-html
+            (dunge-examples:load-instanced-adaptation-example))))
+    (is (string= (build) (build)))))
+
+(test html-save-signature-covers-data-and-runtime
+  (let ((signature (dunge-html::game-save-signature "{\"data\":1}" "runtime();")))
+    (is (string/= signature
+                  (dunge-html::game-save-signature "{\"data\":2}" "runtime();")))
+    (is (string/= signature
+                  (dunge-html::game-save-signature "{\"data\":1}" "runtime2();")))
+    (is (string= signature
+                 (dunge-html::game-save-signature "{\"data\":1}" "runtime();")))))

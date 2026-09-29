@@ -575,11 +575,19 @@ body {
                               #x01000193))))
     (format nil "~8,'0X" hash)))
 
+(defun game-save-signature (data-json runtime-script)
+  "Identify a build for browser saves. Saves only restore into a build with the
+same game data and the same runtime, since either can change the save shape."
+  (fnv1a-32 (concatenate 'string data-json runtime-script)))
+
 (defun game-save-key (signature)
   (format nil "dunge-save:~A" signature))
 
 (defun parenscript-runtime ()
-  (ps:ps
+  ;; PS-DOC expands with Parenscript's gensym counter reset, so the generated
+  ;; variable names (and therefore the built HTML) do not depend on what else
+  ;; the image compiled first.
+  (ps:ps-doc
     (defvar *|__PS_MV_REG|* (array))
     (defvar *save-version* 1)
     (defvar *save-key* nil)
@@ -1789,13 +1797,14 @@ replace the choices with the end-of-game note."
 (defun compile-game-script (game &key debug)
   "Return the embedded JavaScript for GAME."
   (let* ((data-json (json-string (compile-game-data game)))
-         (signature (fnv1a-32 data-json)))
+         (runtime-script (parenscript-runtime))
+         (signature (game-save-signature data-json runtime-script)))
     (format nil "window.DUNGE_GAME_DATA = ~A;~%window.DUNGE_GAME_SIGNATURE = ~A;~%window.DUNGE_GAME_SAVE_KEY = ~A;~%window.DUNGE_GAME_DEBUG = ~A;~%~A"
             data-json
             (json-string signature)
             (json-string (game-save-key signature))
             (if debug "true" "false")
-            (parenscript-runtime))))
+            runtime-script)))
 
 (defun compile-index-html (game &key (title *default-title*)
                                       (style *default-style*)

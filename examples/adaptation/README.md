@@ -40,11 +40,13 @@ exits.
 
 ## Browser Demo
 
-The committed [index.html](index.html) file is a standalone browser build of
-the instanced adaptation slice. It starts at camp, enters the authored
-threshold, and follows the generated-room graph prepared by the CL helper.
+The browser demo is a standalone build of the instanced adaptation slice. It
+starts at camp, enters the authored threshold, and follows the generated-room
+graph prepared by the CL helper. CI builds it as part of the Pages site (see
+`site/check.sh`); the HTML is not committed.
 
-Regenerate it from the repository root with:
+Build it locally into this directory (git ignores the result) from the
+repository root with:
 
 ```sh
 sbcl --non-interactive --eval '(asdf:load-system :dunge/examples)' --eval '(dunge-examples:write-adaptation-browser-demo)'
@@ -52,8 +54,8 @@ sbcl --non-interactive --eval '(asdf:load-system :dunge/examples)' --eval '(dung
 
 Repeatable smoke path:
 
-1. Open `examples/adaptation/index.html`, or serve the repo locally and visit
-   `/examples/adaptation/`.
+1. Open the built `examples/adaptation/index.html`, or serve the repo locally
+   and visit `/examples/adaptation/`.
 2. Choose **Approach the white arch**.
 3. Choose **Enter the generated chamber**.
 4. Choose **Flee** or **Attack** until the encounter is no longer active.

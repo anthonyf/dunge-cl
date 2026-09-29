@@ -10,9 +10,9 @@ builds.
 is published on GitHub Pages.
 
 The authored Styles source lives in [styles/game.dunge](styles/game.dunge) and
-[styles/rooms/](styles/rooms/). The committed standalone HTML build lives at
-[styles/index.html](styles/index.html), and the Pages deploy copies it to
-`/styles/`.
+[styles/rooms/](styles/rooms/). The standalone HTML builds are not committed:
+CI builds the whole Pages site from source on every push and deploys it from
+`main`.
 
 [The Dunge Crawler Testbed](https://anthonyf.github.io/dunge-cl/examples/adaptation/)
 is a smaller browser demo for generated rooms, loot, encounters, inventory, and
@@ -56,6 +56,18 @@ through the console runtime and through the compiled browser runtime under
 compares what each rendered. They use `node` from `PATH`, or the executable
 named by `DUNGE_NODE`, and are skipped when neither is available unless
 `DUNGE_REQUIRE_NODE=1` is set, as it is in CI.
+
+Build the GitHub Pages site locally into `public/` (it needs Node for the
+final boot check):
+
+```sh
+sh site/check.sh public
+```
+
+The script builds the site twice, the second time after recompiling Dunge with
+different Parenscript compiler state, and fails unless both builds are
+byte-identical. It then boots each game page under the parity harness. CI runs
+the same script and deploys its output.
 
 Enable playtesting controls, including Undo, by binding `dunge:*debug*` for
 console play, passing `:debug t` to `dunge:evaluate-session`, or compiling an

@@ -38,10 +38,20 @@
                               :components ((:static-file "camp.dunge")
                                            (:static-file "threshold.dunge")
                                            (:static-file "placeholder-room.dunge")
-                                           (:static-file "index.html")
                                            (:static-file "README.md")
                                            (:static-file "PROVENANCE.md")))
                              (:file "adaptation")))))
+
+(asdf:defsystem "dunge/pages"
+  :depends-on ("dunge"
+               "dunge/examples"
+               "dunge-styles")
+  :serial t
+  :description "Builds the GitHub Pages site for Dunge"
+  :components ((:module "site"
+                :components ((:static-file "index.html")
+                             (:static-file "check.sh")
+                             (:file "build")))))
 
 (asdf:defsystem "dunge/parity"
   :depends-on ("dunge"
