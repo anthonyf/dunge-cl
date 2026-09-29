@@ -44,7 +44,8 @@
   '(":game" ":room" ":go" ":gosub" ":back" ":state" ":eq" ":not" ":and"
     ":or" ":sequence" ":set" ":clear" ":inc" ":dec" ":toggle" ":say" ":if"
     ":choice" ":once" ":entity" ":branch" ":action" ":placed" ":item"
-    ":container" ":p" ":quit")
+    ":container" ":p" ":quit" ":when" ":mark" ":unmark" ":marked?"
+    ":global" ":self" ":ref")
   "Dunge source form tags.")
 
 (defconst dunge--source-fields
