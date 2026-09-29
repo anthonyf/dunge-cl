@@ -143,6 +143,10 @@ body {
 (defun compile-runtime-number (value)
   (unless (integerp value)
     (error "HTML compiler only supports integer numeric values; got ~S." value))
+  (unless (dunge::safe-integer-p value)
+    (error "HTML compiler only supports integers within plus or minus ~D; got ~D."
+           dunge::+max-safe-integer+
+           value))
   value)
 
 (defun compile-runtime-value (value)
@@ -332,8 +336,28 @@ body {
                (keyword-name (dunge::state-ref-role reference)))
    "key" (keyword-name (dunge::state-ref-key reference))))
 
+(defmethod compile-html-expression ((expression dunge:arithmetic))
+  (html-object
+   "type" "arithmetic"
+   "operator" (keyword-name (dunge::arithmetic-operator expression))
+   "operands" (html-array (mapcar #'compile-html-expression
+                                  (dunge::arithmetic-operands expression)))))
+
+(defmethod compile-html-expression ((expression dunge:concat))
+  (html-object
+   "type" "concat"
+   "parts" (html-array (mapcar #'compile-html-expression
+                               (dunge::concat-parts expression)))))
+
 (defmethod compile-html-condition ((reference dunge:state-ref))
   (compile-html-expression reference))
+
+(defmethod compile-html-condition ((condition dunge:condition-compare))
+  (html-object
+   "type" "compare"
+   "operator" (keyword-name (dunge::comparison-operator condition))
+   "left" (compile-html-expression (dunge::condition-left condition))
+   "right" (compile-html-expression (dunge::condition-right condition))))
 
 (defmethod compile-html-condition ((condition dunge:condition-eq))
   (html-object
@@ -630,10 +654,20 @@ same game data and the same runtime, since either can change the save shape."
       (and value
            (eql (@ value type) "keyword")))
 
+    (defun nil-value-p (value)
+      (or (eql value nil)
+          (eql value undefined)
+          (eql value false)))
+
     (defun value-equal (left right)
-      (if (and (keyword-p left) (keyword-p right))
-          (eql (@ left name) (@ right name))
-          (eql left right)))
+      (cond
+        ((and (keyword-p left) (keyword-p right))
+         (eql (@ left name) (@ right name)))
+        ;; CL has one NIL for false, cleared, and unset state.
+        ((and (nil-value-p left) (nil-value-p right))
+         t)
+        (t
+         (eql left right))))
 
     (defun truthy (value)
       (not (or (eql value nil)
@@ -1173,11 +1207,74 @@ same game data and the same runtime, since either can change the save shape."
            (create :holder (@ target state)
                    :key (@ reference key))))))
 
+    (defun format-value (value)
+      (cond
+        ((eql (typeof value) "string") value)
+        ((eql (typeof value) "number") (+ "" value))
+        ((nil-value-p value) "")
+        ((eql value t) "true")
+        ((keyword-p value) (@ value name))
+        (t (runtime-error "Cannot display value."))))
+
+    (defun integer-operand (value)
+      (cond
+        ((or (eql value nil) (eql value undefined)) 0)
+        ((chain -number (is-integer value)) value)
+        (t (runtime-error (+ "Arithmetic needs integer values; got \""
+                             (format-value value)
+                             "\".")))))
+
+    (defun checked-integer (value)
+      (if (chain -number (is-safe-integer value))
+          value
+          (runtime-error
+           "Arithmetic result is outside the supported integer range.")))
+
+    (defun arithmetic-step (operator left right)
+      (cond
+        ((eql operator "add") (+ left right))
+        ((eql operator "sub") (- left right))
+        ((eql operator "mul") (* left right))
+        ((eql operator "min") (if (< right left) right left))
+        ((eql operator "max") (if (> right left) right left))
+        (t (runtime-error (+ "Unknown arithmetic operator " operator ".")))))
+
+    (defun evaluate-arithmetic (expression context)
+      (let ((result nil))
+        (dolist (operand (@ expression operands))
+          (let ((value (integer-operand (evaluate-expression operand context))))
+            (setf result
+                  (if (eql result nil)
+                      value
+                      (checked-integer
+                       (arithmetic-step (@ expression operator) result value))))))
+        result))
+
+    (defun evaluate-concat (expression context)
+      (let ((text ""))
+        (dolist (part (@ expression parts))
+          (setf text (+ text (format-value (evaluate-expression part context)))))
+        text))
+
     (defun evaluate-expression (expression context)
-      (if (eql (@ expression type) "state")
-          (let ((resolved (resolve-state expression context)))
-            (getprop (@ resolved holder) (@ resolved key)))
-          (@ expression value)))
+      (cond
+        ((eql (@ expression type) "state")
+         (let ((resolved (resolve-state expression context)))
+           (getprop (@ resolved holder) (@ resolved key))))
+        ((eql (@ expression type) "arithmetic")
+         (evaluate-arithmetic expression context))
+        ((eql (@ expression type) "concat")
+         (evaluate-concat expression context))
+        (t
+         (@ expression value))))
+
+    (defun compare-values (operator left right)
+      (cond
+        ((eql operator "lt") (< left right))
+        ((eql operator "lte") (<= left right))
+        ((eql operator "gt") (> left right))
+        ((eql operator "gte") (>= left right))
+        (t (runtime-error (+ "Unknown comparison operator " operator ".")))))
 
     (defun every-condition (conditions context)
       (let ((result t))
@@ -1200,6 +1297,11 @@ same game data and the same runtime, since either can change the save shape."
         ((eql (@ condition type) "eq")
          (value-equal (evaluate-expression (@ condition left) context)
                       (evaluate-expression (@ condition right) context)))
+        ((eql (@ condition type) "compare")
+         (compare-values
+          (@ condition operator)
+          (integer-operand (evaluate-expression (@ condition left) context))
+          (integer-operand (evaluate-expression (@ condition right) context))))
         ((eql (@ condition type) "not")
          (not (evaluate-condition (@ condition condition) context)))
         ((eql (@ condition type) "and")
@@ -1222,7 +1324,8 @@ same game data and the same runtime, since either can change the save shape."
                             (eql value undefined))
                         0
                         value)))
-        (if (eql (typeof number) "number")
+        (if (and (eql (typeof number) "number")
+                 (chain -number (is-integer number)))
             number
             (runtime-error "Cannot increment or decrement non-numeric state value."))))
 
@@ -1366,16 +1469,20 @@ same game data and the same runtime, since either can change the save shape."
          (progn
            (set-state-value
             (@ effect target)
-            (+ (numeric-value (state-value (@ effect target) context))
-               (evaluate-expression (@ effect amount) context))
+            (checked-integer
+             (+ (numeric-value (state-value (@ effect target) context))
+                (integer-operand
+                 (evaluate-expression (@ effect amount) context))))
             context)
            nil))
         ((eql (@ effect type) "dec")
          (progn
            (set-state-value
             (@ effect target)
-            (- (numeric-value (state-value (@ effect target) context))
-               (evaluate-expression (@ effect amount) context))
+            (checked-integer
+             (- (numeric-value (state-value (@ effect target) context))
+                (integer-operand
+                 (evaluate-expression (@ effect amount) context))))
             context)
            nil))
         ((eql (@ effect type) "toggle")
@@ -1388,7 +1495,8 @@ same game data and the same runtime, since either can change the save shape."
         ((eql (@ effect type) "say")
          (progn
            (push-array *messages*
-                       (evaluate-expression (@ effect text) context))
+                       (format-value
+                        (evaluate-expression (@ effect text) context)))
            nil))
         ((eql (@ effect type) "if")
          (execute-effect

@@ -214,3 +214,95 @@ encounter, so the generated room itself has no choices."
     (dunge-examples:load-instanced-adaptation-example)
   ;; Approach, enter the generated chamber, attack, take loot, eat, return.
   '(1 1 1 1 1 1 1))
+
+;;; Expressions: arithmetic, comparisons, interpolation, and value formatting.
+
+(defparameter *parity-expression-game*
+  "(:game
+    :start \"camp\"
+    :state ((:hp 5) (:gold 0) (:mood :calm) (:name nil) (:brave t))
+    :rooms
+    ((:room
+      :id \"camp\"
+      :title \"Camp\"
+      :body
+      ((:p \"A quiet camp.\")
+       (:when (:lte (:global :hp) 2)
+        (:p \"You are badly hurt.\"))
+       (:when (:and (:gt (:global :gold) 0) (:lt (:global :gold) 10))
+        (:p \"Your purse jingles.\"))
+       (:when (:gte (:global :gold) 10)
+        (:p \"Your purse is heavy.\"))
+       (:entity
+        :name \"chest\"
+        :id \"chest\"
+        :state ((:coins 5))
+        :body
+        ((:action
+          :label \"Loot the chest\"
+          :do
+          ((:set :target (:global :gold)
+                 :value (:add (:global :gold) (:mul 2 (:self :coins))))
+           (:say \"You take {self:coins} coins, worth {global:gold}.\")
+           (:set :target (:self :coins) :value 0)))))
+       (:entity
+        :name \"scale\"
+        :id \"scale\"
+        :refs ((:box \"chest\"))
+        :body
+        ((:action
+          :label \"Weigh the chest\"
+          :do ((:say \"The chest holds {ref:box:coins} coins.\")))))
+       (:choice \"Take a hit\"
+        ((:set :target (:global :hp)
+               :value (:max 0 (:sub (:global :hp) 2 1)))
+         (:say \"HP: {global:hp}, clamped with {{max}}.\")))
+       (:choice \"Report\"
+        ((:say \"Mood {global:mood}; name [{global:name}]; brave {global:brave}.\")
+         (:say (:global :mood))
+         (:say (:min 7 (:global :hp) 9))
+         (:set :target (:global :name) :value \"Ada\")
+         (:clear :target (:global :mood))
+         (:say \"Mood [{global:mood}]; name {global:name}.\")))
+       (:choice \"Overflow\"
+        ((:set :target (:global :gold) :value (:mul 9007199254740991 2))))
+       (:choice \"Add a keyword\"
+        ((:say (:add 1 (:global :mood)))))
+       (:choice \"Overflow by increment\"
+        ((:set :target (:global :gold) :value 9007199254740991)
+         (:inc :target (:global :gold))))
+       (:choice \"Quit\" (:quit))))))")
+
+(def-parity-test parity-expressions-arithmetic-comparisons-and-interpolation ()
+    (load-dunge-string *parity-expression-game*)
+  ;; Weigh, loot (gold 10), weigh again, report, hit twice (hp 2 then 0), quit.
+  '(2 1 2 4 3 3 8))
+
+(def-parity-test parity-expressions-overflow-is-an-error ()
+    (load-dunge-string *parity-expression-game*)
+  '(5))
+
+(def-parity-test parity-expressions-non-integer-operand-is-an-error ()
+    (load-dunge-string *parity-expression-game*)
+  '(6))
+
+(def-parity-test parity-expressions-increment-overflow-is-an-error ()
+    (load-dunge-string *parity-expression-game*)
+  '(7))
+
+(def-parity-test parity-unset-state-equals-nil ()
+    (load-dunge-string
+     "(:game
+       :start \"room\"
+       :rooms
+       ((:room
+         :id \"room\"
+         :title \"Room\"
+         :body
+         ((:when (:eq (:global :unset) nil)
+           (:p \"Unset state equals nil.\"))
+          (:when (:eq nil (:global :unset))
+           (:p \"Nil equals unset state.\"))
+          (:choice \"Show it\" (:say \"[{global:unset}]\"))
+          (:choice \"Quit\" (:quit))))))")
+  '(1 2))

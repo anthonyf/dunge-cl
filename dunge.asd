@@ -72,6 +72,7 @@
   :components ((:module "tests"
                 :components ((:file "package")
                              (:file "core")
+                             (:file "expressions")
                              (:file "runtime-parity"))))
   :perform (test-op (op c)
              ;; FiveAM's RUN! only returns NIL on failure; signal so that

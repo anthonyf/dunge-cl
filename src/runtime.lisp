@@ -1819,12 +1819,70 @@ when the return stack is not empty, and otherwise ends play with FALL-THROUGH."
 (defmethod evaluate-expression ((reference state-ref) &optional context)
   (state-reference-value reference context))
 
+(defun format-dunge-value (value)
+  "Render VALUE as text the way both runtimes do: strings as written,
+integers in decimal, keywords as their lower-case name, T as \"true\", and
+NIL (including cleared or unset state) as the empty string."
+  (cond
+    ((stringp value) value)
+    ((integerp value) (format nil "~D" value))
+    ((null value) "")
+    ((eq value t) "true")
+    ((keywordp value) (string-downcase (symbol-name value)))
+    (t (error "Cannot display value ~S." value))))
+
+(defun integer-operand (value)
+  "Return VALUE as an arithmetic operand. NIL, as for unset state, counts as 0."
+  (cond
+    ((null value) 0)
+    ((integerp value) value)
+    (t (error "Arithmetic needs integer values; got \"~A\"."
+              (format-dunge-value value)))))
+
+(defun checked-integer (value)
+  (unless (safe-integer-p value)
+    (error "Arithmetic result is outside the supported integer range."))
+  value)
+
+(defun arithmetic-function (operator)
+  (ecase operator
+    (:add #'+)
+    (:sub #'-)
+    (:mul #'*)
+    (:min #'min)
+    (:max #'max)))
+
+(defmethod evaluate-expression ((expression arithmetic) &optional context)
+  (let ((function (arithmetic-function (arithmetic-operator expression))))
+    (reduce (lambda (accumulator operand)
+              (checked-integer (funcall function accumulator operand)))
+            (mapcar (lambda (operand)
+                      (integer-operand (evaluate-expression operand context)))
+                    (arithmetic-operands expression)))))
+
+(defmethod evaluate-expression ((expression concat) &optional context)
+  (format nil "~{~A~}"
+          (mapcar (lambda (part)
+                    (format-dunge-value (evaluate-expression part context)))
+                  (concat-parts expression))))
+
 (defmethod evaluate-condition ((condition t) &optional context)
   (not (null (evaluate-expression condition context))))
 
 (defmethod evaluate-condition ((condition condition-eq) &optional context)
   (equal (evaluate-expression (condition-left condition) context)
          (evaluate-expression (condition-right condition) context)))
+
+(defmethod evaluate-condition ((condition condition-compare) &optional context)
+  (funcall (ecase (comparison-operator condition)
+             (:lt #'<)
+             (:lte #'<=)
+             (:gt #'>)
+             (:gte #'>=))
+           (integer-operand (evaluate-expression (condition-left condition)
+                                                 context))
+           (integer-operand (evaluate-expression (condition-right condition)
+                                                 context))))
 
 (defmethod evaluate-condition ((condition condition-not) &optional context)
   (not (evaluate-condition (condition-child condition) context)))
@@ -1857,24 +1915,26 @@ when the return stack is not empty, and otherwise ends play with FALL-THROUGH."
 
 (defun numeric-state-value (reference context)
   (let ((value (or (state-reference-value reference context) 0)))
-    (unless (numberp value)
-      (error "Cannot increment non-numeric state value ~S." value))
+    (unless (integerp value)
+      (error "Cannot increment or decrement non-numeric state value."))
     value))
 
-(defmethod execute-effect ((effect state-inc) &optional context)
+(defun adjust-state-reference-value (effect function context)
   (set-state-reference-value
    (effect-target effect)
-   (+ (numeric-state-value (effect-target effect) context)
-      (evaluate-expression (effect-amount effect) context))
-   context)
+   (checked-integer
+    (funcall function
+             (numeric-state-value (effect-target effect) context)
+             (integer-operand
+              (evaluate-expression (effect-amount effect) context))))
+   context))
+
+(defmethod execute-effect ((effect state-inc) &optional context)
+  (adjust-state-reference-value effect #'+ context)
   nil)
 
 (defmethod execute-effect ((effect state-dec) &optional context)
-  (set-state-reference-value
-   (effect-target effect)
-   (- (numeric-state-value (effect-target effect) context)
-      (evaluate-expression (effect-amount effect) context))
-   context)
+  (adjust-state-reference-value effect #'- context)
   nil)
 
 (defmethod execute-effect ((effect state-toggle) &optional context)
@@ -1883,7 +1943,8 @@ when the return stack is not empty, and otherwise ends play with FALL-THROUGH."
 
 (defmethod execute-effect ((effect say) &optional context)
   (render-pending-choice-spacing)
-  (format *output* "~A~%~%" (evaluate-expression (say-text effect) context))
+  (format *output* "~A~%~%"
+          (format-dunge-value (evaluate-expression (say-text effect) context)))
   (pause-after-say)
   nil)
 

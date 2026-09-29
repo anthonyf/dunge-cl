@@ -23,7 +23,9 @@
    #:choice-once-p
    #:choices
    #:close-choice
+   #:arithmetic
    #:condition-and
+   #:condition-compare
    #:condition-eq
    #:condition-not
    #:condition-or
@@ -35,6 +37,7 @@
    #:consumed-p
    #:collect-choices
    #:compile-dunge-source
+   #:concat
    #:container
    #:container-view
    #:capture-runtime-state
