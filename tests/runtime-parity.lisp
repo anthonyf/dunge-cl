@@ -66,33 +66,56 @@
     (load-dunge-string *parity-state-game*)
   '(2))
 
+(defparameter *parity-lamp-game*
+  "(:game
+    :start \"r\"
+    :rooms
+    ((:room
+      :id \"r\"
+      :title \"R\"
+      :body
+      ((:entity
+        :name \"lamp\"
+        :id \"lamp\"
+        :state ((:lit nil))
+        :body
+        ((:branch
+          :when (:state :scope :self :key :lit)
+          :then ((:p \"The lamp is on.\"))
+          :else ((:p \"The lamp is off.\")))
+         (:action
+          :label \"Flip\"
+          :do ((:toggle :target (:state :scope :self :key :lit))))))
+       (:choice \"Quit\" (:quit))))))")
+
+(defun replace-all (string old new)
+  (with-output-to-string (out)
+    (loop with start = 0
+          for position = (search old string :start2 start)
+          do (write-string string out :start start :end position)
+          while position
+          do (write-string new out)
+             (setf start (+ position (length old))))))
+
+(defun strip-lamp-entity-id (script)
+  "Remove the lamp's id from compiled browser data, which the validator would
+never allow, to check that the browser still initializes its state."
+  (let ((with-id "\"type\":\"entity\",\"id\":\"lamp\""))
+    (unless (search with-id script)
+      (error "Compiled script no longer contains ~A; update this test." with-id))
+    (replace-all script with-id "\"type\":\"entity\",\"id\":null")))
+
+(def-parity-test parity-stateful-entity-toggles ()
+    (load-dunge-string *parity-lamp-game*)
+  '(1 1 2))
+
+(def-parity-test parity-browser-initializes-entities-without-ids
+    (:transform-script #'strip-lamp-entity-id)
+    (load-dunge-string *parity-lamp-game*)
+  '(1 1 2))
+
 ;;; Known divergences. Each asserts that the runtimes still differ, so the fix
 ;;; for a divergence fails its test until the marker is removed.
-
-(def-parity-test parity-stateful-entity-without-id
-    (:known-divergence
-     "The browser only initializes state for entities with an :id.")
-    (load-dunge-string
-     "(:game
-       :start \"r\"
-       :rooms
-       ((:room
-         :id \"r\"
-         :title \"R\"
-         :body
-         ((:entity
-           :name \"lamp\"
-           :state ((:lit nil))
-           :body
-           ((:branch
-             :when (:state :scope :self :key :lit)
-             :then ((:p \"The lamp is on.\"))
-             :else ((:p \"The lamp is off.\")))
-            (:action
-             :label \"Flip\"
-             :do ((:toggle :target (:state :scope :self :key :lit))))))
-          (:choice \"Quit\" (:quit))))))")
-  '(1 1 2))
 
 (def-parity-test parity-gosub-into-room-without-choices
     (:known-divergence

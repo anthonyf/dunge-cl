@@ -1679,6 +1679,11 @@
 
 (defmethod validate-node ((thing entity) game context)
   (declare (ignore context))
+  (when (and (state-declarations thing)
+             (null (entity-id thing)))
+    (validation-error
+     "Entity ~S declares :STATE but has no :ID; stateful entities need an :ID so their state can be saved."
+     (name thing)))
   (validate-state-declaration-list
    (format nil "Entity ~S" (or (entity-id thing) (name thing)))
    (state-declarations thing))

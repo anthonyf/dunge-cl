@@ -1760,6 +1760,7 @@
            (source-game-with-body
             '(:entity
               :name "panel"
+              :id "panel"
               :state ((:switch :off))
               :body
               ((:action
@@ -1783,6 +1784,7 @@
            (source-game-with-body
             '(:entity
               :name "panel"
+              :id "panel"
               :state ((:switch :off))
               :body
               ((:branch
@@ -1899,6 +1901,23 @@
          ((:set
            :target (:state :scope :global :key "recipe")
            :value t))))))))
+
+(test validator-requires-ids-on-stateful-entities
+  (let ((message (error-message-from
+                  (lambda ()
+                    (source-game-with-body
+                     '(:entity :name "lamp" :state ((:lit nil))))))))
+    (is (search "Entity \"lamp\" declares :STATE but has no :ID" message)))
+  ;; Room files check the rule on their own, before game validation.
+  (signals error
+    (source-node
+     '(:room
+       :id "room"
+       :body ((:entity :name "lamp" :state ((:lit nil)))))))
+  ;; Entities without state do not need an id.
+  (is (typep (source-game-with-body
+              '(:entity :name "rug" :body ((:p "A worn rug."))))
+             'game)))
 
 (test malformed-key-shapes-are-rejected
   (signals error
