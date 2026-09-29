@@ -1244,9 +1244,9 @@ same game data and the same runtime, since either can change the save shape."
         (dolist (operand (@ expression operands))
           (let ((value (integer-operand (evaluate-expression operand context))))
             (setf result
-                  (if (eql result nil)
-                      value
-                      (checked-integer
+                  (checked-integer
+                   (if (eql result nil)
+                       value
                        (arithmetic-step (@ expression operator) result value))))))
         result))
 

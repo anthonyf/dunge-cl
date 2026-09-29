@@ -1853,12 +1853,17 @@ NIL (including cleared or unset state) as the empty string."
     (:max #'max)))
 
 (defmethod evaluate-expression ((expression arithmetic) &optional context)
-  (let ((function (arithmetic-function (arithmetic-operator expression))))
-    (reduce (lambda (accumulator operand)
-              (checked-integer (funcall function accumulator operand)))
-            (mapcar (lambda (operand)
-                      (integer-operand (evaluate-expression operand context)))
-                    (arithmetic-operands expression)))))
+  ;; Evaluate and combine operands left to right, checking each step, so the
+  ;; first error is the same one the browser runtime reports.
+  (let ((function (arithmetic-function (arithmetic-operator expression)))
+        (result nil))
+    (dolist (operand (arithmetic-operands expression) result)
+      (let ((value (integer-operand (evaluate-expression operand context))))
+        (setf result
+              (checked-integer
+               (if result
+                   (funcall function result value)
+                   value)))))))
 
 (defmethod evaluate-expression ((expression concat) &optional context)
   (format nil "~{~A~}"

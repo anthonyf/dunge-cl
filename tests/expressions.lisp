@@ -126,6 +126,21 @@
          (error-message-from
           (lambda ()
             (evaluate-condition (source-node '(:gt (:global :mood) 1)) context)))))
+    ;; Operands are checked left to right: the overflow is reported before
+    ;; the later keyword operand's type error.
+    (is (equal "Arithmetic result is outside the supported integer range."
+               (error-message-from
+                (lambda ()
+                  (evaluate-source-expression
+                   '(:add 9007199254740991 1 (:global :mood)) context)))))
+    ;; A lone operand is range-checked too, e.g. an unsafe value from a save.
+    (dunge::set-state-reference-value (source-node '(:global :gold))
+                                      (1+ 9007199254740991)
+                                      context)
+    (is (equal "Arithmetic result is outside the supported integer range."
+               (error-message-from
+                (lambda ()
+                  (evaluate-source-expression '(:add (:global :gold)) context)))))
     (dunge::set-state-reference-value (source-node '(:global :gold))
                                       9007199254740991
                                       context)
@@ -150,6 +165,15 @@
     (rejects '(:choice "Bad" (:inc :target (:global :x) :amount "one")))
     (rejects '(:choice "Bad" (:quit) :when (:add 1 2)))
     (rejects '(:choice "Bad" (:say (:eq 1 2)))))
+  (is (contains-substring-p
+       "outside the supported range"
+       (error-message-from
+        (lambda ()
+          (source-node
+           '(:game
+             :start "room"
+             :state ((:big 9007199254740992))
+             :rooms ((:room :id "room" :body ((:choice "Quit" (:quit)))))))))))
   (is (typep (source-game-with-body
               '(:choice "Fine"
                 ((:set :target (:global :x) :value (:max 0 (:sub (:global :x) 1)))

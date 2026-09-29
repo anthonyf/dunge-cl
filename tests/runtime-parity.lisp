@@ -271,12 +271,14 @@ encounter, so the generated room itself has no choices."
        (:choice \"Overflow by increment\"
         ((:set :target (:global :gold) :value 9007199254740991)
          (:inc :target (:global :gold))))
+       (:choice \"Overflow before a keyword\"
+        ((:say (:add 9007199254740991 1 (:global :mood)))))
        (:choice \"Quit\" (:quit))))))")
 
 (def-parity-test parity-expressions-arithmetic-comparisons-and-interpolation ()
     (load-dunge-string *parity-expression-game*)
   ;; Weigh, loot (gold 10), weigh again, report, hit twice (hp 2 then 0), quit.
-  '(2 1 2 4 3 3 8))
+  '(2 1 2 4 3 3 9))
 
 (def-parity-test parity-expressions-overflow-is-an-error ()
     (load-dunge-string *parity-expression-game*)
@@ -289,6 +291,12 @@ encounter, so the generated room itself has no choices."
 (def-parity-test parity-expressions-increment-overflow-is-an-error ()
     (load-dunge-string *parity-expression-game*)
   '(7))
+
+(def-parity-test parity-expressions-report-the-first-arithmetic-error ()
+    (load-dunge-string *parity-expression-game*)
+  ;; Operands are evaluated left to right, so the overflow comes before the
+  ;; keyword operand's type error in both runtimes.
+  '(8))
 
 (def-parity-test parity-unset-state-equals-nil ()
     (load-dunge-string

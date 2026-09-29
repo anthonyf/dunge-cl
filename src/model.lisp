@@ -1633,8 +1633,13 @@
   (let ((seen (make-hash-table :test 'eql)))
     (dolist (declaration declarations)
       (destructuring-bind (key value) declaration
-        (declare (ignore value))
         (let ((state-key (state-key key)))
+          (when (and (integerp value) (not (safe-integer-p value)))
+            (validation-error "~A state key ~S starts at ~D, outside the supported range of plus or minus ~D."
+                              owner-label
+                              state-key
+                              value
+                              +max-safe-integer+))
           (if (nth-value 1 (gethash state-key seen))
               (validation-error "~A declares state key ~S more than once."
                                 owner-label
