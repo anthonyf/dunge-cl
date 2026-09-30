@@ -55,8 +55,6 @@
    #:evaluate-session
    #:execute-effect
    #:game
-   #:game-encounter-index
-   #:game-encounter-states
    #:game-global-state
    #:game-global-state-declarations
    #:game-player-state
@@ -72,23 +70,6 @@
    #:game-tables
    #:game-taken-choices
    #:find-generated-room
-   #:find-encounter-state
-   #:encounter-active-p
-   #:encounter-armor
-   #:encounter-damage
-   #:encounter-enemy-id
-   #:encounter-finished-p
-   #:encounter-hp
-   #:encounter-max-hp
-   #:encounter-max-str
-   #:encounter-reaction
-   #:encounter-room-name
-   #:encounter-round
-   #:encounter-source
-   #:encounter-state
-   #:encounter-state-plist
-   #:encounter-status
-   #:encounter-str
    #:generated-room
    #:generated-room-description
    #:generated-room-depth
@@ -108,7 +89,6 @@
    #:load-runtime-state-file
    #:make-runtime-session
    #:make-generated-room
-   #:make-encounter-state
    #:name
    #:node-children
    #:node-id
@@ -127,10 +107,7 @@
    #:room-name
    #:read-runtime-state-file
    #:register-generated-room
-   #:register-encounter-state
    #:restore-runtime-state
-   #:attack-encounter
-   #:flee-encounter
    #:make-runtime-context
    #:prioritized-mixin
    #:random-table

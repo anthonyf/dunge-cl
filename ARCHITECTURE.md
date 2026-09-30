@@ -479,35 +479,29 @@ counters, with fatigue filling slots too, and `ration-choice-form` builds the
 fatigued, deprived, or at full inventory. Per-stack metadata such as an item's
 condition is not kept.
 
-## Encounter State And Combat
+## Encounters And Combat
 
-Encounter state is runtime data owned by Common Lisp. A `.dunge` table can
-describe an encounter with `(:encounter ENCOUNTER-ID ...)`, but that result does
-not start combat by itself. CL code chooses the room or generated room that owns
-the encounter, applies any enemy profile defaults, and registers an
-`encounter-state` with:
+Encounters are ordinary content. A `.dunge` table can describe an encounter
+with `(:encounter ENCOUNTER-ID ...)`, but that result does not start combat by
+itself. When CL builds a generated room, `dunge.crawler:encounter-spec` reads
+the enemy's HP, armor, and damage from the result (with overrides), and
+`create-generated-room` wraps the room's choices in an encounter entity:
 
-- room id;
-- enemy id and source result;
-- reaction;
-- HP/STR current and maximum values;
-- armor and damage;
-- round count;
-- status, one of `:active`, `:defeated`, `:escaped`, or `:player-defeated`.
+- its local state holds `:status` (`:active`, `:defeated`, `:escaped`, or
+  `:player-defeated`), `:hp`, `:max-hp`, `:armor`, `:dealt`, `:taken`, and
+  `:round`;
+- a paragraph shows `Encounter: NAME ({self:status}, HP {self:hp}/{self:max-hp}).`;
+- while `:status` is `:active`, it offers an Attack action, any
+  `:encounter-options` (such as "Eat ration"), and a Flee action;
+- otherwise it offers the room's loot choices, options, and exits.
 
-`ensure-room-encounter-state` creates or recalls a room-bound encounter from a
-resolved table result. `attack-encounter` rolls player damage, applies enemy
-armor, and lets an active enemy strike back if it survives. `flee-encounter`
-marks the encounter escaped. Generated rooms render active encounter choices
-before ordinary exits, with available item-use choices such as "Eat ration"
-inserted into the combat menu when they can help. Once the encounter is
-defeated or escaped, loot and ordinary room exits become available again. A
-defeated player ends the run. The browser runtime rolls combat dice from the
-same generator as the console, in the same order and with the same labels, so
-both runtimes play a fight identically.
-
-Runtime save data includes `:encounters`, and undo captures encounter state
-alongside player, table, RNG, and local/global state.
+Attack is a sequence of ordinary effects. It rolls `(:roll "1d6" :label
+:player-damage)` less the enemy's armor. If the enemy survives, it strikes back
+with its damage: a `(:roll ... :label :enemy-damage)` for dice, or a literal
+for integer damage, less the player's armor. A player brought to 0 HP ends the
+run with `:quit`. Flee marks the encounter escaped. Both runtimes run the same
+AST, so fights play identically, and encounter state is saved like any other
+entity's local state.
 
 ## Effects And Sequences
 

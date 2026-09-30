@@ -4,7 +4,6 @@
                           #:room
                           #:sequence)
   (:import-from #:dunge
-                #:encounter-room-name-string
                 #:ensure-runtime-property-list
                 #:generated-room-display-lower
                 #:generated-room-display-word
@@ -13,7 +12,8 @@
                 #:proper-list-length-value)
   (:export
    #:create-generated-room
-   #:ensure-room-encounter-state
+   #:encounter-entity-form
+   #:encounter-spec
    #:inventory-entry-count
    #:inventory-entry-id
    #:inventory-entry-kind

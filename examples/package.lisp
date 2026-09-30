@@ -11,7 +11,6 @@
    #:basic-example
    #:control-panel-example
    #:ensure-adaptation-first-room
-   #:ensure-adaptation-room-encounter
    #:ensure-adaptation-room-exit
    #:find-adaptation-choice
    #:install-adaptation-entrance-flow

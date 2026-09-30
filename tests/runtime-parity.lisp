@@ -326,6 +326,7 @@ with SEED (default: the game's own) and BACKGROUND (default :wanderer).")
       :title \"Camp\"
       :body
       ((:p \"A quiet camp.\")
+       (:p \"HP {global:hp}; purse {global:gold}; mood [{global:mood}].\")
        (:when (:lte (:global :hp) 2)
         (:p \"You are badly hurt.\"))
        (:when (:and (:gt (:global :gold) 0) (:lt (:global :gold) 10))
@@ -494,7 +495,7 @@ A die with 2^31 sides rolls one more than the state it draws."
 
 (defun load-parity-dice-damage-game ()
   "A duel against an enemy whose damage is dice, so the browser must roll it."
-  (let* ((game (load-dunge-string
+  (let ((game (load-dunge-string
                 "(:game
                   :start \"hall\"
                   :seed 99
@@ -506,18 +507,18 @@ A die with 2^31 sides rolls one more than the state it draws."
                     :title \"Hall\"
                     :body
                     ((:choice \"Enter the pit\" (:go \"generated:pit:1\"))
-                     (:choice \"Quit\" (:quit))))))"))
-         (room (create-generated-room game
-                                      :id "generated:pit:1"
-                                      :zone :pit
-                                      :title "Pit"
-                                      :results '((:encounter :pit-brute))
-                                      :exits '((:back . "hall"))
-                                      :options (list (ration-choice-form))
-                                      :encounter-options
-                                      (list (ration-choice-form)))))
-    (ensure-room-encounter-state game room '(:encounter :pit-brute)
-                                 :hp 9 :armor 1 :damage "1d4+1")
+                     (:choice \"Quit\" (:quit))))))")))
+    (create-generated-room game
+                           :id "generated:pit:1"
+                           :zone :pit
+                           :title "Pit"
+                           :results '((:encounter :pit-brute))
+                           :exits '((:back . "hall"))
+                           :options (list (ration-choice-form))
+                           :encounter (encounter-spec '(:encounter :pit-brute)
+                                                      :hp 9 :armor 1
+                                                      :damage "1d4+1")
+                           :encounter-options (list (ration-choice-form)))
     game))
 
 (def-parity-test parity-encounter-dice-damage-is-rolled ()

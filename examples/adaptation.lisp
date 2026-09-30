@@ -118,17 +118,14 @@
   (declare (ignore game))
   results)
 
-(defun ensure-adaptation-room-encounter (game room)
-  (let ((encounter-result (first (table-result-encounters
-                                  (generated-room-results room)))))
+(defun adaptation-room-encounter (results)
+  "The encounter spec for the first encounter among RESULTS, or NIL."
+  (let ((encounter-result (first (table-result-encounters results))))
     (when encounter-result
       (let ((enemy-id (second encounter-result)))
-        (ensure-room-encounter-state
-         game
-         room
+        (encounter-spec
          encounter-result
          :hp (adaptation-encounter-value enemy-id :hp 3)
-         :str (adaptation-encounter-value enemy-id :str 10)
          :damage (adaptation-encounter-value enemy-id :damage 1))))))
 
 (defun find-adaptation-first-room (game)
@@ -202,8 +199,8 @@ anything the tables can award."
                  :results resolved-results
                  :exits exits
                  :options (list (adaptation-ration-choice game))
+                 :encounter (adaptation-room-encounter resolved-results)
                  :encounter-options (list (adaptation-ration-choice game)))))
-      (ensure-adaptation-room-encounter game room)
       (note-adaptation-dungeon-state game)
       room)))
 
@@ -265,7 +262,6 @@ anything the tables can award."
                 (apply-adaptation-room-results game resolved-results)
                 room))))
     (ensure-adaptation-room-exit game room :deeper)
-    (ensure-adaptation-room-encounter game room)
     (note-adaptation-dungeon-state game)
     room))
 
