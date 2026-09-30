@@ -343,6 +343,17 @@ body {
    "operands" (html-array (mapcar #'compile-html-expression
                                   (dunge::arithmetic-operands expression)))))
 
+(defmethod compile-html-expression ((expression dunge:roll))
+  (let ((spec (dunge::roll-spec expression)))
+    (html-object
+     "type" "roll"
+     "dice" (getf spec :expression)
+     "count" (compile-runtime-number (getf spec :count))
+     "sides" (compile-runtime-number (getf spec :sides))
+     "modifier" (compile-runtime-number (getf spec :modifier))
+     "label" (and (dunge::roll-label expression)
+                  (keyword-name (dunge::roll-label expression))))))
+
 (defmethod compile-html-expression ((expression dunge:concat))
   (html-object
    "type" "concat"
@@ -520,6 +531,10 @@ body {
            (html-object
             "version" 1
             "start" (dunge:game-start game)
+            ;; The next state depends only on the seed modulo 2^31, and the
+            ;; reduced seed is always a safe integer for JSON.
+            "seed" (mod (dunge:game-random-seed game)
+                        dunge::+dunge-rng-modulus+)
             "player" (compile-html-player (dunge:game-player game))
             "encounters" (html-array
                           (mapcar #'compile-html-encounter encounters))
@@ -625,6 +640,8 @@ same game data and the same runtime, since either can change the save shape."
     (defvar *generated-rooms* (array))
     (defvar *current-location* nil)
     (defvar *return-stack* (array))
+    (defvar *rng-state* 1)
+    (defvar *roll-log* (array))
     (defvar *undo-stack* (array))
     (defvar *messages* (array))
     (defvar *visible-messages* (array))
@@ -1048,6 +1065,8 @@ same game data and the same runtime, since either can change the save shape."
                             :taken-choices (create)))
       (setf *player* (copy-json-value (@ *game* player)))
       (setf *encounters* (copy-json-value (@ *game* encounters)))
+      (setf *rng-state* (@ *game* seed))
+      (setf *roll-log* (array))
       (setf *current-location* (room-by-id (@ *game* start))))
 
     (defun room-location-id (location)
@@ -1108,6 +1127,8 @@ same game data and the same runtime, since either can change the save shape."
               "generatedRooms" (copy-json-value *generated-rooms*)
               "encounters" (copy-json-value *encounters*)
               "messages" (copy-array *visible-messages*)
+              "rngState" *rng-state*
+              "rollLog" (copy-json-value *roll-log*)
               "globals" (copy-object (@ *state* globals))
               "locals" (capture-local-state)
               "takenChoices" (copy-object (getprop *state* "taken-choices"))))
@@ -1149,6 +1170,8 @@ same game data and the same runtime, since either can change the save shape."
       (restore-local-state (getprop state "locals"))
       (restore-return-stack (getprop state "returnStack"))
       (setf *messages* (copy-array (getprop state "messages")))
+      (setf *rng-state* (getprop state "rngState"))
+      (setf *roll-log* (copy-array (getprop state "rollLog")))
       (setf *current-location*
             (room-by-id (getprop state "currentRoom"))))
 
@@ -1250,6 +1273,37 @@ same game data and the same runtime, since either can change the save shape."
                        (arithmetic-step (@ expression operator) result value))))))
         result))
 
+    ;; The console's linear congruential generator, exactly: state' =
+    ;; (1103515245 * state + 12345) mod 2^31. The product can exceed 2^53, but
+    ;; only its low 31 bits matter, and Math.imul computes the low 32 bits of
+    ;; an integer product exactly.
+    (defun next-random-state (state)
+      (logand (+ (chain -math (imul 1103515245 state)) 12345)
+              #x7fffffff))
+
+    (defun game-random (limit)
+      (setf *rng-state* (next-random-state *rng-state*))
+      (rem *rng-state* limit))
+
+    (defun evaluate-roll (expression)
+      (let ((rolls (array))
+            (total (@ expression modifier)))
+        (dotimes (index (@ expression count))
+          (let ((value (+ 1 (game-random (@ expression sides)))))
+            (push-array rolls value)
+            (setf total (+ total value))))
+        (let ((entry (create "dice" (@ expression dice)
+                             "count" (@ expression count)
+                             "sides" (@ expression sides)
+                             "rolls" rolls)))
+          (unless (eql (@ expression modifier) 0)
+            (setf (getprop entry "modifier") (@ expression modifier)))
+          (when (@ expression label)
+            (setf (getprop entry "label") (@ expression label)))
+          (setf (getprop entry "result") total)
+          (push-array *roll-log* entry))
+        total))
+
     (defun evaluate-concat (expression context)
       (let ((text ""))
         (dolist (part (@ expression parts))
@@ -1265,6 +1319,8 @@ same game data and the same runtime, since either can change the save shape."
          (evaluate-arithmetic expression context))
         ((eql (@ expression type) "concat")
          (evaluate-concat expression context))
+        ((eql (@ expression type) "roll")
+         (evaluate-roll expression))
         (t
          (@ expression value))))
 

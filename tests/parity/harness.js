@@ -4,7 +4,12 @@
 // clicks the requested choices, and prints what was rendered as a list of
 // s-expression frames for tests/parity/support.lisp to READ.
 //
-// Usage: node harness.js GAME.js|GAME.html CHOICE-NUMBER...
+// Usage: node harness.js [--reload-after=N] GAME.js|GAME.html CHOICE-NUMBER...
+//
+// --reload-after=N reboots the page after the Nth choice, keeping its
+// localStorage, as a browser refresh would. A faithful restore renders exactly
+// what was shown before the reload and adds no frame; otherwise the reloaded
+// render is recorded as (:reload-mismatch FRAME).
 //
 // Frames:
 //   (:title "..." :text ("..." ...) :choices ("..." ...))  after each render
@@ -12,6 +17,8 @@
 //   (:end t :text ("..." ...)) the game ended and showed final messages
 //   (:missing-choice N)        choice N was requested but not rendered
 //   (:error "...")             the runtime threw
+//   (:reload-mismatch FRAME)   the page rendered FRAME after a reload instead
+//                              of what it showed before
 
 const fs = require('fs');
 const vm = require('vm');
@@ -96,12 +103,11 @@ function sexpList(items) {
   return `(${items.join(' ')})`;
 }
 
-function bootRuntime(file) {
+function bootRuntime(file, storage) {
   const elements = {};
   for (const id of MOUNT_IDS) {
     elements[id] = new StubElement('div');
   }
-  const storage = new Map();
   const documentListeners = {};
   const context = {
     console,
@@ -134,9 +140,15 @@ function bootRuntime(file) {
 }
 
 function main(argv) {
+  let reloadAfter = null;
+  const reloadOption = argv.length > 0 && argv[0].match(/^--reload-after=(\d+)$/);
+  if (reloadOption) {
+    reloadAfter = Number(reloadOption[1]);
+    argv = argv.slice(1);
+  }
   const [file, ...choiceArgs] = argv;
   if (!file) {
-    throw new Error('Usage: node harness.js GAME.js|GAME.html CHOICE-NUMBER...');
+    throw new Error('Usage: node harness.js [--reload-after=N] GAME.js|GAME.html CHOICE-NUMBER...');
   }
   const choices = choiceArgs.map(Number);
   const frames = [];
@@ -173,8 +185,10 @@ function main(argv) {
   }
 
   try {
-    const elements = bootRuntime(file);
+    const storage = new Map();
+    let elements = bootRuntime(file, storage);
     let state = record(elements);
+    let clicks = 0;
     for (const choice of choices) {
       if (state.ended) {
         break;
@@ -186,6 +200,16 @@ function main(argv) {
       }
       button.click();
       state = record(elements);
+      clicks += 1;
+      if (clicks === reloadAfter && !state.ended) {
+        const shown = frames.pop();
+        elements = bootRuntime(file, storage);
+        state = record(elements);
+        const reloaded = frames.pop();
+        frames.push(reloaded === shown
+          ? shown
+          : sexpList([':reload-mismatch', reloaded]));
+      }
     }
   } catch (error) {
     frames.push(sexpList([':error', sexpString(error && error.message)]));

@@ -258,6 +258,10 @@ keyword value, as in (:say :open) or (:eq :open (:self :status))."
 (define-list-field-shorthand :max :operands)
 (define-list-field-shorthand :concat :parts)
 
+(define-dunge-shorthand :roll (arguments)
+  (unless (field-arguments-p arguments '(:dice :label))
+    `(:roll :dice ,(first arguments) ,@(rest arguments))))
+
 (define-dunge-shorthand :and (arguments)
   (when (positional-arguments-p arguments)
     `(:and :conditions ,arguments)))

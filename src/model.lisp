@@ -598,6 +598,18 @@
   ((operator :reader arithmetic-operator :initarg :operator :initform nil)
    (operands :reader arithmetic-operands :initarg :operands :initform nil)))
 
+(define-dunge-field-type :dice (value context)
+  (declare (ignore context))
+  (parse-dice-expression value))
+
+(define-dunge-node roll (expression-node)
+  ((spec :reader roll-spec :initarg :spec :initform nil)
+   (label :reader roll-label :initarg :label :initform nil))
+  (:source :roll
+   (:fields
+    (:dice :dice :required t :to :spec)
+    (:label :keyword))))
+
 (define-dunge-node concat (expression-node)
   ((parts :reader concat-parts :initarg :parts :initform nil))
   (:source :concat
@@ -1657,6 +1669,11 @@
   "The largest integer both runtimes represent exactly. Arithmetic results
 beyond plus or minus this value are errors.")
 
+(defconstant +dunge-rng-modulus+ 2147483648
+  "The game generator's modulus, 2^31. Every generator state is below it.")
+(defconstant +dunge-rng-multiplier+ 1103515245)
+(defconstant +dunge-rng-increment+ 12345)
+
 (defun safe-integer-p (value)
   (and (integerp value)
        (<= (- +max-safe-integer+) value +max-safe-integer+)))
@@ -1690,9 +1707,14 @@ beyond plus or minus this value are errors.")
       (validation-error "Expected an integer expression; got ~S." thing)
       (validate-expression thing game context)))
 
+(defvar *validating-condition* nil
+  "True while validating a condition. Conditions may be evaluated any number
+of times, such as on every render, so they must not roll dice.")
+
 (defun validate-condition (condition game context)
   (if (typep condition 'condition-node)
-      (validate-node condition game context)
+      (let ((*validating-condition* t))
+        (validate-node condition game context))
       (validation-error "Condition must be a condition node; got ~S."
                         condition)))
 
@@ -1896,6 +1918,34 @@ beyond plus or minus this value are errors.")
                         operands))
     (dolist (operand operands)
       (validate-integer-expression operand game context))))
+
+(defmethod validate-node ((thing roll) game context)
+  (declare (ignore game context))
+  (let* ((spec (roll-spec thing))
+         (dice (getf spec :expression)))
+    (when *validating-condition*
+      (validation-error "Dice roll ~S cannot appear in a condition; set state ~
+                         from the roll in an effect and test that instead."
+                        dice))
+    (destructuring-bind (&key count sides modifier &allow-other-keys) spec
+      (cond
+        ((> sides +dunge-rng-modulus+)
+         ;; Each die draws a generator state modulo its sides, and every state
+         ;; is below 2^31, so larger faces could never come up.
+         (validation-error "Dice roll ~S has more than ~D sides."
+                           dice
+                           +dunge-rng-modulus+))
+        ;; With at least one die and a safe modifier, the smallest total,
+        ;; COUNT + MODIFIER, is safe too; only the largest can overflow.
+        ((notevery #'safe-integer-p
+                   (list count modifier (+ (* count sides) modifier)))
+         (validation-error "Dice roll ~S can produce a total outside the ~
+                            supported integer range."
+                           dice))))
+    (when (and (roll-label thing)
+               (not (keywordp (roll-label thing))))
+      (validation-error "Dice roll label must be a keyword; got ~S."
+                        (roll-label thing)))))
 
 (defmethod validate-node ((thing concat) game context)
   (dolist (part (concat-parts thing))

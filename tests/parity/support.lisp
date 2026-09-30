@@ -22,6 +22,9 @@
 ;;;   (:end t :text (LINE ...)) the game ended after showing final messages
 ;;;   (:missing-choice N)       the browser did not render choice N
 ;;;   (:error MESSAGE)          the runtime signalled an error
+;;;   (:reload-mismatch FRAME)  the browser rendered FRAME after a reload
+;;;                             instead of what it showed before (see
+;;;                             :RELOAD-AFTER)
 ;;;
 ;;; Text printed by effects (:say, loot, combat) belongs to the frame rendered
 ;;; next, which is where the browser shows its messages.
@@ -170,10 +173,12 @@ paragraph. A choice-shaped line (\"N. label\") is always read as a choice."
         (*package* (find-package '#:dunge-parity)))
     (read-from-string output)))
 
-(defun browser-frames (game inputs node &key (transform-script #'identity))
+(defun browser-frames (game inputs node &key (transform-script #'identity)
+                                              reload-after)
   "Compile GAME for the browser, play INPUTS in NODE, and return the frames.
 TRANSFORM-SCRIPT receives and returns the compiled script text, which lets a
-test run the browser runtime on data the compiler would never emit."
+test run the browser runtime on data the compiler would never emit. When
+RELOAD-AFTER is N, the page is reloaded from its save after the Nth choice."
   (let ((script (funcall transform-script (dunge-html:compile-game-script game)))
         (pathname (temporary-script-pathname)))
     (unwind-protect
@@ -184,10 +189,13 @@ test run the browser runtime on data the compiler would never emit."
                                    :external-format :utf-8)
              (write-string script stream))
            (multiple-value-bind (output error-output status)
-               (uiop:run-program (list* node
-                                        (namestring *harness-path*)
-                                        (namestring pathname)
-                                        (mapcar #'princ-to-string inputs))
+               (uiop:run-program (append
+                                  (list node (namestring *harness-path*))
+                                  (when reload-after
+                                    (list (format nil "--reload-after=~D"
+                                                  reload-after)))
+                                  (list (namestring pathname))
+                                  (mapcar #'princ-to-string inputs))
                                  :output :string
                                  :error-output :string
                                  :ignore-error-status t
@@ -210,13 +218,15 @@ test run the browser runtime on data the compiler would never emit."
             (nth index browser))))
 
 (defun check-parity (make-game inputs &key known-divergence
-                                           (transform-script #'identity))
+                                           (transform-script #'identity)
+                                           reload-after)
   "Assert that both runtimes render the same frames for INPUTS.
 
 MAKE-GAME is called once per runtime so each gets a fresh game. When
 KNOWN-DIVERGENCE is a string, assert instead that the runtimes still differ, so
-a fix makes the test fail until the marker is removed. TRANSFORM-SCRIPT is
-passed to BROWSER-FRAMES."
+a fix makes the test fail until the marker is removed. TRANSFORM-SCRIPT and
+RELOAD-AFTER are passed to BROWSER-FRAMES; the console never reloads, so a
+faithful browser restore leaves the frames equal."
   (let ((node (node-program)))
     (cond
       ((null node)
@@ -227,7 +237,8 @@ passed to BROWSER-FRAMES."
       (t
        (let ((console (console-frames (funcall make-game) inputs))
              (browser (browser-frames (funcall make-game) inputs node
-                                      :transform-script transform-script)))
+                                      :transform-script transform-script
+                                      :reload-after reload-after)))
          (cond
            (known-divergence
             (if (equal console browser)
@@ -241,7 +252,8 @@ passed to BROWSER-FRAMES."
             (fiveam:fail "~A" (describe-frame-mismatch console browser)))))))))
 
 (defmacro def-parity-test (name (&key known-divergence
-                                      (transform-script '#'identity))
+                                      (transform-script '#'identity)
+                                      reload-after)
                            game-form inputs-form)
   "Define a FiveAM test that plays the choice numbers from INPUTS-FORM through
 the console and browser runtimes and compares the rendered frames.
@@ -250,4 +262,5 @@ GAME-FORM is evaluated once per runtime. See CHECK-PARITY for the options."
      (check-parity (lambda () ,game-form)
                    ,inputs-form
                    :known-divergence ,known-divergence
-                   :transform-script ,transform-script)))
+                   :transform-script ,transform-script
+                   :reload-after ,reload-after)))

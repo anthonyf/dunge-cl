@@ -314,3 +314,81 @@ encounter, so the generated room itself has no choices."
           (:choice \"Show it\" (:say \"[{global:unset}]\"))
           (:choice \"Quit\" (:quit))))))")
   '(1 2))
+
+;;; Dice: the browser's generator matches the console's roll for roll.
+
+(defun load-parity-lcg-game (seed)
+  "A game whose single choice shows the next 100 generator states.
+A die with 2^31 sides rolls one more than the state it draws."
+  (compile-dunge-source
+   `(:game
+     :start "lcg"
+     :seed ,seed
+     :state ((:round 0))
+     :rooms
+     ((:room
+       :id "lcg"
+       :title "Generator"
+       :body
+       ((:choice "Draw"
+         ((:inc :target (:global :round))
+          (:say (:concat
+                 ,@(loop repeat 100
+                         append (list '(:sub (:roll "1d2147483648") 1) " "))))))
+        (:choice "Quit" (:quit))))))))
+
+(def-parity-test parity-lcg-matches-for-ten-thousand-states ()
+    (load-parity-lcg-game 1)
+  (make-list 100 :initial-element 1))
+
+(def-parity-test parity-lcg-matches-from-a-large-seed ()
+    ;; Beyond both 2^31 and 2^53: the browser gets the seed modulo 2^31.
+    (load-parity-lcg-game (+ (expt 2 60) 7))
+  (make-list 5 :initial-element 1))
+
+(defparameter *parity-dice-game*
+  "(:game
+    :start \"arena\"
+    :seed 20260929
+    :state ((:armor 2) (:hp 30) (:last 0) (:rolls 0))
+    :rooms
+    ((:room
+      :id \"arena\"
+      :title \"Arena\"
+      :body
+      ((:p \"Dice clatter on the sand.\")
+       (:choice \"Roll a spread\"
+        ((:inc :target (:global :rolls) :amount 5)
+         (:say \"Spread; {global:rolls} spread dice so far.\")
+         (:say (:roll \"1d6\"))
+         (:say (:roll \"2d6+1\" :label :attack))
+         (:say (:roll \"d20\"))
+         (:say (:roll \"3d4-2\"))
+         (:say (:roll :dice \"1d100\" :label :percentile))))
+       (:choice \"Strike\"
+        ((:set :target (:global :last)
+               :value (:max 0 (:sub (:roll \"1d8\" :label :damage) (:global :armor))))
+         (:set :target (:global :hp)
+               :value (:max 0 (:sub (:global :hp) (:global :last))))
+         (:if :when (:gte (:global :last) 4)
+          :then ((:say \"A heavy blow: {global:last}. HP {global:hp}.\"))
+          :else ((:say \"A glancing blow: {global:last}. HP {global:hp}.\")))))
+       (:choice \"Roll twice and add\"
+        ((:say (:add (:roll \"1d6\") (:roll \"1d6\") (:mul 2 (:roll \"1d4\"))))))
+       (:choice \"Quit\" (:quit))))))")
+
+(def-parity-test parity-dice-rolls-match ()
+    (load-dunge-string *parity-dice-game*)
+  ;; 50 rolls: 5 spreads of 5, 16 strikes of 1, and 3 sums of 3.
+  '(1 2 3 1 2 2 3 1 2 2 2 1 3 2 2 2 2 1 2 2 2 2 2 2 4))
+
+(def-parity-test parity-dice-continue-after-reload
+    (:reload-after 3)
+    (load-dunge-string *parity-dice-game*)
+  ;; Reload mid-sequence; the next rolls must continue the same stream.
+  '(1 2 2 1 3 2 4))
+
+(def-parity-test parity-dice-continue-after-reload-at-start
+    (:reload-after 1)
+    (load-dunge-string *parity-dice-game*)
+  '(2 2 1 4))
