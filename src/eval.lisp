@@ -5,11 +5,11 @@
 ;;; Describing and collecting content, reading and changing state, and
 ;;; evaluating expressions, conditions, and effects.
 
-(defmethod describe-entity ((thing t) &optional context)
+(defmethod describe-entity ((thing t) context)
   (declare (ignore context))
   nil)
 
-(defmethod collect-choices ((thing t) &optional context)
+(defmethod collect-choices ((thing t) context)
   (declare (ignore context))
   nil)
 
@@ -18,13 +18,13 @@
         append (collect-choices thing context)))
 
 (defun choice-state-key (choice)
-  (let ((id (choice-id choice)))
+  (let ((id (consumable-id choice)))
     (unless id
       (error "Once-only choice ~S must declare :ID." (label choice)))
     (choice-id-key id)))
 
 (defun choice-taken-p (choice context)
-  (and (choice-once-p choice)
+  (and (consumable-once-p choice)
        context
        (runtime-context-world context)
        (gethash (choice-state-key choice)
@@ -34,7 +34,7 @@
   (available-p choice context))
 
 (defun mark-choice-taken (choice context)
-  (when (choice-once-p choice)
+  (when (consumable-once-p choice)
     (unless (and context (runtime-context-world context))
       (error "Cannot mark once-only choice ~S without a world."
              (label choice)))
@@ -53,7 +53,7 @@
   (format *output* "~A~%~%"
           (format-dunge-value (evaluate-expression (text paragraph) context))))
 
-(defmethod describe-entity ((paragraph p) &optional context)
+(defmethod describe-entity ((paragraph p) context)
   (evaluate paragraph context))
 
 ;;; Effects can be reached as a choice target through EVALUATE, or inside a
@@ -63,20 +63,20 @@
   (or (execute-effect effect context)
       (%make-refresh)))
 
-(defmethod collect-choices ((choices choices) &optional context)
+(defmethod collect-choices ((choices choices) context)
   (loop for choice in (options choices)
         when (choice-visible-p choice context)
           collect choice))
 
-(defmethod collect-choices ((choice choice) &optional context)
+(defmethod collect-choices ((choice choice) context)
   (when (choice-visible-p choice context)
     (list choice)))
 
-(defmethod describe-entity ((entity entity) &optional context)
+(defmethod describe-entity ((entity entity) context)
   (describe-children (entities entity)
                      (runtime-context-for-self context entity)))
 
-(defmethod collect-choices ((entity entity) &optional context)
+(defmethod collect-choices ((entity entity) context)
   (collect-options-from (entities entity)
                         (runtime-context-for-self context entity)))
 
@@ -85,17 +85,17 @@
       (branch-then-entities branch)
       (branch-else-entities branch)))
 
-(defmethod describe-entity ((branch branch) &optional context)
+(defmethod describe-entity ((branch branch) context)
   (describe-children (active-branch-entities branch context) context))
 
-(defmethod collect-choices ((branch branch) &optional context)
+(defmethod collect-choices ((branch branch) context)
   (collect-options-from (active-branch-entities branch context) context))
 
-(defmethod describe-entity ((action action) &optional context)
+(defmethod describe-entity ((action action) context)
   (declare (ignore context))
   nil)
 
-(defmethod collect-choices ((action action) &optional context)
+(defmethod collect-choices ((action action) context)
   (declare (ignore context))
   (unless (action-owner action)
     (error "Action ~S is not inside an entity." (label action)))
@@ -110,16 +110,16 @@
          (result (evaluate-effects (effects action) action-context)))
     (or result (%make-refresh))))
 
-(defmethod describe-entity ((item item) &optional context)
+(defmethod describe-entity ((item item) context)
   (declare (ignore context))
   (format *output* "~A~%" (or (description item) (name item))))
 
-(defmethod describe-entity ((container container) &optional context)
+(defmethod describe-entity ((container container) context)
   (declare (ignore context))
   (when (description container)
     (format *output* "~A~%" (description container))))
 
-(defmethod collect-choices ((container container) &optional context)
+(defmethod collect-choices ((container container) context)
   (declare (ignore context))
   (when (open-choice container)
     (list (%make-choice :label (open-choice container)
@@ -127,12 +127,12 @@
                                  :target (%make-container-view
                                           :container container))))))
 
-(defmethod describe-entity ((placement placement) &optional context)
+(defmethod describe-entity ((placement placement) context)
   (declare (ignore context))
   (when (placement-description placement)
     (format *output* "~A~%" (placement-description placement))))
 
-(defmethod collect-choices ((placement placement) &optional context)
+(defmethod collect-choices ((placement placement) context)
   (declare (ignore context))
   (if (and (interaction-label placement)
            (interaction-target placement))
@@ -256,11 +256,11 @@
                   (toggled-value current-value on-value off-value)))
               (global-toggled-value (gethash key table))))))
 
-(defmethod evaluate-expression ((expression t) &optional context)
+(defmethod evaluate-expression ((expression t) context)
   (declare (ignore context))
   expression)
 
-(defmethod evaluate-expression ((reference state-ref) &optional context)
+(defmethod evaluate-expression ((reference state-ref) context)
   (state-reference-value reference context))
 
 (defun format-dunge-value (value)
@@ -296,7 +296,7 @@ NIL (including cleared or unset state) as the empty string."
     (:min #'min)
     (:max #'max)))
 
-(defmethod evaluate-expression ((expression arithmetic) &optional context)
+(defmethod evaluate-expression ((expression arithmetic) context)
   ;; Evaluate and combine operands left to right, checking each step, so the
   ;; first error is the same one the browser runtime reports.
   (let ((function (arithmetic-function (arithmetic-operator expression)))
@@ -309,25 +309,25 @@ NIL (including cleared or unset state) as the empty string."
                    (funcall function result value)
                    value)))))))
 
-(defmethod evaluate-expression ((expression roll) &optional context)
+(defmethod evaluate-expression ((expression roll) context)
   (values (roll-dice-spec (context-world context)
                           (roll-spec expression)
                           :label (roll-label expression))))
 
-(defmethod evaluate-expression ((expression concat) &optional context)
+(defmethod evaluate-expression ((expression concat) context)
   (format nil "~{~A~}"
           (mapcar (lambda (part)
                     (format-dunge-value (evaluate-expression part context)))
                   (concat-parts expression))))
 
-(defmethod evaluate-condition ((condition t) &optional context)
+(defmethod evaluate-condition ((condition t) context)
   (not (null (evaluate-expression condition context))))
 
-(defmethod evaluate-condition ((condition condition-eq) &optional context)
+(defmethod evaluate-condition ((condition condition-eq) context)
   (equal (evaluate-expression (condition-left condition) context)
          (evaluate-expression (condition-right condition) context)))
 
-(defmethod evaluate-condition ((condition condition-compare) &optional context)
+(defmethod evaluate-condition ((condition condition-compare) context)
   (funcall (ecase (comparison-operator condition)
              (:lt #'<)
              (:lte #'<=)
@@ -338,32 +338,32 @@ NIL (including cleared or unset state) as the empty string."
            (integer-operand (evaluate-expression (condition-right condition)
                                                  context))))
 
-(defmethod evaluate-condition ((condition condition-not) &optional context)
+(defmethod evaluate-condition ((condition condition-not) context)
   (not (evaluate-condition (condition-child condition) context)))
 
-(defmethod evaluate-condition ((condition condition-and) &optional context)
+(defmethod evaluate-condition ((condition condition-and) context)
   (every (lambda (condition)
            (evaluate-condition condition context))
          (conditions condition)))
 
-(defmethod evaluate-condition ((condition condition-or) &optional context)
+(defmethod evaluate-condition ((condition condition-or) context)
   (some (lambda (condition)
           (evaluate-condition condition context))
         (conditions condition)))
 
-(defmethod execute-effect ((effect sequence) &optional context)
+(defmethod execute-effect ((effect sequence) context)
   (dolist (child (sequence-effects effect))
     (let ((result (execute-effect child context)))
       (when (control-result-p result)
         (return result)))))
 
-(defmethod execute-effect ((effect state-set) &optional context)
+(defmethod execute-effect ((effect state-set) context)
   (set-state-reference-value (effect-target effect)
                              (evaluate-expression (effect-value effect) context)
                              context)
   nil)
 
-(defmethod execute-effect ((effect state-clear) &optional context)
+(defmethod execute-effect ((effect state-clear) context)
   (clear-state-reference-value (effect-target effect) context)
   nil)
 
@@ -383,26 +383,26 @@ NIL (including cleared or unset state) as the empty string."
               (evaluate-expression (effect-amount effect) context))))
    context))
 
-(defmethod execute-effect ((effect state-inc) &optional context)
+(defmethod execute-effect ((effect state-inc) context)
   (adjust-state-reference-value effect #'+ context)
   nil)
 
-(defmethod execute-effect ((effect state-dec) &optional context)
+(defmethod execute-effect ((effect state-dec) context)
   (adjust-state-reference-value effect #'- context)
   nil)
 
-(defmethod execute-effect ((effect state-toggle) &optional context)
+(defmethod execute-effect ((effect state-toggle) context)
   (toggle-state-reference-value (effect-target effect) context)
   nil)
 
-(defmethod execute-effect ((effect say) &optional context)
+(defmethod execute-effect ((effect say) context)
   (render-pending-choice-spacing)
   (format *output* "~A~%~%"
           (format-dunge-value (evaluate-expression (say-text effect) context)))
   (pause-after-say)
   nil)
 
-(defmethod execute-effect ((effect conditional-effect) &optional context)
+(defmethod execute-effect ((effect conditional-effect) context)
   (execute-effect
    (or (if (evaluate-condition (conditional-effect-condition effect) context)
            (conditional-effect-then effect)
@@ -414,33 +414,33 @@ NIL (including cleared or unset state) as the empty string."
   (when effects
     (execute-effect effects context)))
 
-(defmethod execute-effect ((effect goto) &optional context)
+(defmethod execute-effect ((effect goto) context)
   (%make-goto :room-name (evaluate-expression (room-name effect) context)))
 
-(defmethod execute-effect ((effect gosub) &optional context)
+(defmethod execute-effect ((effect gosub) context)
   (%make-gosub :room-name (evaluate-expression (room-name effect) context)))
 
-(defmethod execute-effect ((effect enter) &optional context)
+(defmethod execute-effect ((effect enter) context)
   (declare (ignore context))
   effect)
 
-(defmethod execute-effect ((effect back) &optional context)
+(defmethod execute-effect ((effect back) context)
   (declare (ignore context))
   effect)
 
-(defmethod execute-effect ((effect quit) &optional context)
+(defmethod execute-effect ((effect quit) context)
   (declare (ignore context))
   effect)
 
-(defmethod execute-effect ((effect refresh) &optional context)
+(defmethod execute-effect ((effect refresh) context)
   (declare (ignore context))
   effect)
 
-(defmethod execute-effect ((effects cons) &optional context)
+(defmethod execute-effect ((effects cons) context)
   (declare (ignore effects context))
   (error "Effect lists are not executable; authored effects should use (:sequence :effects ...)."))
 
-(defmethod execute-effect ((effect t) &optional context)
+(defmethod execute-effect ((effect t) context)
   (declare (ignore context))
   (error "Cannot execute ~S as an effect." effect))
 

@@ -57,14 +57,14 @@
           :taken-choices (sorted-hash-keys (world-taken world)))))
 
 (defun runtime-state-field (state field &optional default)
-  (ensure-runtime-property-list state "state")
+  (check-value state 'property-list "Runtime state")
   (loop for (key value) on state by #'cddr
         when (eq key field)
           do (return value)
         finally (return default)))
 
 (defun runtime-state-has-field-p (state field)
-  (ensure-runtime-property-list state "state")
+  (check-value state 'property-list "Runtime state")
   (loop for tail on state by #'cddr
         for key = (car tail)
         when (eq key field)
@@ -78,41 +78,11 @@
         (error "Runtime state is missing required field ~S." field))
       value)))
 
-(defun runtime-maybe-string-value (value label)
-  (unless (or (null value) (stringp value))
-    (error "Runtime ~A must be a string or NIL; got ~S." label value))
-  value)
-
-(defun runtime-maybe-keyword-value (value label)
-  (unless (or (null value) (keywordp value))
-    (error "Runtime ~A must be a keyword or NIL; got ~S." label value))
-  value)
-
-(defun runtime-keyword-value (value label)
-  (unless (keywordp value)
-    (error "Runtime ~A must be a keyword; got ~S." label value))
-  value)
-
-(defun runtime-boolean-value (value label)
-  (unless (or (eq value t) (null value))
-    (error "Runtime ~A must be a boolean; got ~S." label value))
-  value)
-
-(defun runtime-keyword-list-value (value label)
-  (ensure-runtime-list value label)
-  (mapcar (lambda (entry)
-            (unless (keywordp entry)
-              (error "Runtime ~A entries must be keywords; got ~S."
-                     label
-                     entry))
-            entry)
-          value))
-
 (defun runtime-state-pair-p (entry)
   (consp entry))
 
 (defun restore-runtime-global-state (game world globals)
-  (ensure-runtime-list globals ":GLOBALS")
+  (check-value globals 'proper-list "Runtime :GLOBALS")
   (dolist (entry globals)
     (unless (runtime-state-pair-p entry)
       (error "Runtime global state entry must be (KEY . VALUE)."))
@@ -121,13 +91,13 @@
           (cdr entry))))
 
 (defun restore-runtime-taken-choices (world taken-choices)
-  (ensure-runtime-list taken-choices ":TAKEN-CHOICES")
+  (check-value taken-choices 'proper-list "Runtime :TAKEN-CHOICES")
   (clrhash (world-taken world))
   (dolist (choice-id taken-choices)
     (setf (gethash (choice-id-key choice-id) (world-taken world)) t)))
 
 (defun restore-runtime-local-state-entry (game world entry)
-  (ensure-runtime-property-list entry "local state entry")
+  (check-value entry 'property-list "Runtime local state entry")
   (let* ((room-name (runtime-state-required-field entry :room))
          (entity-id (runtime-state-required-field entry :entity))
          (state (runtime-state-field entry :state nil))
@@ -135,7 +105,7 @@
          (entity (gethash (scene-id-key entity-id) (scene-index room))))
     (unless (and (typep entity 'entity) (state-declarations entity))
       (error "No saveable entity ~S in room ~S." entity-id room-name))
-    (ensure-runtime-list state "local :STATE")
+    (check-value state 'proper-list "Runtime local :STATE")
     (dolist (state-entry state)
       (unless (runtime-state-pair-p state-entry)
         (error "Runtime local state entry must be (KEY . VALUE)."))
@@ -144,22 +114,22 @@
             (cdr state-entry)))))
 
 (defun restore-runtime-table-state-entry (game world entry)
-  (ensure-runtime-property-list entry "table state entry")
+  (check-value entry 'property-list "Runtime table state entry")
   (let* ((table-id (runtime-state-required-field entry :table))
          (sequence-index (runtime-state-field entry :sequence-index 0))
          (deck-drawn (runtime-state-field entry :deck-drawn nil))
          (state (world-table-state world (find-table game table-id))))
     (setf (table-state-sequence-index state)
-          (non-negative-integer-value sequence-index "Table sequence index"))
-    (ensure-runtime-list deck-drawn "table :DECK-DRAWN")
+          (check-value sequence-index 'non-negative-integer "Table sequence index"))
+    (check-value deck-drawn 'proper-list "Runtime table :DECK-DRAWN")
     (clrhash (table-state-deck-drawn state))
     (dolist (ordinal deck-drawn)
-      (setf (gethash (non-negative-integer-value ordinal "Deck drawn ordinal")
+      (setf (gethash (check-value ordinal 'non-negative-integer "Deck drawn ordinal")
                      (table-state-deck-drawn state))
             t))))
 
 (defun restore-runtime-player-state (game world player-state)
-  (ensure-runtime-list player-state ":PLAYER")
+  (check-value player-state 'proper-list "Runtime :PLAYER")
   (dolist (entry player-state)
     (unless (runtime-state-pair-p entry)
       (error "Runtime player state entry must be (KEY . VALUE)."))
@@ -173,19 +143,19 @@ Keys GAME does not declare are errors."
   (let ((world (make-world game))
         (roll-log (runtime-state-field state :roll-log nil)))
     (setf (world-rng-state world)
-          (non-negative-integer-value
-           (runtime-state-field state :rng-state (game-random-seed game))
+          (check-value
+           (runtime-state-field state :rng-state (game-random-seed game)) 'non-negative-integer
            "Runtime RNG state"))
-    (ensure-runtime-list roll-log ":ROLL-LOG")
+    (check-value roll-log 'proper-list "Runtime :ROLL-LOG")
     (setf (world-roll-log world) (reverse roll-log))
     (restore-runtime-player-state game world (runtime-state-field state :player nil))
     (restore-runtime-global-state game world (runtime-state-field state :globals nil))
     (let ((locals (runtime-state-field state :locals nil)))
-      (ensure-runtime-list locals ":LOCALS")
+      (check-value locals 'proper-list "Runtime :LOCALS")
       (dolist (entry locals)
         (restore-runtime-local-state-entry game world entry)))
     (let ((tables (runtime-state-field state :tables nil)))
-      (ensure-runtime-list tables ":TABLES")
+      (check-value tables 'proper-list "Runtime :TABLES")
       (dolist (entry tables)
         (restore-runtime-table-state-entry game world entry)))
     (restore-runtime-taken-choices world

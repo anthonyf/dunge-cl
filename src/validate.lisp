@@ -43,9 +43,9 @@ the build has yet to plan.")
        (validation-error "Game start room ~S does not exist." start)))))
 
 (defun validate-choice-id (choice)
-  (let ((id (choice-id choice)))
+  (let ((id (consumable-id choice)))
     (cond
-      ((and (choice-once-p choice)
+      ((and (consumable-once-p choice)
             (null id))
        (validation-error "Once-only choice ~S must declare :ID."
                          (label choice)))

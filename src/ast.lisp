@@ -308,8 +308,6 @@ beyond plus or minus this value are errors.")
 (defgeneric consumable-id (thing))
 (defgeneric consumable-once-p (thing))
 (defgeneric node-tags (thing))
-(defgeneric node-priority (thing))
-
 (defclass availability-mixin ()
   ((condition :reader availability-condition
               :initarg :condition
@@ -321,9 +319,6 @@ beyond plus or minus this value are errors.")
 
 (defclass tagged-mixin ()
   ((tags :reader node-tags :initarg :tags :initform nil)))
-
-(defclass prioritized-mixin ()
-  ((priority :reader node-priority :initarg :priority :initform 0)))
 
 (defmethod availability-condition ((thing t))
   nil)
@@ -346,10 +341,6 @@ beyond plus or minus this value are errors.")
   (declare (ignore thing))
   nil)
 
-(defmethod node-priority ((thing t))
-  (declare (ignore thing))
-  0)
-
 (defmethod available-p ((thing t) context)
   (not (consumed-p thing context)))
 
@@ -357,10 +348,6 @@ beyond plus or minus this value are errors.")
   (and (call-next-method)
        (or (null (availability-condition thing))
            (evaluate-condition (availability-condition thing) context))))
-
-(defgeneric choice-condition (choice))
-(defgeneric choice-id (choice))
-(defgeneric choice-once-p (choice))
 
 (define-dunge-node sequence (effect-node)
   ((effects :reader sequence-effects :initarg :effects :initform nil))
@@ -437,15 +424,6 @@ beyond plus or minus this value are errors.")
     (:when :condition :to :condition)
     (:once :boolean))))
 
-(defmethod choice-condition ((choice choice))
-  (availability-condition choice))
-
-(defmethod choice-id ((choice choice))
-  (consumable-id choice))
-
-(defmethod choice-once-p ((choice choice))
-  (consumable-once-p choice))
-
 (define-dunge-node choices ()
   ((options :accessor options :initarg :options :initform nil)))
 
@@ -460,27 +438,6 @@ beyond plus or minus this value are errors.")
     (error "Table mode must be one of :WEIGHTED, :ROLL, :DECK, :SEQUENCE, :FIRST-MATCH, or :BUNDLE; got ~S."
            mode))
   mode)
-
-(defun proper-list-length-value (value label)
-  (unless (listp value)
-    (error "~A must be a proper list; got ~S." label value))
-  (let ((length (handler-case
-                    (list-length value)
-                  (type-error ()
-                    nil))))
-    (unless length
-      (error "~A must be a proper, non-circular list." label))
-    length))
-
-(defun positive-integer-value (value label)
-  (unless (and (integerp value) (plusp value))
-    (error "~A must be a positive integer; got ~S." label value))
-  value)
-
-(defun non-negative-integer-value (value label)
-  (unless (and (integerp value) (not (minusp value)))
-    (error "~A must be a non-negative integer; got ~S." label value))
-  value)
 
 (defun tag-list-value (value)
   (unless (listp value)
@@ -501,11 +458,11 @@ beyond plus or minus this value are errors.")
 
 (define-dunge-field-type :positive-integer (value context)
   (declare (ignore context))
-  (positive-integer-value value "Value"))
+  (check-value value 'positive-integer "Value"))
 
 (define-dunge-field-type :non-negative-integer (value context)
   (declare (ignore context))
-  (non-negative-integer-value value "Value"))
+  (check-value value 'non-negative-integer "Value"))
 
 (define-dunge-field-type :tag-list (value context)
   (declare (ignore context))
@@ -518,13 +475,13 @@ beyond plus or minus this value are errors.")
 (defun table-range-value (value)
   (cond
     ((integerp value)
-     (let ((point (positive-integer-value value "Table range")))
+     (let ((point (check-value value 'positive-integer "Table range")))
        (cons point point)))
     ((and (source-pair-p value)
           (integerp (first value))
           (integerp (second value)))
-     (let ((low (positive-integer-value (first value) "Table range low"))
-           (high (positive-integer-value (second value) "Table range high")))
+     (let ((low (check-value (first value) 'positive-integer "Table range low"))
+           (high (check-value (second value) 'positive-integer "Table range high")))
        (when (> low high)
          (source-error "Table range low ~D is greater than high ~D."
                        low

@@ -4,13 +4,14 @@
                           #:room
                           #:sequence)
   (:import-from #:dunge
-                #:ensure-runtime-property-list
                 #:*validate-room-targets*
                 #:+dunge-rng-modulus+
+                #:check-value
                 #:format-dunge-value
-                #:non-negative-integer-value
-                #:positive-integer-value
-                #:proper-list-length-value)
+                #:non-negative-integer
+                #:positive-integer
+                #:proper-list
+                #:property-list)
   (:export
    #:build-game
    #:build-game-object

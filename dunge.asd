@@ -7,6 +7,7 @@
   :components ((:module "src"
                 :components ((:file "package")
                              (:file "source")
+                             (:file "check")
                              (:file "ast")
                              (:file "validate")
                              (:file "world")

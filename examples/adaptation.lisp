@@ -1,6 +1,6 @@
 (in-package #:dunge-examples)
 
-(defparameter +adaptation-backgrounds+
+(defparameter *adaptation-backgrounds*
   '((:wanderer
      :armor 0
      :fate 0
@@ -13,15 +13,15 @@
                  (:item :lantern)
                  (:supply :ration :count 1)))))
 
-(defparameter +adaptation-generated-dungeon-target+ "generated:dungeon:*")
+(defparameter *adaptation-generated-dungeon-target* "generated:dungeon:*")
 
-(defparameter +adaptation-encounters+
+(defparameter *adaptation-encounters*
   '((:watchful-shadow
      :hp 2
      :str 8
      :damage 1)))
 
-(defparameter +adaptation-browser-demo-title+ "Dunge Adaptation Testbed")
+(defparameter *adaptation-browser-demo-title* "Dunge Adaptation Testbed")
 
 (defun adaptation-source-path ()
   (asdf:system-relative-pathname "dunge/examples" "examples/adaptation.dunge"))
@@ -37,14 +37,14 @@
                                  "examples/adaptation/index.html"))
 
 (defun adaptation-background-data (background)
-  (or (find background +adaptation-backgrounds+ :key #'first :test #'eq)
+  (or (find background *adaptation-backgrounds* :key #'first :test #'eq)
       (error "Unknown adaptation background ~S." background)))
 
 (defun adaptation-background-value (background key &optional default)
   (getf (rest (adaptation-background-data background)) key default))
 
 (defun adaptation-encounter-data (enemy-id)
-  (or (find enemy-id +adaptation-encounters+ :key #'first :test #'eq)
+  (or (find enemy-id *adaptation-encounters* :key #'first :test #'eq)
       (error "Unknown adaptation encounter ~S." enemy-id)))
 
 (defun adaptation-encounter-value (enemy-id key &optional default)
@@ -163,9 +163,9 @@ GAME's tables can award."
     (unless (= 1 (length exits))
       (error "Adaptation graph link table must resolve one exit; got ~S."
              result))
-    (unless (equal +adaptation-generated-dungeon-target+ (cdr (first exits)))
+    (unless (equal *adaptation-generated-dungeon-target* (cdr (first exits)))
       (error "Adaptation graph link must target ~S; got ~S."
-             +adaptation-generated-dungeon-target+
+             *adaptation-generated-dungeon-target*
              result))
     (first exits)))
 
@@ -241,7 +241,7 @@ placeholder room's id, so the threshold's authored choice enters it."
 
 (defun write-adaptation-browser-demo (&key
                                         (pathname (adaptation-browser-demo-path))
-                                        (title +adaptation-browser-demo-title+)
+                                        (title *adaptation-browser-demo-title*)
                                         debug
                                         (if-exists :supersede))
   (write-index-html (load-instanced-adaptation-example)

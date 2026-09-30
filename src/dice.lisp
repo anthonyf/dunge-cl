@@ -32,7 +32,7 @@ given explicitly."
 
 (defun world-random (world limit)
   "Draw from WORLD's generator: a number from 0 below LIMIT."
-  (positive-integer-value limit "Random limit")
+  (check-value limit 'positive-integer "Random limit")
   (let ((next-state (next-dunge-random-state (world-rng-state world))))
     (setf (world-rng-state world) next-state)
     (mod next-state limit)))
@@ -66,8 +66,8 @@ given explicitly."
              label
              expression))
     (if positive
-        (positive-integer-value value label)
-        (non-negative-integer-value value label))))
+        (check-value value 'positive-integer label)
+        (check-value value 'non-negative-integer label))))
 
 (defun dice-modifier-position (expression start)
   (loop for index from start below (length expression)
@@ -155,7 +155,7 @@ WORLD's generator or an explicit RANDOM-STATE."
 (defun roll-dice-value (world value &key label random-state (record t))
   (cond
     ((integerp value)
-     (values (non-negative-integer-value value "Dice value") nil))
+     (values (check-value value 'non-negative-integer "Dice value") nil))
     ((stringp value)
      (roll-dice world value
                 :label label
