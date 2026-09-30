@@ -23,36 +23,18 @@
 
 (defparameter +adaptation-browser-demo-title+ "Dunge Adaptation Testbed")
 
+(defun adaptation-source-path ()
+  (asdf:system-relative-pathname "dunge/examples" "examples/adaptation.dunge"))
+
 (defun load-adaptation-example (&key seed)
-  "Load the adaptation game, optionally replacing its :SEED."
-  (let ((game (load-dunge-file
-               (asdf:system-relative-pathname "dunge/examples"
-                                              "examples/adaptation.dunge"))))
-    (when seed
-      (reinitialize-instance game :seed seed)
-      (setf (game-random-state game) seed))
-    game))
+  "Load the authored adaptation game, before any generation."
+  (build-game (read-dunge-file (adaptation-source-path))
+              :base-path (adaptation-source-path)
+              :seed seed))
 
 (defun adaptation-browser-demo-path ()
   (asdf:system-relative-pathname "dunge/examples"
                                  "examples/adaptation/index.html"))
-
-(defun find-adaptation-room (game room-name)
-  (or (find room-name (game-rooms game) :key #'name :test #'equal)
-      (error "Adaptation example has no authored room named ~S." room-name)))
-
-(defun find-adaptation-choice (game choice-id)
-  (unless (keywordp choice-id)
-    (error "Adaptation choice id must be a keyword; got ~S." choice-id))
-  (let ((match nil))
-    (walk-node-tree
-     game
-     (lambda (node)
-       (when (and (typep node 'choice)
-                  (eq (choice-id node) choice-id))
-         (setf match node))))
-    (or match
-        (error "Adaptation example has no choice with id ~S." choice-id))))
 
 (defun adaptation-background-data (background)
   (or (find background +adaptation-backgrounds+ :key #'first :test #'eq)
@@ -114,10 +96,6 @@
           (adaptation-result-label encounter)
           depth))
 
-(defun apply-adaptation-room-results (game results)
-  (declare (ignore game))
-  results)
-
 (defun adaptation-room-encounter (results)
   "The encounter spec for the first encounter among RESULTS, or NIL."
   (let ((encounter-result (first (table-result-encounters results))))
@@ -127,29 +105,6 @@
          encounter-result
          :hp (adaptation-encounter-value enemy-id :hp 3)
          :damage (adaptation-encounter-value enemy-id :damage 1))))))
-
-(defun find-adaptation-first-room (game)
-  (find-if (lambda (room)
-             (and (eq (generated-room-zone room) :dungeon)
-                  (= (generated-room-depth room) 1)))
-           (game-generated-rooms game)))
-
-(defun adaptation-dungeon-rooms (game)
-  (remove-if-not (lambda (room)
-                   (eq (generated-room-zone room) :dungeon))
-                 (game-generated-rooms game)))
-
-(defun note-adaptation-dungeon-state (game)
-  (let ((rooms (adaptation-dungeon-rooms game)))
-    (setf (gethash :rooms-generated (game-global-state game)) (length rooms)
-          (gethash :dungeon-depth (game-global-state game))
-          (if rooms
-              (loop for room in rooms
-                    maximize (generated-room-depth room))
-              0)
-          (gethash :first-room-generated (game-global-state game))
-          (not (null (find-adaptation-first-room game)))))
-  game)
 
 (defun adaptation-room-content (game depth)
   (let* ((segment-result (roll-table game :room-segment))
@@ -168,41 +123,40 @@
              (third resolved-results)
              depth))))
 
-(defun adaptation-item-catalog (game)
-  "Every item the player can hold: the background's starting kit and
-anything the tables can award."
+(defun adaptation-item-catalog (game background)
+  "Every item the player can hold: BACKGROUND's starting kit and anything
+GAME's tables can award."
   (item-catalog
-   (append (adaptation-background-value
-            (gethash :background (game-player-state game))
-            :inventory)
+   (append (adaptation-background-value background :inventory)
            (table-loot-entries game))))
 
-(defun adaptation-ration-choice (game)
+(defun adaptation-ration-choice (game background)
   (ration-choice-form
-   :used-slots (used-slots-expression (adaptation-item-catalog game))))
+   :used-slots (used-slots-expression
+                (adaptation-item-catalog game background))))
 
-(defun create-adaptation-dungeon-room (game depth &key title description results
-                                                    exits)
-  (multiple-value-bind (segment-result resolved-results room-description)
-      (if (and title description results)
-          (values nil results description)
-          (adaptation-room-content game depth))
-    (let ((room (create-generated-room
-                 game
-                 :zone :dungeon
-                 :depth depth
-                 :title (or title
-                            (and segment-result
-                                 (adaptation-result-label segment-result))
-                            (format nil "Dungeon Depth ~D" depth))
-                 :description room-description
-                 :results resolved-results
-                 :exits exits
-                 :options (list (adaptation-ration-choice game))
-                 :encounter (adaptation-room-encounter resolved-results)
-                 :encounter-options (list (adaptation-ration-choice game)))))
-      (note-adaptation-dungeon-state game)
-      room)))
+(defun plan-adaptation-room (build depth background
+                             &key id title description results)
+  "Plan a dungeon room at DEPTH. Rolls its content unless RESULTS are given."
+  (let ((game (build-game-object build)))
+    (multiple-value-bind (segment-result resolved-results room-description)
+        (if results
+            (values nil results description)
+            (adaptation-room-content game depth))
+      (create-generated-room
+       build
+       :id id
+       :zone :dungeon
+       :title (or title
+                  (and segment-result
+                       (adaptation-result-label segment-result))
+                  (format nil "Dungeon Depth ~D" depth))
+       :description room-description
+       :results resolved-results
+       :exits (table-result-exits resolved-results)
+       :options (list (adaptation-ration-choice game background))
+       :encounter (adaptation-room-encounter resolved-results)
+       :encounter-options (list (adaptation-ration-choice game background))))))
 
 (defun adaptation-graph-link (game)
   (let* ((result (resolve-table-result-data game (roll-table game :dungeon-link)))
@@ -215,63 +169,6 @@ anything the tables can award."
              +adaptation-generated-dungeon-target+
              result))
     (first exits)))
-
-(defun ensure-adaptation-room-exit (game room direction)
-  (let ((target (generated-room-exit-target room direction)))
-    (if target
-        (find-generated-room game target :errorp t)
-        (let* ((link (adaptation-graph-link game))
-               (link-direction (car link)))
-          (unless (eq link-direction direction)
-            (error "Adaptation graph link expected ~S, got ~S."
-                   direction
-                   link-direction))
-          (let ((next-room
-                  (create-adaptation-dungeon-room
-                   game
-                   (1+ (generated-room-depth room)))))
-            (link-generated-rooms room direction next-room
-                                  :reverse-direction :back)
-            (note-adaptation-dungeon-state game)
-            next-room)))))
-
-(defun ensure-adaptation-first-room (game)
-  (let ((room
-          (or (find-adaptation-first-room game)
-              (let* ((segment-result (roll-table game :room-segment))
-                     (loot-result (roll-table game :starter-loot))
-                     (encounter-result (roll-table game :starter-encounter))
-                     (exit-result (roll-table game :starter-exit))
-                     (resolved-results
-                       (resolve-table-result-data game
-                                                  (list segment-result
-                                                        loot-result
-                                                        encounter-result
-                                                        exit-result)))
-                     (segment (adaptation-result-id segment-result))
-                     (room (create-adaptation-dungeon-room
-                            game
-                            1
-                            :title (adaptation-result-label segment-result)
-                            :description (adaptation-first-room-description
-                                          segment
-                                          (second resolved-results)
-                                          (third resolved-results))
-                            :results resolved-results
-                            :exits (table-result-exits resolved-results))))
-                (apply-adaptation-room-results game resolved-results)
-                room))))
-    (ensure-adaptation-room-exit game room :deeper)
-    (note-adaptation-dungeon-state game)
-    room))
-
-(defun install-adaptation-entrance-flow (game)
-  (let* ((room (ensure-adaptation-first-room game))
-         (choice (find-adaptation-choice game :enter-first-room)))
-    (find-adaptation-room game "threshold")
-    (setf (target choice)
-          (make-instance 'goto :room-name (name room)))
-    (values game room)))
 
 (defun make-adaptation-player (game &key
                                       (name "Generated Delver")
@@ -296,37 +193,54 @@ anything the tables can award."
      :gold gold
      :fate (adaptation-background-value background :fate 0)
      :inventory inventory
-     :catalog (item-catalog (append inventory (table-loot-entries game))))))
+     :catalog (adaptation-item-catalog game background))))
 
-(defun install-adaptation-player (game &key
-                                         (name "Generated Delver")
-                                         (background :wanderer))
-  (declare-player-state game
-                        (make-adaptation-player game
-                                                :name name
-                                                :background background))
-  (values game (game-player-state game)))
-
-(defun load-generated-adaptation-example (&key
-                                            (name "Generated Delver")
-                                            (background :wanderer)
-                                            seed)
-  (let ((game (load-adaptation-example :seed seed)))
-    (install-adaptation-player game
-                               :name name
-                               :background background)
-    game))
+(defun build-adaptation (build &key (name "Generated Delver")
+                                    (background :wanderer))
+  "Roll a player and a two-room dungeon. The first room takes the authored
+placeholder room's id, so the threshold's authored choice enters it."
+  (let ((game (build-game-object build)))
+    (set-player build (make-adaptation-player game
+                                              :name name
+                                              :background background))
+    (let* ((segment-result (roll-table game :room-segment))
+           (loot-result (roll-table game :starter-loot))
+           (encounter-result (roll-table game :starter-encounter))
+           (exit-result (roll-table game :starter-exit))
+           (resolved-results
+             (resolve-table-result-data game
+                                        (list segment-result
+                                              loot-result
+                                              encounter-result
+                                              exit-result)))
+           (first-room (plan-adaptation-room
+                        build 1 background
+                        :id "placeholder-room"
+                        :title (adaptation-result-label segment-result)
+                        :description (adaptation-first-room-description
+                                      (adaptation-result-id segment-result)
+                                      (second resolved-results)
+                                      (third resolved-results))
+                        :results resolved-results))
+           (link (adaptation-graph-link game))
+           (deeper-room (plan-adaptation-room build 2 background)))
+      (link-rooms first-room (car link) deeper-room :reverse-direction :back)
+      (set-initial-global build :rooms-generated 2)
+      (set-initial-global build :dungeon-depth 2)
+      (set-initial-global build :first-room-generated t))))
 
 (defun load-instanced-adaptation-example (&key
                                             (name "Generated Delver")
                                             (background :wanderer)
                                             seed)
-  (let ((game (load-generated-adaptation-example
-               :name name
-               :background background
-               :seed seed)))
-    (install-adaptation-entrance-flow game)
-    game))
+  "Build the adaptation game: a rolled player and a two-room dungeon."
+  (build-game (read-dunge-file (adaptation-source-path))
+              :base-path (adaptation-source-path)
+              :seed seed
+              :builder (lambda (build)
+                         (build-adaptation build
+                                           :name name
+                                           :background background))))
 
 (defun write-adaptation-browser-demo (&key
                                         (pathname (adaptation-browser-demo-path))
@@ -341,11 +255,3 @@ anything the tables can award."
 
 (defun adaptation-example ()
   (evaluate-session (make-runtime-session (load-instanced-adaptation-example))))
-
-(defun generated-adaptation-example ()
-  (evaluate-session (make-runtime-session (load-generated-adaptation-example))))
-
-(defun instanced-adaptation-example ()
-  (let* ((game (load-instanced-adaptation-example))
-         (room (find-adaptation-first-room game)))
-    (evaluate-session (make-runtime-session game :current-room (name room)))))

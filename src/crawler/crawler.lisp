@@ -402,6 +402,32 @@ as deprived."
 
 ;;; Generated rooms
 
+(defun display-word (value)
+  "Show VALUE as the browser's DISPLAY-VALUE does: a keyword's words split at
+hyphens with each first letter capitalized, anything else as plain text."
+  (if (keywordp value)
+      (format nil "~{~A~^ ~}"
+              (loop for part in (uiop:split-string
+                                 (string-downcase (symbol-name value))
+                                 :separator "-")
+                    when (plusp (length part))
+                      collect (concatenate 'string
+                                           (string-upcase (subseq part 0 1))
+                                           (subseq part 1))))
+      (format-dunge-value value)))
+
+(defun display-lower (value)
+  (string-downcase (display-word value)))
+
+(defun exit-label (direction)
+  (case direction
+    (:back "Return")
+    (:deeper "Continue deeper")
+    (:out "Leave")
+    (otherwise
+     (format nil "Go ~A" (string-downcase (symbol-name direction))))))
+
+
 (defun escape-braces (text)
   "Make TEXT safe to use as a string expression, which interpolates {...}."
   (with-output-to-string (out)
@@ -423,21 +449,21 @@ as deprived."
       ((:item :supply)
        (let ((count (result-count result)))
          (format nil "Find: ~A~:[~; x~D~]."
-                 (generated-room-display-word (second result))
+                 (display-word (second result))
                  (> count 1)
                  count)))
       (:encounter
        (format nil "Sign: ~A stirs here."
-               (generated-room-display-word (second result))))
+               (display-word (second result))))
       (:exit
-       (format nil "Passage: ~A." (generated-room-display-word (second result))))
+       (format nil "Passage: ~A." (display-word (second result))))
       (t
        (if (and (consp result) (keywordp (second result)))
            (format nil "~A: ~A."
-                   (generated-room-display-word kind)
-                   (generated-room-display-word (second result)))
+                   (display-word kind)
+                   (display-word (second result)))
            (format nil "~A."
-                   (generated-room-display-word (if (consp result)
+                   (display-word (if (consp result)
                                                     kind
                                                     result))))))))
 
@@ -449,7 +475,7 @@ as deprived."
                                          "Generated room gold amount")))
     ((:item :supply)
      (let ((count (result-count result))
-           (name (generated-room-display-lower (second result))))
+           (name (display-lower (second result))))
        (if (= count 1)
            name
            (format nil "~A x~D" name count))))))
@@ -476,10 +502,6 @@ distinct strings, even ones differing only in case, stay distinct."
           do (if (or (char<= #\a char #\z) (char<= #\0 char #\9))
                  (write-char char out)
                  (format out "_~(~X~)_" (char-code char))))))
-
-(defun loot-choice-id (room-id index)
-  (intern (string-upcase (format nil "~A-loot-~D" (id-part room-id) index))
-          :keyword))
 
 (defun encounter-spec (result &key hp max-hp armor damage)
   "Describe the encounter an :ENCOUNTER table RESULT starts. Keyword
@@ -516,7 +538,7 @@ arguments override the result's own options."
   "An entity holding the encounter SPEC describes. While it is active it
 offers Attack, ACTIVE-OPTIONS, and Flee; afterwards, INACTIVE-OPTIONS."
   (destructuring-bind (&key enemy hp max-hp armor damage) spec
-    (let ((name (escape-braces (generated-room-display-word enemy))))
+    (let ((name (escape-braces (display-word enemy))))
       `(:entity
         :name ,name
         :id "encounter"
@@ -530,7 +552,7 @@ offers Attack, ACTIVE-OPTIONS, and Flee; afterwards, INACTIVE-OPTIONS."
           :then
           ((:action
             :label ,(format nil "Attack ~A"
-                            (escape-braces (generated-room-display-lower enemy)))
+                            (escape-braces (display-lower enemy)))
             :do
             ((:inc :target (:self :round))
              (:set :target (:self :dealt)
@@ -568,43 +590,224 @@ offers Attack, ACTIVE-OPTIONS, and Flee; afterwards, INACTIVE-OPTIONS."
              (:say ,(format nil "You escape from ~A." name)))))
           :else ,inactive-options))))))
 
-(defun create-generated-room (game &key id title description zone (depth 0)
-                                     results exits options encounter
-                                     encounter-options)
-  "Create and register a generated room built from resolved table RESULTS.
-Its body describes the room and offers a once-only choice for each loot
-result, then OPTIONS (choice source forms), then its exits. ENCOUNTER, an
-ENCOUNTER-SPEC, adds an encounter that must end before any of those are
-offered; while it is active it offers Attack, ENCOUNTER-OPTIONS, and Flee."
-  (let* ((room-id (or id (allocate-generated-room-id game zone)))
-         (choices (append
-                   (loop for result in results
+
+;;; Building a game
+;;;
+;;; BUILD-GAME compiles a game's source once as a scratch game, lets a builder
+;;; roll its tables and plan rooms, then compiles the final game from the
+;;; source with the planned rooms and initial values spliced in. The builder's
+;;; dice come from a stream derived from the seed, so play starts from the
+;;; seed itself with an empty roll log.
+
+(defstruct (build (:constructor %make-build (scratch)))
+  "What a builder has planned so far."
+  scratch
+  (rooms '())
+  (room-counter 0)
+  player
+  ;; Whether SET-PLAYER was called, since NIL is a valid set of declarations.
+  (player-set-p nil)
+  (globals '()))
+
+(defstruct room-plan
+  id title description results exits options encounter encounter-options)
+
+(defun build-seed (seed)
+  "The build's generator state for game SEED: a stream separate from play."
+  (mod (+ (* seed 2654435761) 1013904223) +dunge-rng-modulus+))
+
+(defun build-game-object (build)
+  "The scratch game whose tables and generator BUILD uses."
+  (build-scratch build))
+
+(defun next-room-id (build zone)
+  "The next automatic id for a room in ZONE, skipping ids already planned."
+  (loop for id = (format nil "generated:~(~A~):~D"
+                         (or zone :room)
+                         (incf (build-room-counter build)))
+        unless (find id (build-rooms build) :key #'room-plan-id :test #'equal)
+          return id))
+
+(defun create-generated-room (build &key id zone title description results
+                                      exits options encounter
+                                      encounter-options)
+  "Plan a room built from resolved table RESULTS and return its plan.
+When the game is built, its body describes the room and offers a once-only
+choice for each loot result, then OPTIONS (choice source forms), then a choice
+per exit. ENCOUNTER, an ENCOUNTER-SPEC, adds an encounter that must end
+before any of those are offered; while it is active it offers Attack,
+ENCOUNTER-OPTIONS, and Flee. A plan whose ID matches an authored room
+replaces that room."
+  (let ((plan (make-room-plan
+               :id (or id (next-room-id build zone))
+               :title title
+               :description description
+               :results (copy-tree results)
+               :exits (copy-tree exits)
+               :options options
+               :encounter encounter
+               :encounter-options encounter-options)))
+    (when (find (room-plan-id plan) (build-rooms build)
+                :key #'room-plan-id :test #'equal)
+      (error "Duplicate planned room id ~S." (room-plan-id plan)))
+    (push plan (build-rooms build))
+    plan))
+
+(defun room-plan-exit (plan direction)
+  (cdr (assoc direction (room-plan-exits plan))))
+
+(defun set-room-plan-exit (plan direction target)
+  "Point PLAN's DIRECTION exit at TARGET, a room id or plan."
+  (unless (keywordp direction)
+    (error "Exit directions must be keywords; got ~S." direction))
+  (let ((target (if (room-plan-p target) (room-plan-id target) target))
+        (existing (assoc direction (room-plan-exits plan))))
+    (unless (stringp target)
+      (error "Exit targets must be room ids or plans; got ~S." target))
+    (if existing
+        (setf (cdr existing) target)
+        (setf (room-plan-exits plan)
+              (append (room-plan-exits plan) (list (cons direction target)))))
+    plan))
+
+(defun link-rooms (from direction to &key reverse-direction)
+  "Link plan FROM to plan TO through DIRECTION, and back through
+REVERSE-DIRECTION when given."
+  (unless (keywordp direction)
+    (error "Exit directions must be keywords; got ~S." direction))
+  (when reverse-direction
+    (unless (keywordp reverse-direction)
+      (error "Exit directions must be keywords; got ~S." reverse-direction))
+    (unless (room-plan-p to)
+      (error "A reverse exit needs a planned room to start from; got ~S." to)))
+  (set-room-plan-exit from direction to)
+  (when reverse-direction
+    (set-room-plan-exit to reverse-direction from))
+  (values from to))
+
+(defun loot-choice-id (room-id index)
+  (intern (string-upcase (format nil "~A-loot-~D" (id-part room-id) index))
+          :keyword))
+
+(defun room-plan-form (plan)
+  "The :ROOM source form for PLAN."
+  (let* ((choices (append
+                   (loop for result in (room-plan-results plan)
                          for index from 0
                          when (table-result-loot-p result)
                            collect (loot-choice-form
-                                    (loot-choice-id room-id index)
+                                    (loot-choice-id (room-plan-id plan) index)
                                     result))
-                   options
-                   (list '(:generated-exits))))
+                   (room-plan-options plan)
+                   (mapcar (lambda (exit)
+                             `(:choice ,(exit-label (car exit)) (:go ,(cdr exit))))
+                           (room-plan-exits plan))))
          (body (append
-                (when description
-                  (list `(:p ,(escape-braces description))))
+                (when (room-plan-description plan)
+                  (list `(:p ,(escape-braces (room-plan-description plan)))))
                 (mapcar (lambda (result)
                           `(:p ,(escape-braces (result-line result))))
-                        results)
-                (if encounter
+                        (room-plan-results plan))
+                (if (room-plan-encounter plan)
                     (list (encounter-entity-form
-                           encounter
-                           :active-options encounter-options
+                           (room-plan-encounter plan)
+                           :active-options (room-plan-encounter-options plan)
                            :inactive-options choices))
                     choices))))
-    (register-generated-room
-     game
-     (make-generated-room :id room-id
-                          :title title
-                          :description description
-                          :zone zone
-                          :depth depth
-                          :results results
-                          :exits exits
-                          :body (mapcar #'compile-dunge-source body)))))
+    `(:room :id ,(room-plan-id plan)
+            :title ,(or (room-plan-title plan) (room-plan-id plan))
+            :body ,body)))
+
+(defun set-player (build declarations)
+  "Replace the built game's :PLAYER declarations, even with none."
+  (setf (build-player build) declarations
+        (build-player-set-p build) t))
+
+(defun set-initial-global (build key value)
+  "Start the built game with global KEY set to VALUE."
+  (setf (getf (build-globals build) key) value))
+
+(defun source-plist-set (plist key value)
+  (let ((copy (copy-list plist)))
+    (setf (getf copy key) value)
+    copy))
+
+(defun compile-source (source base-path)
+  (if base-path
+      (compile-dunge-source-at source base-path)
+      (compile-dunge-source source)))
+
+(defun room-entry-id (entry base-path)
+  "The id of room ENTRY: a room source form, or a file path relative to
+BASE-PATH."
+  (when (and (stringp entry) (null base-path))
+    (error "Room file ~S needs a BASE-PATH to resolve against." entry))
+  (let ((form (if (stringp entry)
+                  (read-dunge-file
+                   (merge-pathnames entry
+                                    (uiop:pathname-directory-pathname base-path)))
+                  entry)))
+    (getf (rest form) :id)))
+
+(defun built-state-fields (plist globals)
+  "PLIST with :STATE, :FLAGS, and :MARKED updated for the initial GLOBALS."
+  (let ((state (copy-tree (getf plist :state)))
+        (flags (copy-list (getf plist :flags)))
+        (marked (copy-list (getf plist :marked))))
+    (loop for (key value) on globals by #'cddr
+          do (let ((declaration (assoc key state)))
+               (cond
+                 (declaration
+                  (setf (second declaration) value))
+                 ((or (member key flags) (member key marked))
+                  (setf flags (remove key flags)
+                        marked (remove key marked))
+                  (if value
+                      (push key marked)
+                      (push key flags)))
+                 (t
+                  (error "The built game declares no global ~S." key)))))
+    (source-plist-set
+     (source-plist-set (source-plist-set plist :state state) :flags flags)
+     :marked (reverse marked))))
+
+(defun built-source (source build base-path)
+  (destructuring-bind (tag &rest plist) source
+    (let* ((plans (reverse (build-rooms build)))
+           (authored-ids (mapcar (lambda (entry)
+                                   (room-entry-id entry base-path))
+                                 (getf plist :rooms)))
+           ;; A plan replaces its authored room in place, so room order (and
+           ;; a start room inferred from the first room) is kept; other plans
+           ;; follow the authored rooms.
+           (rooms (append
+                   (loop for entry in (getf plist :rooms)
+                         for id in authored-ids
+                         for plan = (find id plans :key #'room-plan-id
+                                                   :test #'equal)
+                         collect (if plan (room-plan-form plan) entry))
+                   (loop for plan in plans
+                         unless (member (room-plan-id plan) authored-ids
+                                        :test #'equal)
+                           collect (room-plan-form plan))))
+           (plist (source-plist-set plist :rooms rooms))
+           (plist (if (build-player-set-p build)
+                      (source-plist-set plist :player (build-player build))
+                      plist)))
+      (cons tag (built-state-fields plist (build-globals build))))))
+
+(defun build-game (source &key base-path seed (builder (constantly nil)))
+  "Build a game from SOURCE, a (:GAME ...) form read from BASE-PATH, if any.
+SEED, when given, replaces the source's :SEED. BUILDER is called with a BUILD
+whose scratch game rolls from a stream derived from the seed; it plans rooms
+and sets initial values, which the returned game starts with."
+  (let* ((source (if seed
+                     (cons (first source)
+                           (source-plist-set (rest source) :seed seed))
+                     source))
+         (scratch (let ((dunge::*validate-room-targets* nil))
+                    (compile-source source base-path)))
+         (build (%make-build scratch)))
+    (setf (game-random-state scratch) (build-seed (game-random-seed scratch)))
+    (funcall builder build)
+    (compile-source (built-source source build base-path) base-path)))

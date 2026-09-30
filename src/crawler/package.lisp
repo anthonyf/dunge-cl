@@ -5,13 +5,24 @@
                           #:sequence)
   (:import-from #:dunge
                 #:ensure-runtime-property-list
-                #:generated-room-display-lower
-                #:generated-room-display-word
+                #:+dunge-rng-modulus+
+                #:format-dunge-value
                 #:non-negative-integer-value
                 #:positive-integer-value
                 #:proper-list-length-value)
   (:export
+   #:build-game
+   #:build-game-object
    #:create-generated-room
+   #:link-rooms
+   #:room-plan-exit
+   #:room-plan-exits
+   #:room-plan-form
+   #:room-plan-id
+   #:room-plan-results
+   #:set-initial-global
+   #:set-player
+   #:set-room-plan-exit
    #:encounter-entity-form
    #:encounter-spec
    #:inventory-entry-count

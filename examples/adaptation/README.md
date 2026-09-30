@@ -25,18 +25,16 @@ browser runtime keeps character, inventory, condition, and room-bound encounter
 state available for choices and save/load without displaying a permanent
 character panel.
 
-The console example is now the first runnable crawler slice: the CL loader
-installs a generated player, creates the persistent two-room dungeon graph, and
-rewires the authored threshold's `:enter-first-room` choice to the first
-generated room. The placeholder chamber remains only for the raw static source
-path.
+The console example is the first runnable crawler slice. The CL build
+(`dunge-examples:build-adaptation`, run through `dunge.crawler:build-game`)
+rolls a player and plans a two-room dungeon before play. The first chamber
+takes the authored placeholder room's id, so the threshold's
+`:enter-first-room` choice enters it; loading the raw `.dunge` source without
+the build still reaches the static placeholder.
 
-The browser backend can now serialize and render those pre-instanced generated
-rooms too. In compiled HTML, generated rooms share normal navigation with
-authored rooms and support the same first crawler interactions: flee/attack an
-active encounter, claim generated loot, eat a ration, save/load, undo in debug
-mode, return to the threshold, or continue deeper through concrete generated
-exits.
+In compiled HTML the built rooms are ordinary rooms and support the same
+crawler interactions: flee/attack an active encounter, take loot, eat a ration,
+save/load, undo in debug mode, return to the threshold, or continue deeper.
 
 ## Browser Demo
 

@@ -171,14 +171,7 @@ body {
     (t
      (compile-runtime-value value))))
 
-(defun compile-state-declaration-value (declaration state)
-  (destructuring-bind (key default-value) declaration
-    (if state
-        (multiple-value-bind (value present-p) (gethash key state)
-          (if present-p value default-value))
-        default-value)))
-
-(defun compile-state-declarations (declarations &optional state)
+(defun compile-state-declarations (declarations)
   (html-object
    "keys"
    (html-array
@@ -190,10 +183,7 @@ body {
           (loop for declaration in declarations
                 for key = (first declaration)
                 append (list (keyword-name key)
-                             (compile-runtime-value
-                              (compile-state-declaration-value
-                               declaration
-                               state)))))))
+                             (compile-runtime-value (second declaration)))))))
 
 (defun compile-ref-list (refs)
   (html-array
@@ -226,21 +216,6 @@ body {
    "condition" (and (dunge:choice-condition choice)
                     (compile-html-condition (dunge:choice-condition choice)))))
 
-(defun compile-generated-room-exit (exit)
-  (html-object
-   "direction" (compile-keyword-value (car exit))
-   "target" (cdr exit)))
-
-(defmethod compile-html-node ((room dunge:generated-room))
-  (html-object
-   "type" "generated-room"
-   "id" (dunge:name room)
-   "title" (or (dunge:room-title room) (dunge:name room))
-   "body" (compile-node-list (dunge:entities room))
-   "exits" (html-array
-            (mapcar #'compile-generated-room-exit
-                    (dunge:generated-room-exits room)))))
-
 (defmethod compile-html-node ((room dunge:room))
   (html-object
    "type" "room"
@@ -255,9 +230,6 @@ body {
      "text" (if (stringp text)
                 text
                 (compile-html-expression text)))))
-
-(defmethod compile-html-node ((exits dunge::generated-exits))
-  (html-object "type" "generated-exits"))
 
 (defmethod compile-html-node ((entity dunge:entity))
   (html-object
@@ -485,32 +457,21 @@ body {
 
 (defun compile-game-data (game)
   "Compile GAME to the browser data model used by the generated Parenscript."
-  (let ((generated-rooms (dunge:game-generated-rooms game))
-        ;; Validation resets the generator to the seed, but the console plays
-        ;; on from wherever building the game left it (character creation and
-        ;; generated rooms roll dice). Until the build gets its own stream,
-        ;; start the browser from that same state.
-        (random-state (dunge:game-random-state game))
-        (saved-state (capture-compile-time-state game))
-        (state (compile-state-declarations
-                (dunge:game-global-state-declarations game)
-                (dunge:game-global-state game)))
-        (player (compile-state-declarations
-                 (dunge:game-player-state-declarations game)
-                 (dunge:game-player-state game))))
+  (let ((saved-state (capture-compile-time-state game)))
     (unwind-protect
          (progn
            (dunge:validate-game game)
            (html-object
             "version" 1
             "start" (dunge:game-start game)
-            ;; The next state depends only on the state modulo 2^31, and the
-            ;; reduced state is always a safe integer for JSON.
-            "rngState" (mod random-state dunge::+dunge-rng-modulus+)
-            "player" player
-            "generatedRooms" (html-array
-                              (mapcar #'compile-html-node generated-rooms))
-            "state" state
+            ;; Play starts from the seed. The next state depends only on the
+            ;; seed modulo 2^31, which is always a safe integer for JSON.
+            "rngState" (mod (dunge:game-random-seed game)
+                            dunge::+dunge-rng-modulus+)
+            "player" (compile-state-declarations
+                      (dunge:game-player-state-declarations game))
+            "state" (compile-state-declarations
+                     (dunge:game-global-state-declarations game))
             "rooms" (html-array (mapcar #'compile-html-node
                                         (dunge:game-rooms game)))))
       ;; Validation resets play state; leave GAME as we found it.
@@ -606,7 +567,6 @@ same game data and the same runtime, since either can change the save shape."
     (defvar *debug* nil)
     (defvar *game* nil)
     (defvar *state* nil)
-    (defvar *generated-rooms* (array))
     (defvar *current-location* nil)
     (defvar *return-stack* (array))
     (defvar *rng-state* 1)
@@ -739,45 +699,12 @@ same game data and the same runtime, since either can change the save shape."
         (setf (@ target length) index)
         value))
 
-    (defun titleize-name (name)
-      (let ((parts (chain (or name "") (split "-")))
-            (labels (array)))
-        (dolist (part parts)
-          (when (> (@ part length) 0)
-            (push-array labels
-                        (+ (chain (chain part (char-at 0)) (to-upper-case))
-                           (chain part (slice 1))))))
-        (chain labels (join " "))))
-
-    (defun display-value (value)
-      (cond
-        ((keyword-p value)
-         (titleize-name (@ value name)))
-        ((eql value nil)
-         "None")
-        ((eql value undefined)
-         "None")
-        ((eql value t)
-         "Yes")
-        ((eql value false)
-         "No")
-        (t
-         (+ "" value))))
-
     (defun keyword-name (value)
       (and (keyword-p value) (@ value name)))
 
     (defun keyword-name-p (value name)
       (and (keyword-p value)
            (eql (@ value name) name)))
-
-    (defun generated-room-display-word (value)
-      (if (keyword-p value)
-          (titleize-name (@ value name))
-          (format-value value)))
-
-    (defun generated-room-display-lower (value)
-      (chain (generated-room-display-word value) (to-lower-case)))
 
     (defun object-key-count (object)
       (@ (chain -object (keys object)) length))
@@ -828,19 +755,15 @@ same game data and the same runtime, since either can change the save shape."
       (setf *room-index* (create))
       (dolist (room (@ *game* rooms))
         (index-room room))
-      (dolist (room (node-list *generated-rooms*))
-        (index-room room))
       (dolist (room (@ *game* rooms))
         (resolve-room-refs room))
-      (dolist (room (node-list *generated-rooms*))
-        (resolve-room-refs room)))
+)
 
     (defun prepare-game ()
       (setf *return-stack* (array))
       (setf *undo-stack* (array))
       (setf *messages* (array))
       (setf *visible-messages* (array))
-      (setf *generated-rooms* (node-list (@ *game* generated-rooms)))
       (rebuild-room-index)
       (setf *state* (create :globals (initial-state (@ *game* state))
                             :player (initial-state (@ *game* player))
@@ -851,8 +774,7 @@ same game data and the same runtime, since either can change the save shape."
 
     (defun room-location-id (location)
       (if (and location
-               (or (eql (@ location type) "room")
-                   (eql (@ location type) "generated-room")))
+               (eql (@ location type) "room"))
           (@ location id)
           nil))
 
@@ -885,7 +807,7 @@ same game data and the same runtime, since either can change the save shape."
 
     (defun capture-local-state ()
       (let ((locals (array)))
-        (dolist (room (chain (@ *game* rooms) (concat *generated-rooms*)))
+        (dolist (room (@ *game* rooms))
           (walk-nodes
            (@ room body)
            (lambda (node)
@@ -1310,8 +1232,6 @@ same game data and the same runtime, since either can change the save shape."
               (@ node else))
           context
           choices))
-        ((eql (@ node type) "generated-exits")
-         (generated-room-exit-choices (@ context scene) choices))
         ((eql (@ node type) "action")
          (push-array choices
                      (create :label (@ node label)
@@ -1339,8 +1259,7 @@ same game data and the same runtime, since either can change the save shape."
       choices)
 
     (defun current-context ()
-      (create :scene (if (or (eql (@ *current-location* type) "room")
-                             (eql (@ *current-location* type) "generated-room"))
+      (create :scene (if (eql (@ *current-location* type) "room")
                          *current-location*
                          nil)
               :self nil))
@@ -1350,24 +1269,6 @@ same game data and the same runtime, since either can change the save shape."
       (dolist (message *messages*)
         (append-text body "p" "dunge-message" message))
       (setf *messages* (array)))
-
-    (defun generated-room-exit-label (direction)
-      (let ((name (keyword-name direction)))
-        (cond
-          ((eql name "back") "Return")
-          ((eql name "deeper") "Continue deeper")
-          ((eql name "out") "Leave")
-          (t (+ "Go " (generated-room-display-lower direction))))))
-
-    (defun generated-room-exit-choices (room choices)
-      (dolist (exit (node-list (@ room exits)))
-        (push-array
-         choices
-         (create :label (generated-room-exit-label (@ exit direction))
-                 :target (create :type "goto"
-                                 :room (create :type "literal"
-                                               :value (@ exit target))))))
-      choices)
 
     (defun render-location ()
       (let ((title (by-id "dunge-scene-title"))
@@ -1441,10 +1342,7 @@ same game data and the same runtime, since either can change the save shape."
               t))
       (let ((context (create :scene (if (eql (@ *current-location* type) "room")
                                       *current-location*
-                                      (if (eql (@ *current-location* type)
-                                               "generated-room")
-                                          *current-location*
-                                          nil))
+                                      nil)
                             :self (@ choice self))))
         (setf *progress-made* t)
         (setf *visible-messages* (array))

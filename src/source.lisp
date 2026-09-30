@@ -688,6 +688,21 @@ plain string or a CONCAT node."
 (defun load-dunge-file (path)
   (load-dunge-file-with-context path nil))
 
+(defun read-dunge-file (path)
+  "Read the source form in PATH without compiling it."
+  (let ((*dunge-source-context* nil))
+    (with-source-error-wrapping
+      (with-open-file (stream path :direction :input)
+        (read-one-dunge-form stream (namestring (truename path)))))))
+
+(defun compile-dunge-source-at (form path)
+  "Compile FORM as though it had been read from PATH, so relative room files
+resolve beside it."
+  (let* ((context (source-file-context path))
+         (*dunge-source-context* context))
+    (with-source-error-wrapping
+      (compile-dunge-source-form form context))))
+
 (defmacro define-dunge-node (name superclasses slots &body options)
   "Define an internal CLOS AST node and optional public .dunge source schema."
   (labels ((method-option-form (option generic-function)
