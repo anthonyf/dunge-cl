@@ -534,8 +534,10 @@ armor, and lets an active enemy strike back if it survives. `flee-encounter`
 marks the encounter escaped. Generated rooms render active encounter choices
 before ordinary exits, with available item-use choices such as "Eat ration"
 inserted into the combat menu when they can help. Once the encounter is
-defeated, escaped, or the player is defeated, loot and ordinary room exits
-become available again.
+defeated or escaped, loot and ordinary room exits become available again. A
+defeated player ends the run. The browser runtime rolls combat dice from the
+same generator as the console, in the same order and with the same labels, so
+both runtimes play a fight identically.
 
 Runtime save data includes `:encounters`, and undo captures encounter state
 alongside player, generated room, table, RNG, and local/global state.

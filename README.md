@@ -53,9 +53,13 @@ sbcl --non-interactive --eval '(asdf:test-system :dunge-styles/tests)'
 The suites include runtime parity tests: each plays the same scripted choices
 through the console runtime and through the compiled browser runtime under
 [Node.js](https://nodejs.org/) (see [tests/parity/](tests/parity/)), then
-compares what each rendered. They use `node` from `PATH`, or the executable
-named by `DUNGE_NODE`, and are skipped when neither is available unless
-`DUNGE_REQUIRE_NODE=1` is set, as it is in CI.
+compares what each rendered. Scripted runs of the adaptation example are also
+checked against golden console transcripts in
+[tests/golden/adaptation.sexp](tests/golden/adaptation.sexp); after an intended
+change, review the new output and rewrite the file with
+`(dunge-tests::write-adaptation-golden)`. The parity tests use `node` from
+`PATH`, or the executable named by `DUNGE_NODE`, and are skipped when neither
+is available unless `DUNGE_REQUIRE_NODE=1` is set, as it is in CI.
 
 Build the GitHub Pages site locally into `public/` (it needs Node for the
 final boot check):

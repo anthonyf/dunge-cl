@@ -944,7 +944,7 @@
         (run-session-script session (format nil "1~%1~%"))
       (is (equal "room" (name result)))
       (is (contains-substring-p "Encounter: Watchful Shadow" output))
-      (is (contains-substring-p "1. Attack watchful-shadow" output))
+      (is (contains-substring-p "1. Attack watchful shadow" output))
       (is (contains-substring-p "Watchful Shadow falls." output))
       (is (contains-substring-p "1. Return" output))
       (is (eq :defeated (encounter-status encounter))))))
@@ -2524,7 +2524,7 @@
                                 script))
       (is (contains-substring-p "\"reaction\":{\"type\":\"keyword\",\"name\":\"uncertain\"}"
                                 script))
-      (is (contains-substring-p "\"damage\":\"1d4\"" script))
+      (is (contains-substring-p "\"damage\":{\"dice\":\"1d4\",\"count\":1,\"sides\":4,\"modifier\":0}" script))
       (is (contains-substring-p "\"status\":{\"type\":\"keyword\",\"name\":\"active\"}"
                                 script))
       (is (contains-substring-p "function encounterForRoom" script))

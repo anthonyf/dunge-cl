@@ -492,6 +492,17 @@ body {
                    (mapcar #'compile-keyword-value
                            (dunge:player-conditions player))))))
 
+(defun compile-damage-value (damage)
+  "Compile encounter DAMAGE: an integer, or dice parsed now for the browser."
+  (if (stringp damage)
+      (let ((spec (dunge::parse-dice-expression damage)))
+        (html-object
+         "dice" (getf spec :expression)
+         "count" (compile-runtime-number (getf spec :count))
+         "sides" (compile-runtime-number (getf spec :sides))
+         "modifier" (compile-runtime-number (getf spec :modifier))))
+      (compile-runtime-number damage)))
+
 (defun compile-html-encounter (encounter)
   (html-object
    "room" (dunge:encounter-room-name encounter)
@@ -504,7 +515,7 @@ body {
    "str" (dunge:encounter-str encounter)
    "maxStr" (dunge:encounter-max-str encounter)
    "armor" (dunge:encounter-armor encounter)
-   "damage" (compile-runtime-value (dunge:encounter-damage encounter))
+   "damage" (compile-damage-value (dunge:encounter-damage encounter))
    "round" (dunge:encounter-round encounter)
    "status" (compile-keyword-value (dunge:encounter-status encounter))))
 
@@ -522,6 +533,12 @@ body {
   "Compile GAME to the browser data model used by the generated Parenscript."
   (let ((generated-rooms (dunge:game-generated-rooms game))
         (encounters (dunge:game-encounter-states game))
+        ;; Validation resets the generator to the seed, but the console plays
+        ;; on from wherever building the game left it (character creation and
+        ;; generated rooms roll dice). Until the build gets its own stream,
+        ;; start the browser from that same state.
+        (rng-state (mod (dunge:game-random-state game)
+                        dunge::+dunge-rng-modulus+))
         (state (compile-state-declarations
                 (dunge:game-global-state-declarations game)
                 (dunge:game-global-state game))))
@@ -531,10 +548,9 @@ body {
            (html-object
             "version" 1
             "start" (dunge:game-start game)
-            ;; The next state depends only on the seed modulo 2^31, and the
-            ;; reduced seed is always a safe integer for JSON.
-            "seed" (mod (dunge:game-random-seed game)
-                        dunge::+dunge-rng-modulus+)
+            ;; The next state depends only on the state modulo 2^31, and the
+            ;; reduced state is always a safe integer for JSON.
+            "rngState" rng-state
             "player" (compile-html-player (dunge:game-player game))
             "encounters" (html-array
                           (mapcar #'compile-html-encounter encounters))
@@ -873,6 +889,11 @@ same game data and the same runtime, since either can change the save shape."
            (+ "Passage: "
               (generated-room-display-word (aref result 1))
               "."))
+          ((keyword-p (aref result 1))
+           (+ (generated-room-display-word (aref result 0))
+              ": "
+              (generated-room-display-word (aref result 1))
+              "."))
           (t
            (+ (generated-room-display-word (aref result 0)) ".")))))
 
@@ -1065,7 +1086,7 @@ same game data and the same runtime, since either can change the save shape."
                             :taken-choices (create)))
       (setf *player* (copy-json-value (@ *game* player)))
       (setf *encounters* (copy-json-value (@ *game* encounters)))
-      (setf *rng-state* (@ *game* seed))
+      (setf *rng-state* (@ *game* rng-state))
       (setf *roll-log* (array))
       (setf *current-location* (room-by-id (@ *game* start))))
 
@@ -1412,21 +1433,29 @@ same game data and the same runtime, since either can change the save shape."
               (setf match encounter))))
         match))
 
-    (defun encounter-damage-number (encounter)
-      (let ((damage (@ encounter damage)))
-        (if (eql (typeof damage) "number")
-            damage
-            1)))
+    (defun roll-damage (damage label)
+      "Roll DAMAGE, an integer or compiled dice, as the console's
+ROLL-DICE-VALUE does: integers use no randomness."
+      (if (eql (typeof damage) "number")
+          damage
+          (evaluate-roll (create "dice" (@ damage dice)
+                                 "count" (@ damage count)
+                                 "sides" (@ damage sides)
+                                 "modifier" (@ damage modifier)
+                                 "label" label))))
 
     (defun set-encounter-status (encounter status-name)
       (setf (@ encounter status)
             (create :type "keyword" :name status-name)))
 
+    (defvar *player-attack-dice*
+      (create "dice" "1d6" "count" 1 "sides" 6 "modifier" 0))
+
     (defun attack-encounter (encounter)
-      (let* ((player-damage (max 0 (- 1 (or (@ encounter armor) 0))))
-             (enemy-damage (max 0 (- (encounter-damage-number encounter)
-                                     (or (@ *player* armor) 0)))))
-        (setf (@ encounter round) (+ (or (@ encounter round) 0) 1))
+      (setf (@ encounter round) (+ (or (@ encounter round) 0) 1))
+      (let ((player-damage
+              (max 0 (- (roll-damage *player-attack-dice* "player-damage")
+                        (or (@ encounter armor) 0)))))
         (setf (@ encounter hp) (max 0 (- (@ encounter hp) player-damage)))
         (if (<= (@ encounter hp) 0)
             (progn
@@ -1434,7 +1463,9 @@ same game data and the same runtime, since either can change the save shape."
               (+ "You strike for " player-damage " damage. "
                  (generated-room-display-word (@ encounter enemy))
                  " falls."))
-            (progn
+            (let ((enemy-damage
+                    (max 0 (- (roll-damage (@ encounter damage) "enemy-damage")
+                              (or (@ *player* armor) 0)))))
               (setf (@ *player* hp)
                     (max 0 (- (@ *player* hp) enemy-damage)))
               (when (<= (@ *player* hp) 0)
@@ -1472,7 +1503,10 @@ same game data and the same runtime, since either can change the save shape."
             (runtime-error (+ "Unknown encounter action "
                               (@ effect action)
                               ".")))))
-        nil))
+        ;; A defeated player's run is over.
+        (if (eql (encounter-status-name encounter) "player-defeated")
+            (create :type "quit")
+            nil)))
 
     (defun execute-loot-action (effect)
       (let* ((room (room-by-id (@ effect room)))

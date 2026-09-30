@@ -71,6 +71,8 @@
   :description "Tests for Dunge"
   :components ((:module "tests"
                 :components ((:file "package")
+                             (:module "golden"
+                              :components ((:static-file "adaptation.sexp")))
                              (:file "core")
                              (:file "expressions")
                              (:file "runtime-parity"))))

@@ -271,7 +271,7 @@
     (is (contains-substring-p
          "{\"type\":\"roll\",\"dice\":\"3d4-2\",\"count\":3,\"sides\":4,\"modifier\":-2,\"label\":\"hit\"}"
          script))
-    (is (contains-substring-p "\"seed\":77" script)))
+    (is (contains-substring-p "\"rngState\":77" script)))
   ;; Seeds beyond the safe integer range compile, reduced modulo 2^31.
   (let ((script (dunge-html:compile-game-script
                  (source-node
@@ -279,6 +279,6 @@
                     :start "room"
                     :seed ,(+ (expt 2 60) (* 3 (expt 2 31)) 77)
                     :rooms ((:room :id "room" :body ((:choice "Quit" (:quit))))))))))
-    (is (contains-substring-p "\"seed\":77" script))
+    (is (contains-substring-p "\"rngState\":77" script))
     (is (contains-substring-p "'rngState' : RNGSTATE" script))
     (is (contains-substring-p "'rollLog'" script))))

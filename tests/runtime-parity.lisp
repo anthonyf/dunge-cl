@@ -205,15 +205,114 @@ encounter, so the generated room itself has no choices."
             (:back)))))))")
   '(1))
 
-;;; Known divergences. Each asserts that the runtimes still differ, so the fix
-;;; for a divergence fails its test until the marker is removed.
+;;; Golden adaptation transcripts.
+;;;
+;;; tests/golden/adaptation.sexp records the console frames for scripted runs
+;;; of the adaptation example. The console must reproduce them exactly, and
+;;; the browser must match the console. Refactors of the crawler must leave
+;;; them unchanged; when a change is intended, review the new frames and
+;;; rewrite the file with (dunge-tests::write-adaptation-golden).
 
-(def-parity-test parity-adaptation-generated-room
-    (:known-divergence
-     "Generated-room text and combat differ between runtimes.")
-    (dunge-examples:load-instanced-adaptation-example)
-  ;; Approach, enter the generated chamber, attack, take loot, eat, return.
-  '(1 1 1 1 1 1 1))
+(defparameter *adaptation-golden-scenarios*
+  '((:name :default-seed-player-falls
+     :inputs (1 1 1))
+    (:name :victory-loot-and-deeper-room
+     :seed 1
+     :inputs (1 1 1 1 2 1 1 1 1 1))
+    (:name :wounded-eats-ration-mid-fight
+     :seed 27
+     :inputs (1 1 1 2 1 1 1 1))
+    (:name :flee-then-loot
+     :seed 2
+     :inputs (1 1 2 1 1 1))
+    (:name :gold-loot
+     :seed 4
+     :inputs (1 1 1 1 1))
+    (:name :delver-armor-absorbs-hit
+     :seed 7
+     :background :delver
+     :inputs (1 1 1 1 1 1)))
+  "Each scenario plays INPUTS through the instanced adaptation example built
+with SEED (default: the game's own) and BACKGROUND (default :wanderer).")
+
+(defparameter *adaptation-golden-path*
+  (asdf:system-relative-pathname "dunge/tests" "tests/golden/adaptation.sexp"))
+
+(defun adaptation-scenario-game (scenario)
+  (dunge-examples:load-instanced-adaptation-example
+   :seed (getf scenario :seed)
+   :background (getf scenario :background :wanderer)))
+
+(defun adaptation-scenario (name)
+  (or (find name *adaptation-golden-scenarios*
+            :key (lambda (scenario) (getf scenario :name)))
+      (error "No adaptation golden scenario named ~S." name)))
+
+(defun read-adaptation-golden ()
+  (with-open-file (stream *adaptation-golden-path* :external-format :utf-8)
+    (let ((*read-eval* nil)
+          (*package* (find-package '#:dunge-tests)))
+      (read stream))))
+
+(defun write-adaptation-golden ()
+  "Record the console frames of every adaptation golden scenario."
+  (with-open-file (stream *adaptation-golden-path*
+                          :direction :output
+                          :if-exists :supersede
+                          :external-format :utf-8)
+    (let ((*package* (find-package '#:dunge-tests))
+          (*print-case* :downcase)
+          (*print-right-margin* 100))
+      (format stream ";;; Golden console frames for the adaptation example. ~
+                      See tests/runtime-parity.lisp.~%")
+      (pprint (loop for scenario in *adaptation-golden-scenarios*
+                    collect (list (getf scenario :name)
+                                  (dunge-parity:console-frames
+                                   (adaptation-scenario-game scenario)
+                                   (getf scenario :inputs))))
+              stream)
+      (terpri stream)))
+  *adaptation-golden-path*)
+
+(test adaptation-console-matches-golden-transcripts
+  (let ((golden (read-adaptation-golden)))
+    (is (equal (mapcar (lambda (scenario) (getf scenario :name))
+                       *adaptation-golden-scenarios*)
+               (mapcar #'first golden)))
+    (dolist (scenario *adaptation-golden-scenarios*)
+      (let ((expected (second (assoc (getf scenario :name) golden)))
+            (actual (dunge-parity:console-frames
+                     (adaptation-scenario-game scenario)
+                     (getf scenario :inputs))))
+        (is (equal expected actual)
+            "Adaptation scenario ~S changed.~%~A"
+            (getf scenario :name)
+            (dunge-parity::describe-frame-mismatch expected actual))))))
+
+(defmacro def-adaptation-parity-test (name scenario-name &rest options)
+  `(def-parity-test ,name ,options
+       (adaptation-scenario-game (adaptation-scenario ,scenario-name))
+     (getf (adaptation-scenario ,scenario-name) :inputs)))
+
+(def-adaptation-parity-test parity-adaptation-default-seed-player-falls
+  :default-seed-player-falls)
+(def-adaptation-parity-test parity-adaptation-victory-loot-and-deeper-room
+  :victory-loot-and-deeper-room)
+(def-adaptation-parity-test parity-adaptation-wounded-eats-ration-mid-fight
+  :wounded-eats-ration-mid-fight)
+(def-adaptation-parity-test parity-adaptation-flee-then-loot
+  :flee-then-loot)
+(def-adaptation-parity-test parity-adaptation-gold-loot
+  :gold-loot)
+(def-adaptation-parity-test parity-adaptation-delver-armor-absorbs-hit
+  :delver-armor-absorbs-hit)
+;; Reload mid-fight: the encounter, player, and generator must all be saved.
+(def-adaptation-parity-test parity-adaptation-reload-mid-fight
+  :wounded-eats-ration-mid-fight
+  :reload-after 3)
+(def-adaptation-parity-test parity-adaptation-reload-in-deeper-room
+  :victory-loot-and-deeper-room
+  :reload-after 5)
 
 ;;; Expressions: arithmetic, comparisons, interpolation, and value formatting.
 
@@ -392,3 +491,33 @@ A die with 2^31 sides rolls one more than the state it draws."
     (:reload-after 1)
     (load-dunge-string *parity-dice-game*)
   '(2 2 1 4))
+
+(defun load-parity-dice-damage-game ()
+  "A duel against an enemy whose damage is dice, so the browser must roll it."
+  (let* ((game (load-dunge-string
+                "(:game
+                  :start \"hall\"
+                  :seed 99
+                  :player (:player :name \"Mara\" :hp 12 :armor 1
+                           :inventory ((:supply :ration :count 2)))
+                  :rooms
+                  ((:room
+                    :id \"hall\"
+                    :title \"Hall\"
+                    :body
+                    ((:choice \"Enter the pit\" (:go \"generated:pit:1\"))
+                     (:choice \"Quit\" (:quit))))))"))
+         (room (create-generated-room game
+                                      :id "generated:pit:1"
+                                      :zone :pit
+                                      :title "Pit"
+                                      :results '((:encounter :pit-brute))
+                                      :exits '((:back . "hall")))))
+    (ensure-room-encounter-state game room '(:encounter :pit-brute)
+                                 :hp 9 :armor 1 :damage "1d4+1")
+    game))
+
+(def-parity-test parity-encounter-dice-damage-is-rolled ()
+    (load-parity-dice-damage-game)
+  ;; Enter, then attack until the fight ends, eating when offered.
+  '(1 1 1 2 1 1 1 1 1))
