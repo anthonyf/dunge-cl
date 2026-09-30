@@ -498,8 +498,8 @@ A die with 2^31 sides rolls one more than the state it draws."
                 "(:game
                   :start \"hall\"
                   :seed 99
-                  :player (:player :name \"Mara\" :hp 12 :armor 1
-                           :inventory ((:supply :ration :count 2)))
+                  :player ((:name \"Mara\") (:hp 12) (:max-hp 12) (:armor 1)
+                           (:fatigue 0) (:deprived nil) (:ration 2))
                   :rooms
                   ((:room
                     :id \"hall\"
@@ -512,7 +512,10 @@ A die with 2^31 sides rolls one more than the state it draws."
                                       :zone :pit
                                       :title "Pit"
                                       :results '((:encounter :pit-brute))
-                                      :exits '((:back . "hall")))))
+                                      :exits '((:back . "hall"))
+                                      :options (list (ration-choice-form))
+                                      :encounter-options
+                                      (list (ration-choice-form)))))
     (ensure-room-encounter-state game room '(:encounter :pit-brute)
                                  :hp 9 :armor 1 :damage "1d4+1")
     game))

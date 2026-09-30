@@ -69,7 +69,11 @@
   ;; Strings without placeholders stay strings; doubled braces are literal.
   (is (equal "plain" (dunge::compile-dunge-expression "plain" nil)))
   (is (equal "{x} and }" (dunge::compile-dunge-expression "{{x}} and }}" nil)))
-  (dolist (bad '("{self:hp" "a } b" "{player:hp}" "{self}" "{self:}"
+  (let ((reference (first (dunge::concat-parts
+                           (dunge::compile-dunge-expression "{player:hp}" nil)))))
+    (is (eq :player (dunge::state-ref-scope reference)))
+    (is (eq :hp (dunge::state-ref-key reference))))
+  (dolist (bad '("{self:hp" "a } b" "{hero:hp}" "{self}" "{self:}"
                  "{ref:door}" "{self:h p}"))
     (signals dunge-source-error (dunge::compile-dunge-expression bad nil))))
 

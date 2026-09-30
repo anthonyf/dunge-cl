@@ -16,7 +16,8 @@ the same way in the console and in the browser.
 An expression is a literal or an expression form:
 
 - Literals: strings, integers, keywords, `t`, and `nil`.
-- State references: `(:global key)`, `(:self key)`, and `(:ref role key)`.
+- State references: `(:global key)`, `(:player key)`, `(:self key)`, and
+  `(:ref role key)`. The game declares its `:player` keys like its globals.
 - Arithmetic: `(:add a b ...)`, `(:sub a b ...)`, `(:mul a b ...)`,
   `(:min a b ...)`, and `(:max a b ...)`. `:sub` subtracts each later operand
   from the first and needs at least two; the others take one or more.
@@ -94,8 +95,8 @@ outside the supported integer range.
 
 A string expression may name state in braces:
 
-- `{global:key}`, `{self:key}`, and `{ref:role:key}` read state the same way as
-  the forms above.
+- `{global:key}`, `{player:key}`, `{self:key}`, and `{ref:role:key}` read state
+  the same way as the forms above.
 - `{{` and `}}` write literal braces. Any other `{` or `}` is a source error.
 
 ```lisp
@@ -200,10 +201,9 @@ inventory slot by default, regardless of count, unless `:slots` overrides it.
 (:supply :oil-flask :count 2)
 ```
 
-When an item or supply entry is stored directly in player inventory,
-`:count` and `:slots` must already be resolved integers. Dice strings are table
-result shorthand for CL loot procedures to roll before adding entries to a
-player.
+Dice strings in `:count` are table result shorthand that CL resolves when it
+builds content. The player holds items as `:player` counters named by their
+ids, such as `(:ration 3)`.
 
 Use `(:encounter ENCOUNTER-ID ...)` for bestiary or encounter templates.
 Common options include `:count`, `:reaction`, `:morale`, `:hp`, `:str`,
@@ -229,13 +229,12 @@ Use `(:hazard HAZARD-ID)`, `(:feature FEATURE-ID)`, and
 ```
 
 Generated room procedures can combine these result shapes with loot,
-encounter, and exit data to create persistent runtime room instances. The shared
-resolver can normalize loot counts, apply gold/items/supplies to a player, and
-extract `(:exit DIRECTION ROOM-ID)` data. Generated rooms can also expose
-unclaimed gold/item/supply results as player-facing loot choices and persist
-which result indexes have been claimed. The table results stay declarative;
-Common Lisp decides when a rolled result becomes a registered generated room,
-a loot choice, or a player/world mutation.
+encounter, and exit data to create room instances before play. The shared
+resolver normalizes loot counts and extracts `(:exit DIRECTION ROOM-ID)` data,
+and the crawler turns gold/item/supply results into once-only "Take ..." choices
+that add to the player's counters. The table results stay declarative; Common
+Lisp decides when a rolled result becomes a generated room, a loot choice, or
+other content.
 
 ```lisp
 (:exit :back "threshold")

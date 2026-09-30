@@ -269,88 +269,8 @@ hyphens with each first letter capitalized, anything else as plain text."
                                            (subseq part 1))))
       (format-dunge-value value)))
 
-(defun generated-room-result-count (result)
-  (positive-integer-value (getf (cddr result) :count 1)
-                          "Generated room result count"))
-
-(defun generated-room-result-line (result)
-  "Describe one generated room table RESULT, the same way the browser does."
-  (let ((kind (and (consp result) (first result))))
-    (case kind
-      (:gold
-       (format nil "Treasure: ~D gold." (second result)))
-      ((:item :supply)
-       (let ((count (generated-room-result-count result)))
-         (format nil "Find: ~A~:[~; x~D~]."
-                 (generated-room-display-word (second result))
-                 (> count 1)
-                 count)))
-      (:encounter
-       (format nil "Sign: ~A stirs here."
-               (generated-room-display-word (second result))))
-      (:exit
-       (format nil "Passage: ~A." (generated-room-display-word (second result))))
-      (t
-       (if (and (consp result) (keywordp (second result)))
-           (format nil "~A: ~A."
-                   (generated-room-display-word kind)
-                   (generated-room-display-word (second result)))
-           (format nil "~A."
-                   (generated-room-display-word (if (consp result)
-                                                    kind
-                                                    result))))))))
-
 (defun generated-room-display-lower (value)
   (string-downcase (generated-room-display-word value)))
-
-(defun generated-room-counted-loot-text (result)
-  (let ((count (generated-room-result-count result))
-        (name (generated-room-display-lower (second result))))
-    (if (= count 1)
-        name
-        (format nil "~A x~D" name count))))
-
-(defun generated-room-loot-text (result)
-  (case (table-result-kind result)
-    (:gold
-     (format nil "~D gold"
-             (non-negative-integer-value (second result)
-                                         "Generated room gold amount")))
-    ((:item :supply)
-     (generated-room-counted-loot-text result))
-    (otherwise
-     (generated-room-display-lower (table-result-kind result)))))
-
-(defun generated-room-loot-label (result)
-  (format nil "Take ~A" (generated-room-loot-text result)))
-
-(defun generated-room-loot-message (result)
-  (format nil "You take ~A." (generated-room-loot-text result)))
-
-(defun generated-room-loot-choice (room result index)
-  (%make-choice :label (generated-room-loot-label result)
-                :target (%make-loot-action
-                         :room-name (name room)
-                         :result-index index)))
-
-(defun generated-room-loot-choices (room)
-  (loop for result in (generated-room-results room)
-        for index from 0
-        when (and (table-result-loot-p result)
-                  (not (generated-room-result-claimed-p room index)))
-          collect (generated-room-loot-choice room result index)))
-
-(defun player-can-use-ration-p (player)
-  (and player
-       (plusp (player-inventory-count player :supply :ration))
-       (or (< (player-hp player) (player-max-hp player))
-           (plusp (player-fatigue player))
-           (player-deprived-p player))))
-
-(defun generated-room-item-use-choices (player)
-  (when (player-can-use-ration-p player)
-    (list (%make-choice :label "Eat ration"
-                        :target (%make-item-use-action :action :ration)))))
 
 (defun generated-room-exit-label (direction)
   (case direction
@@ -371,7 +291,7 @@ hyphens with each first letter capitalized, anything else as plain text."
           (encounter-hp encounter)
           (encounter-max-hp encounter)))
 
-(defun generated-room-encounter-choices (room encounter player)
+(defun generated-room-encounter-choices (room encounter context)
   (when (and encounter
              (encounter-active-p encounter))
     (append
@@ -381,36 +301,29 @@ hyphens with each first letter capitalized, anything else as plain text."
                          :target (%make-encounter-action
                                   :room-name (name room)
                                   :action :attack)))
-     (generated-room-item-use-choices player)
+     (collect-options-from (generated-room-encounter-options room) context)
      (list (%make-choice :label "Flee"
                          :target (%make-encounter-action
                                   :room-name (name room)
                                   :action :flee))))))
 
 (defmethod evaluate ((room generated-room) &optional context)
-  (setf (generated-room-visited-p room) t)
   (let ((room-context (runtime-context-for-scene context room)))
     (render-scene-title (or (room-title room) (name room)))
-    (when (generated-room-description room)
-      (format *output* "~A~%~%" (generated-room-description room)))
-    (when (generated-room-results room)
-      (dolist (result (generated-room-results room))
-        (format *output* "~A~%" (generated-room-result-line result)))
-      (terpri *output*))
+    (let ((result (describe-children (entities room) room-context)))
+      (when result
+        (return-from evaluate result)))
     (let ((encounter (find-encounter-state (runtime-context-game room-context)
                                            room)))
       (when encounter
+        (render-pending-choice-spacing)
         (format *output* "~A~%~%" (generated-room-encounter-line encounter)))
-      (let* ((player (game-player (runtime-context-game room-context)))
-             (encounter-options
-               (generated-room-encounter-choices room encounter player)))
-        (present-location-choices
-         (or encounter-options
-             (append (generated-room-loot-choices room)
-                     (generated-room-item-use-choices player)
-                     (mapcar #'generated-room-exit-choice
-                             (generated-room-exits room))))
-         room-context)))))
+      (present-location-choices
+       (or (generated-room-encounter-choices room encounter room-context)
+           (append (collect-options-from (entities room) room-context)
+                   (mapcar #'generated-room-exit-choice
+                           (generated-room-exits room))))
+       room-context))))
 
 (defmethod describe-entity ((thing t) &optional context)
   (declare (ignore context))
@@ -749,248 +662,6 @@ hyphens with each first letter capitalized, anything else as plain text."
              (table-roll-log-entry table entry result details))
             (values result entry))))))
 
-(defun table-result-data-p (result)
-  (and (consp result)
-       (keywordp (first result))))
-
-(defun table-result-kind (result)
-  (unless (table-result-data-p result)
-    (error "Table result must be a list beginning with a keyword; got ~S."
-           result))
-  (first result))
-
-(defun table-result-keyword-payload (result label)
-  (let ((payload (second result)))
-    (unless (keywordp payload)
-      (error "~A table result must name a keyword id; got ~S."
-             label
-             result))
-    payload))
-
-(defun table-result-shape-length (result label)
-  (let ((length (handler-case
-                    (list-length result)
-                  (type-error ()
-                    nil))))
-    (unless length
-      (error "~A table result must be a proper, non-circular list; got ~S."
-             label
-             result))
-    length))
-
-(defun ensure-table-result-shape (result label shape length)
-  (unless (= (table-result-shape-length result label) length)
-    (error "~A table result must be ~A; got ~S."
-           label
-           shape
-           result))
-  result)
-
-(defun resolve-table-result-amount (game amount label random-state record)
-  (multiple-value-bind (value roll-entry)
-      (roll-dice-value game amount
-                       :label label
-                       :random-state random-state
-                       :record record)
-    (declare (ignore roll-entry))
-    value))
-
-(defun resolve-table-result-options (game options random-state record)
-  (ensure-runtime-property-list options "table result options")
-  (loop for (key value) on options by #'cddr
-        append (list key
-                     (if (eq key :count)
-                         (positive-integer-value
-                          (resolve-table-result-amount game
-                                                       value
-                                                       :result-count
-                                                       random-state
-                                                       record)
-                          "Table result count")
-                         value))))
-
-(defun resolve-inventory-table-result (game result random-state record)
-  (let* ((kind (table-result-kind result))
-         (id (table-result-keyword-payload result "Inventory"))
-         (options (resolve-table-result-options game
-                                                (cddr result)
-                                                random-state
-                                                record))
-         (entry (append (list kind id) options)))
-    (validate-inventory-entry-data entry)
-    entry))
-
-(defun resolve-gold-table-result (game result random-state record)
-  (ensure-table-result-shape result "Gold" "(:GOLD AMOUNT)" 2)
-  (list :gold
-        (resolve-table-result-amount game
-                                     (second result)
-                                     :result-gold
-                                     random-state
-                                     record)))
-
-(defun resolve-counted-table-result (game result random-state record label)
-  (let* ((kind (table-result-kind result))
-         (id (table-result-keyword-payload result label))
-         (options (resolve-table-result-options game
-                                                (cddr result)
-                                                random-state
-                                                record)))
-    (append (list kind id) options)))
-
-(defun resolve-exit-table-result (result)
-  (ensure-table-result-shape result "Exit" "(:EXIT DIRECTION ROOM-ID)" 3)
-  (let ((direction (second result))
-        (target (third result)))
-    (unless (keywordp direction)
-      (error "Exit table result direction must be a keyword; got ~S."
-             result))
-    (unless (stringp target)
-      (error "Exit table result target must be a room id string; got ~S."
-             result))
-    (list :exit direction target)))
-
-(defun resolve-table-result-data (game result &key random-state (record t))
-  (cond
-    ((table-result-data-p result)
-     (case (table-result-kind result)
-       (:gold
-        (resolve-gold-table-result game result random-state record))
-       ((:item :supply)
-        (resolve-inventory-table-result game result random-state record))
-       ((:encounter)
-        (resolve-counted-table-result game
-                                      result
-                                      random-state
-                                      record
-                                      "Encounter"))
-       ((:exit)
-        (resolve-exit-table-result result))
-       (otherwise
-        (copy-tree result))))
-    ((listp result)
-     (mapcar (lambda (entry)
-               (resolve-table-result-data game
-                                          entry
-                                          :random-state random-state
-                                          :record record))
-             result))
-    (t
-     result)))
-
-(defun apply-resolved-table-result-to-player (player result)
-  (unless (typep player 'player)
-    (error "Applying table results requires a player; got ~S." player))
-  (cond
-    ((table-result-data-p result)
-     (case (table-result-kind result)
-       (:gold
-        (incf (player-gold player)
-              (non-negative-integer-value (second result)
-                                          "Resolved gold result")))
-       ((:item :supply)
-        (add-player-inventory-entry player result)))
-     result)
-    ((listp result)
-     (dolist (entry result)
-       (apply-resolved-table-result-to-player player entry))
-     result)
-    (t
-     result)))
-
-(defun apply-table-result-to-player (game player result
-                                     &key random-state (record t))
-  (let ((resolved (resolve-table-result-data game
-                                             result
-                                             :random-state random-state
-                                             :record record)))
-    (apply-resolved-table-result-to-player player resolved)
-    resolved))
-
-(defun table-result-loot-p (result)
-  (and (table-result-data-p result)
-       (member (table-result-kind result) '(:gold :item :supply) :test #'eq)))
-
-(defun table-result-loot-results (result)
-  (cond
-    ((table-result-loot-p result)
-     (list (copy-tree result)))
-    ((and (listp result)
-          (not (table-result-data-p result)))
-     (loop for entry in result
-           append (table-result-loot-results entry)))
-    (t nil)))
-
-(defun table-result-exit-p (result)
-  (and (table-result-data-p result)
-       (eq (table-result-kind result) :exit)))
-
-(defun table-result-exit (result)
-  (when (table-result-exit-p result)
-    (destructuring-bind (kind direction target) (resolve-exit-table-result result)
-      (declare (ignore kind))
-      (cons direction target))))
-
-(defun table-result-exits (result)
-  (cond
-    ((table-result-exit-p result)
-     (list (table-result-exit result)))
-    ((and (listp result)
-          (not (table-result-data-p result)))
-     (loop for entry in result
-           append (table-result-exits entry)))
-    (t nil)))
-
-(defun table-result-encounter-p (result)
-  (and (table-result-data-p result)
-       (eq (table-result-kind result) :encounter)))
-
-(defun table-result-encounters (result)
-  (cond
-    ((table-result-encounter-p result)
-     (list (copy-tree result)))
-    ((and (listp result)
-          (not (table-result-data-p result)))
-     (loop for entry in result
-           append (table-result-encounters entry)))
-    (t nil)))
-
-(defun table-result-option (result key &optional default)
-  (ensure-runtime-property-list (cddr result) "table result options")
-  (let ((missing '#:missing))
-    (let ((value (getf (cddr result) key missing)))
-      (if (eq value missing)
-          default
-          value))))
-
-(defun ensure-room-encounter-state (game room result
-                                    &key hp max-hp str max-str armor damage)
-  (unless (table-result-encounter-p result)
-    (error "Encounter state requires an :ENCOUNTER table result; got ~S."
-           result))
-  (or (find-encounter-state game room)
-      (let* ((room-name (encounter-room-name-string room))
-             (enemy-id (second result))
-             (reaction (table-result-option result :reaction nil))
-             (hp (or hp (table-result-option result :hp 3)))
-             (max-hp (or max-hp (table-result-option result :max-hp hp)))
-             (str (or str (table-result-option result :str 10)))
-             (max-str (or max-str (table-result-option result :max-str str)))
-             (armor (or armor (table-result-option result :armor 0)))
-             (damage (or damage (table-result-option result :damage 1))))
-        (register-encounter-state
-         game
-         (make-encounter-state :room room-name
-                               :enemy-id enemy-id
-                               :reaction reaction
-                               :hp hp
-                               :max-hp max-hp
-                               :str str
-                               :max-str max-str
-                               :armor armor
-                               :damage damage
-                               :source result)))))
-
 (defun ensure-active-encounter (encounter)
   (unless (encounter-active-p encounter)
     (error "Encounter ~S is not active." (encounter-enemy-id encounter)))
@@ -999,10 +670,18 @@ hyphens with each first letter capitalized, anything else as plain text."
 (defun apply-non-negative-damage (current amount)
   (max 0 (- current (non-negative-integer-value amount "Damage"))))
 
-(defun attack-encounter (game player encounter
+(defun player-state-value (game key)
+  "Return GAME's player state value for KEY, which must be declared."
+  (gethash (ensure-declared-player-state-key game key)
+           (game-player-state game)))
+
+(defun (setf player-state-value) (value game key)
+  (setf (gethash (ensure-declared-player-state-key game key)
+                 (game-player-state game))
+        value))
+
+(defun attack-encounter (game encounter
                          &key (damage "1d6") random-state (record t))
-  (unless (typep player 'player)
-    (error "Attacking an encounter requires a player; got ~S." player))
   (ensure-active-encounter encounter)
   (incf (encounter-round encounter))
   (multiple-value-bind (roll)
@@ -1026,11 +705,12 @@ hyphens with each first letter capitalized, anything else as plain text."
                                :label :enemy-damage
                                :random-state random-state
                                :record record)
-            (let ((enemy-damage (max 0 (- enemy-roll (player-armor player)))))
-              (setf (player-hp player)
-                    (apply-non-negative-damage (player-hp player)
+            (let ((enemy-damage (max 0 (- enemy-roll
+                                          (player-state-value game :armor)))))
+              (setf (player-state-value game :hp)
+                    (apply-non-negative-damage (player-state-value game :hp)
                                                enemy-damage))
-              (when (zerop (player-hp player))
+              (when (zerop (player-state-value game :hp))
                 (setf (encounter-status encounter) :player-defeated))
               (list :action :attack
                     :player-damage player-damage
@@ -1247,6 +927,14 @@ hyphens with each first letter capitalized, anything else as plain text."
                (ensure-declared-global-state-key
                 game
                 (state-ref-key reference)))))
+    (:player
+     (unless (and context (runtime-context-game context))
+       (error "Cannot resolve PLAYER state without a current game."))
+     (let ((game (runtime-context-game context)))
+       (values (game-player-state game)
+               (ensure-declared-player-state-key
+                game
+                (state-ref-key reference)))))
     (:ref
      (unless (and context (runtime-context-self context))
        (error "Cannot resolve REF state without a current entity."))
@@ -1298,12 +986,6 @@ hyphens with each first letter capitalized, anything else as plain text."
 (defun collect-runtime-roll-log (game)
   (game-roll-log game))
 
-(defun collect-runtime-player-state (game)
-  (player-state-plist (game-player game)))
-
-(defun collect-runtime-generated-room-state (game)
-  (mapcar #'generated-room-state-plist
-          (game-generated-rooms game)))
 
 (defun collect-runtime-encounter-state (game)
   (mapcar #'encounter-state-plist
@@ -1311,7 +993,7 @@ hyphens with each first letter capitalized, anything else as plain text."
 
 (defun collect-runtime-local-state (game)
   (let (entries)
-    (dolist (room (game-rooms game))
+    (dolist (room (append (game-rooms game) (game-generated-rooms game)))
       (walk-node-tree
        room
        (lambda (node)
@@ -1328,11 +1010,9 @@ hyphens with each first letter capitalized, anything else as plain text."
   (let ((game (runtime-session-game session)))
     (list :current-room (runtime-session-current-room-name session)
           :return-stack (runtime-session-return-stack-room-names session)
-          :player (collect-runtime-player-state game)
+          :player (sorted-state-alist (game-player-state game))
           :rng-state (game-random-state game)
           :roll-log (collect-runtime-roll-log game)
-          :generated-room-counter (game-generated-room-counter game)
-          :generated-rooms (collect-runtime-generated-room-state game)
           :encounters (collect-runtime-encounter-state game)
           :globals (sorted-state-alist (game-global-state game))
           :locals (collect-runtime-local-state game)
@@ -1343,11 +1023,9 @@ hyphens with each first letter capitalized, anything else as plain text."
   (let ((game (runtime-session-game session)))
     (list :location (runtime-session-location session)
           :return-stack (copy-list (runtime-session-return-stack session))
-          :player (collect-runtime-player-state game)
+          :player (sorted-state-alist (game-player-state game))
           :rng-state (game-random-state game)
           :roll-log (collect-runtime-roll-log game)
-          :generated-room-counter (game-generated-room-counter game)
-          :generated-rooms (collect-runtime-generated-room-state game)
           :encounters (collect-runtime-encounter-state game)
           :globals (sorted-state-alist (game-global-state game))
           :locals (collect-runtime-local-state game)
@@ -1405,132 +1083,6 @@ hyphens with each first letter capitalized, anything else as plain text."
                      entry))
             entry)
           value))
-
-(defun runtime-generated-room-results (results)
-  (ensure-runtime-list results "generated room results")
-  (copy-tree results))
-
-(defun runtime-generated-room-claimed-results (claimed-results result-count)
-  (ensure-runtime-list claimed-results "generated room claimed results")
-  (let ((claimed (mapcar (lambda (index)
-                           (let ((index (non-negative-integer-value
-                                         index
-                                         "Generated room claimed result index")))
-                             (unless (< index result-count)
-                               (error "Runtime generated room claimed result index ~D is out of range."
-                                      index))
-                              index))
-                         claimed-results)))
-    (sort (remove-duplicates claimed :test #'=) #'<)))
-
-(defun runtime-generated-room-exits (exits)
-  (ensure-runtime-list exits "generated room exits")
-  (mapcar (lambda (exit)
-            (unless (and (consp exit)
-                         (keywordp (car exit))
-                         (stringp (cdr exit)))
-              (error "Runtime generated room exits must be (DIRECTION . ROOM-ID) pairs; got ~S."
-                     exit))
-            (cons (car exit) (cdr exit)))
-          exits))
-
-(defun runtime-generated-room-state-plist (entry)
-  (ensure-runtime-property-list entry "generated room entry")
-  (let ((id (ensure-runtime-room-name
-             (runtime-state-required-field entry :id)
-             "generated room id"))
-        (title (runtime-maybe-string-value
-                (runtime-state-field entry :title nil)
-                "generated room title"))
-        (description (runtime-maybe-string-value
-                      (runtime-state-field entry :description nil)
-                      "generated room description"))
-        (zone (runtime-keyword-value
-               (runtime-state-required-field entry :zone)
-               "generated room zone"))
-        (depth (non-negative-integer-value
-                (runtime-state-field entry :depth 0)
-                "Generated room depth"))
-        (results (runtime-generated-room-results
-                  (runtime-state-field entry :results nil)))
-        (claimed-results nil)
-        (exits (runtime-generated-room-exits
-                (runtime-state-field entry :exits nil)))
-        (visited (runtime-boolean-value
-                  (runtime-state-field entry :visited nil)
-                  "generated room visited flag")))
-    (setf claimed-results
-          (runtime-generated-room-claimed-results
-           (runtime-state-field entry :claimed-results nil)
-           (length results)))
-    (list :id id
-          :title title
-          :description description
-          :zone zone
-          :depth depth
-          :results results
-          :claimed-results claimed-results
-          :exits exits
-          :visited-p visited)))
-
-(defun runtime-player-number-field (state field label)
-  (non-negative-integer-value
-   (runtime-state-required-field state field)
-   label))
-
-(defun validate-runtime-player-current-maximum (current maximum label)
-  (when (> current maximum)
-    (error "Runtime player ~A current value ~D exceeds maximum ~D."
-           label
-           current
-           maximum)))
-
-(defun runtime-player-state-plist (state)
-  (ensure-runtime-property-list state ":PLAYER")
-  (let ((name (runtime-maybe-string-value
-               (runtime-state-field state :name nil)
-               "player name"))
-        (background (runtime-maybe-keyword-value
-                     (runtime-state-field state :background nil)
-                     "player background"))
-        (str (runtime-player-number-field state :str "Player STR"))
-        (max-str (runtime-player-number-field state :max-str "Player max STR"))
-        (dex (runtime-player-number-field state :dex "Player DEX"))
-        (max-dex (runtime-player-number-field state :max-dex "Player max DEX"))
-        (wil (runtime-player-number-field state :wil "Player WIL"))
-        (max-wil (runtime-player-number-field state :max-wil "Player max WIL"))
-        (hp (runtime-player-number-field state :hp "Player HP"))
-        (max-hp (runtime-player-number-field state :max-hp "Player max HP"))
-        (armor (runtime-player-number-field state :armor "Player armor"))
-        (gold (runtime-player-number-field state :gold "Player gold"))
-        (fate (runtime-player-number-field state :fate "Player fate"))
-        (inventory (runtime-state-field state :inventory nil))
-        (fatigue (runtime-player-number-field state :fatigue "Player fatigue"))
-        (conditions (runtime-keyword-list-value
-                     (runtime-state-field state :conditions nil)
-                     "player conditions")))
-    (ensure-runtime-list inventory "player inventory")
-    (validate-player-inventory-data inventory)
-    (validate-runtime-player-current-maximum str max-str "STR")
-    (validate-runtime-player-current-maximum dex max-dex "DEX")
-    (validate-runtime-player-current-maximum wil max-wil "WIL")
-    (validate-runtime-player-current-maximum hp max-hp "HP")
-    (list :name name
-          :background background
-          :str str
-          :max-str max-str
-          :dex dex
-          :max-dex max-dex
-          :wil wil
-          :max-wil max-wil
-          :hp hp
-          :max-hp max-hp
-          :armor armor
-          :gold gold
-          :fate fate
-          :inventory (copy-tree inventory)
-          :fatigue fatigue
-          :conditions conditions)))
 
 (defun runtime-encounter-damage-value (value)
   (unless (or (stringp value)
@@ -1659,17 +1211,6 @@ hyphens with each first letter capitalized, anything else as plain text."
   (ensure-runtime-list roll-log ":ROLL-LOG")
   (setf (game-roll-log game) (copy-list roll-log)))
 
-(defun restore-runtime-generated-rooms (game generated-rooms counter)
-  (ensure-runtime-list generated-rooms ":GENERATED-ROOMS")
-  (clear-generated-rooms game)
-  (setf (game-generated-room-counter game)
-        (non-negative-integer-value counter "Generated room counter"))
-  (dolist (entry generated-rooms)
-    (register-generated-room
-     game
-     (apply #'make-generated-room
-            (runtime-generated-room-state-plist entry)))))
-
 (defun restore-runtime-encounter-states (game encounters)
   (ensure-runtime-list encounters ":ENCOUNTERS")
   (clear-encounter-states game)
@@ -1680,41 +1221,29 @@ hyphens with each first letter capitalized, anything else as plain text."
             (runtime-encounter-state-plist entry)))))
 
 (defun restore-runtime-player-state (game player-state)
-  (cond
-    ((null player-state)
-     (setf (game-player game) nil))
-    (t
-     (let ((player (or (game-player game)
-                       (setf (game-player game)
-                             (make-instance 'player)))))
-       (apply-player-state player
-                           (runtime-player-state-plist player-state))))))
+  (ensure-runtime-list player-state ":PLAYER")
+  (dolist (entry player-state)
+    (unless (runtime-state-pair-p entry)
+      (error "Runtime player state entry must be (KEY . VALUE)."))
+    (setf (gethash (ensure-declared-player-state-key game (car entry))
+                   (game-player-state game))
+          (cdr entry))))
 
 (defun restore-runtime-state (game state)
-  (let* ((missing '#:missing)
-         (current-room (runtime-state-required-field state :current-room))
+  (let* ((current-room (runtime-state-required-field state :current-room))
          (return-stack (runtime-state-field state :return-stack nil))
-         (player-state (runtime-state-field state :player missing))
+         (player-state (runtime-state-field state :player nil))
          (rng-state (runtime-state-field state :rng-state (game-random-seed game)))
          (roll-log (runtime-state-field state :roll-log nil))
-         (generated-room-counter (runtime-state-field
-                                  state
-                                  :generated-room-counter
-                                  0))
-         (generated-rooms (runtime-state-field state :generated-rooms nil))
          (encounters (runtime-state-field state :encounters nil))
          (globals (runtime-state-field state :globals nil))
          (locals (runtime-state-field state :locals nil))
          (tables (runtime-state-field state :tables nil))
          (taken-choices (runtime-state-field state :taken-choices nil)))
     (prepare-game game)
-    (unless (eq player-state missing)
-      (restore-runtime-player-state game player-state))
+    (restore-runtime-player-state game player-state)
     (restore-runtime-random-state game rng-state)
     (restore-runtime-roll-log game roll-log)
-    (restore-runtime-generated-rooms game
-                                     generated-rooms
-                                     generated-room-counter)
     (restore-runtime-encounter-states game encounters)
     (restore-runtime-global-state game globals)
     (restore-runtime-local-state game locals)
@@ -1732,17 +1261,11 @@ hyphens with each first letter capitalized, anything else as plain text."
 (defun restore-runtime-undo-state (session state)
   (let ((game (runtime-session-game session)))
     (prepare-game game)
-    (when (runtime-state-has-field-p state :player)
-      (restore-runtime-player-state game (getf state :player nil)))
+    (restore-runtime-player-state game (getf state :player))
     (restore-runtime-random-state game
                                   (getf state :rng-state
                                         (game-random-seed game)))
     (restore-runtime-roll-log game (getf state :roll-log nil))
-    (restore-runtime-generated-rooms game
-                                     (getf state :generated-rooms nil)
-                                     (getf state
-                                           :generated-room-counter
-                                           0))
     (restore-runtime-encounter-states game (getf state :encounters nil))
     (restore-runtime-global-state game (getf state :globals))
     (restore-runtime-local-state game (getf state :locals))
@@ -2021,11 +1544,10 @@ NIL (including cleared or unset state) as the empty string."
                         (and (runtime-context-scene context)
                              (name (runtime-context-scene context)))))
          (encounter (find-encounter-state game room-name :errorp t))
-         (player (game-player game))
          (result
            (case (encounter-action-kind effect)
              (:attack
-              (attack-encounter game player encounter))
+              (attack-encounter game encounter))
              (:flee
               (flee-encounter encounter))
              (otherwise
@@ -2036,64 +1558,6 @@ NIL (including cleared or unset state) as the empty string."
     ;; A defeated player's run is over.
     (when (eq (encounter-status encounter) :player-defeated)
       (%make-quit))))
-
-(defun effect-generated-room (game room-name context label)
-  (let ((room-name (or room-name
-                       (and context
-                            (runtime-context-scene context)
-                            (name (runtime-context-scene context))))))
-    (unless room-name
-      (error "~A requires a generated room context." label))
-    (find-generated-room game room-name :errorp t)))
-
-(defmethod execute-effect ((effect loot-action) &optional context)
-  (let* ((game (runtime-context-game context))
-         (room (effect-generated-room game
-                                      (loot-action-room-name effect)
-                                      context
-                                      "Loot action"))
-         (index (non-negative-integer-value
-                 (loot-action-result-index effect)
-                 "Loot result index")))
-    (unless (< index (length (generated-room-results room)))
-      (error "Generated room ~S has no result at index ~D."
-             (name room)
-             index))
-    (when (generated-room-result-claimed-p room index)
-      (error "Generated room result ~D in ~S has already been claimed."
-             index
-             (name room)))
-    (let ((result (nth index (generated-room-results room)))
-          (player (game-player game)))
-      (unless player
-        (error "Taking loot requires a player."))
-      (unless (table-result-loot-p result)
-        (error "Generated room result ~D in ~S is not loot: ~S."
-               index
-               (name room)
-               result))
-      (apply-resolved-table-result-to-player player result)
-      (claim-generated-room-result room index)
-      (render-pending-choice-spacing)
-      (format *output* "~A~%~%" (generated-room-loot-message result))
-      nil)))
-
-(defmethod execute-effect ((effect item-use-action) &optional context)
-  (let* ((game (runtime-context-game context))
-         (player (game-player game)))
-    (unless player
-      (error "Using an item requires a player."))
-    (case (item-use-action-kind effect)
-      (:ration
-       (unless (player-can-use-ration-p player)
-         (error "The player cannot use a ration right now."))
-       (use-player-ration player)
-       (render-pending-choice-spacing)
-       (format *output* "You eat a ration and recover.~%~%")
-       nil)
-      (otherwise
-       (error "Unknown item-use action ~S."
-              (item-use-action-kind effect))))))
 
 (defun evaluate-effects (effects context)
   (when effects

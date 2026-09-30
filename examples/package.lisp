@@ -1,5 +1,5 @@
 (uiop:define-package #:dunge-examples
-  (:use #:cl #:dunge)
+  (:use #:cl #:dunge #:dunge.crawler)
   (:shadowing-import-from #:dunge
                           #:room
                           #:sequence)

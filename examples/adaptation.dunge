@@ -4,21 +4,20 @@
  :flags (:first-room-generated)
  :state ((:rooms-generated 0)
          (:dungeon-depth 0))
- :player
- (:player
-  :name "Test Delver"
-  :background :wanderer
-  :str 10
-  :dex 10
-  :wil 10
-  :hp 3
-  :armor 0
-  :gold 0
-  :fate 0
-  :inventory ((:item :lantern)
-              (:supply :ration :count 2))
-  :fatigue 0
-  :conditions nil)
+ :player ((:name "Test Delver")
+          (:background :wanderer)
+          (:str 10) (:max-str 10)
+          (:dex 10) (:max-dex 10)
+          (:wil 10) (:max-wil 10)
+          (:hp 3) (:max-hp 3)
+          (:armor 0)
+          (:gold 0)
+          (:fate 0)
+          (:fatigue 0)
+          (:deprived nil)
+          (:lantern 1)
+          (:ration 2)
+          (:chalk 0))
  :tables
  ((:table
    :id :room-segment

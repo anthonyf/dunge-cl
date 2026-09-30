@@ -171,6 +171,19 @@
              (third resolved-results)
              depth))))
 
+(defun adaptation-item-catalog (game)
+  "Every item the player can hold: the background's starting kit and
+anything the tables can award."
+  (item-catalog
+   (append (adaptation-background-value
+            (gethash :background (game-player-state game))
+            :inventory)
+           (table-loot-entries game))))
+
+(defun adaptation-ration-choice (game)
+  (ration-choice-form
+   :used-slots (used-slots-expression (adaptation-item-catalog game))))
+
 (defun create-adaptation-dungeon-room (game depth &key title description results
                                                     exits)
   (multiple-value-bind (segment-result resolved-results room-description)
@@ -187,7 +200,9 @@
                             (format nil "Dungeon Depth ~D" depth))
                  :description room-description
                  :results resolved-results
-                 :exits exits)))
+                 :exits exits
+                 :options (list (adaptation-ration-choice game))
+                 :encounter-options (list (adaptation-ration-choice game)))))
       (ensure-adaptation-room-encounter game room)
       (note-adaptation-dungeon-state game)
       room)))
@@ -265,6 +280,7 @@
 (defun make-adaptation-player (game &key
                                       (name "Generated Delver")
                                       (background :wanderer))
+  "Roll a player for BACKGROUND and return their :PLAYER state declarations."
   (unless (stringp name)
     (error "Adaptation player name must be a string; got ~S." name))
   (let* ((str (adaptation-roll-total game "2d6+3" :adaptation-str))
@@ -272,30 +288,28 @@
          (wil (adaptation-roll-total game "2d6+3" :adaptation-wil))
          (hp (adaptation-roll-total game "1d6" :adaptation-hp))
          (gold (adaptation-roll-total game "1d6" :adaptation-gold))
-         (inventory (copy-tree
-                     (adaptation-background-value background :inventory)))
-         (armor (adaptation-background-value background :armor 0))
-         (fate (adaptation-background-value background :fate 0)))
-    (make-instance 'player
-                   :name name
-                   :background background
-                   :str str
-                   :dex dex
-                   :wil wil
-                   :hp hp
-                   :armor armor
-                   :gold gold
-                   :fate fate
-                   :inventory inventory)))
+         (inventory (adaptation-background-value background :inventory)))
+    (player-declarations
+     :name name
+     :background background
+     :str str
+     :dex dex
+     :wil wil
+     :hp hp
+     :armor (adaptation-background-value background :armor 0)
+     :gold gold
+     :fate (adaptation-background-value background :fate 0)
+     :inventory inventory
+     :catalog (item-catalog (append inventory (table-loot-entries game))))))
 
 (defun install-adaptation-player (game &key
                                          (name "Generated Delver")
                                          (background :wanderer))
-  (setf (game-player game)
-        (make-adaptation-player game
-                                :name name
-                                :background background))
-  (values game (game-player game)))
+  (declare-player-state game
+                        (make-adaptation-player game
+                                                :name name
+                                                :background background))
+  (values game (game-player-state game)))
 
 (defun load-generated-adaptation-example (&key
                                             (name "Generated Delver")
