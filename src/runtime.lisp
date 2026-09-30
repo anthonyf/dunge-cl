@@ -284,46 +284,11 @@ hyphens with each first letter capitalized, anything else as plain text."
   (%make-choice :label (generated-room-exit-label (car exit))
                 :target (%make-goto :room-name (cdr exit))))
 
-(defun generated-room-encounter-line (encounter)
-  (format nil "Encounter: ~A (~A, HP ~D/~D)."
-          (generated-room-display-word (encounter-enemy-id encounter))
-          (generated-room-display-lower (encounter-status encounter))
-          (encounter-hp encounter)
-          (encounter-max-hp encounter)))
-
-(defun generated-room-encounter-choices (room encounter context)
-  (when (and encounter
-             (encounter-active-p encounter))
-    (append
-     (list (%make-choice :label (format nil "Attack ~A"
-                                        (generated-room-display-lower
-                                         (encounter-enemy-id encounter)))
-                         :target (%make-encounter-action
-                                  :room-name (name room)
-                                  :action :attack)))
-     (collect-options-from (generated-room-encounter-options room) context)
-     (list (%make-choice :label "Flee"
-                         :target (%make-encounter-action
-                                  :room-name (name room)
-                                  :action :flee))))))
-
-(defmethod evaluate ((room generated-room) &optional context)
-  (let ((room-context (runtime-context-for-scene context room)))
-    (render-scene-title (or (room-title room) (name room)))
-    (let ((result (describe-children (entities room) room-context)))
-      (when result
-        (return-from evaluate result)))
-    (let ((encounter (find-encounter-state (runtime-context-game room-context)
-                                           room)))
-      (when encounter
-        (render-pending-choice-spacing)
-        (format *output* "~A~%~%" (generated-room-encounter-line encounter)))
-      (present-location-choices
-       (or (generated-room-encounter-choices room encounter room-context)
-           (append (collect-options-from (entities room) room-context)
-                   (mapcar #'generated-room-exit-choice
-                           (generated-room-exits room))))
-       room-context))))
+(defmethod collect-choices ((exits generated-exits) &optional context)
+  (let ((room (and context (runtime-context-scene context))))
+    (unless (typep room 'generated-room)
+      (error "Generated exits must be inside a generated room."))
+    (mapcar #'generated-room-exit-choice (generated-room-exits room))))
 
 (defmethod describe-entity ((thing t) &optional context)
   (declare (ignore context))
@@ -662,68 +627,6 @@ hyphens with each first letter capitalized, anything else as plain text."
              (table-roll-log-entry table entry result details))
             (values result entry))))))
 
-(defun ensure-active-encounter (encounter)
-  (unless (encounter-active-p encounter)
-    (error "Encounter ~S is not active." (encounter-enemy-id encounter)))
-  encounter)
-
-(defun apply-non-negative-damage (current amount)
-  (max 0 (- current (non-negative-integer-value amount "Damage"))))
-
-(defun player-state-value (game key)
-  "Return GAME's player state value for KEY, which must be declared."
-  (gethash (ensure-declared-player-state-key game key)
-           (game-player-state game)))
-
-(defun (setf player-state-value) (value game key)
-  (setf (gethash (ensure-declared-player-state-key game key)
-                 (game-player-state game))
-        value))
-
-(defun attack-encounter (game encounter
-                         &key (damage "1d6") random-state (record t))
-  (ensure-active-encounter encounter)
-  (incf (encounter-round encounter))
-  (multiple-value-bind (roll)
-      (roll-dice-value game damage
-                       :label :player-damage
-                       :random-state random-state
-                       :record record)
-    (let ((player-damage (max 0 (- roll (encounter-armor encounter)))))
-      (setf (encounter-hp encounter)
-            (apply-non-negative-damage (encounter-hp encounter)
-                                       player-damage))
-      (if (zerop (encounter-hp encounter))
-          (progn
-            (setf (encounter-status encounter) :defeated)
-            (list :action :attack
-                  :player-damage player-damage
-                  :enemy-damage 0
-                  :status (encounter-status encounter)))
-          (multiple-value-bind (enemy-roll)
-              (roll-dice-value game (encounter-damage encounter)
-                               :label :enemy-damage
-                               :random-state random-state
-                               :record record)
-            (let ((enemy-damage (max 0 (- enemy-roll
-                                          (player-state-value game :armor)))))
-              (setf (player-state-value game :hp)
-                    (apply-non-negative-damage (player-state-value game :hp)
-                                               enemy-damage))
-              (when (zerop (player-state-value game :hp))
-                (setf (encounter-status encounter) :player-defeated))
-              (list :action :attack
-                    :player-damage player-damage
-                    :enemy-damage enemy-damage
-                    :status (encounter-status encounter))))))))
-
-(defun flee-encounter (encounter)
-  (ensure-active-encounter encounter)
-  (incf (encounter-round encounter))
-  (setf (encounter-status encounter) :escaped)
-  (list :action :flee
-        :status (encounter-status encounter)))
-
 (defun runtime-debug-undo-available-p (context)
   (and *debug*
        context
@@ -751,9 +654,9 @@ hyphens with each first letter capitalized, anything else as plain text."
           (%make-refresh)))))
 
 (defmethod evaluate ((paragraph p) &optional context)
-  (declare (ignore context))
   (render-pending-choice-spacing)
-  (format *output* "~A~%~%" (text paragraph)))
+  (format *output* "~A~%~%"
+          (format-dunge-value (evaluate-expression (text paragraph) context))))
 
 (defmethod describe-entity ((paragraph p) &optional context)
   (evaluate paragraph context))
@@ -987,10 +890,6 @@ hyphens with each first letter capitalized, anything else as plain text."
   (game-roll-log game))
 
 
-(defun collect-runtime-encounter-state (game)
-  (mapcar #'encounter-state-plist
-          (game-encounter-states game)))
-
 (defun collect-runtime-local-state (game)
   (let (entries)
     (dolist (room (append (game-rooms game) (game-generated-rooms game)))
@@ -1013,7 +912,6 @@ hyphens with each first letter capitalized, anything else as plain text."
           :player (sorted-state-alist (game-player-state game))
           :rng-state (game-random-state game)
           :roll-log (collect-runtime-roll-log game)
-          :encounters (collect-runtime-encounter-state game)
           :globals (sorted-state-alist (game-global-state game))
           :locals (collect-runtime-local-state game)
           :tables (collect-runtime-table-state game)
@@ -1026,7 +924,6 @@ hyphens with each first letter capitalized, anything else as plain text."
           :player (sorted-state-alist (game-player-state game))
           :rng-state (game-random-state game)
           :roll-log (collect-runtime-roll-log game)
-          :encounters (collect-runtime-encounter-state game)
           :globals (sorted-state-alist (game-global-state game))
           :locals (collect-runtime-local-state game)
           :tables (collect-runtime-table-state game)
@@ -1083,63 +980,6 @@ hyphens with each first letter capitalized, anything else as plain text."
                      entry))
             entry)
           value))
-
-(defun runtime-encounter-damage-value (value)
-  (unless (or (stringp value)
-              (and (integerp value) (not (minusp value))))
-    (error "Runtime encounter damage must be a non-negative integer or dice string; got ~S."
-           value))
-  value)
-
-(defun runtime-encounter-state-plist (entry)
-  (ensure-runtime-property-list entry "encounter entry")
-  (let ((room (ensure-runtime-room-name
-               (runtime-state-required-field entry :room)
-               "encounter room"))
-        (enemy-id (runtime-keyword-value
-                   (runtime-state-required-field entry :enemy)
-                   "encounter enemy id"))
-        (reaction (runtime-maybe-keyword-value
-                   (runtime-state-field entry :reaction nil)
-                   "encounter reaction"))
-        (hp (non-negative-integer-value
-             (runtime-state-required-field entry :hp)
-             "Encounter HP"))
-        (max-hp (non-negative-integer-value
-                 (runtime-state-required-field entry :max-hp)
-                 "Encounter max HP"))
-        (str (non-negative-integer-value
-              (runtime-state-required-field entry :str)
-              "Encounter STR"))
-        (max-str (non-negative-integer-value
-                  (runtime-state-required-field entry :max-str)
-                  "Encounter max STR"))
-        (armor (non-negative-integer-value
-                (runtime-state-field entry :armor 0)
-                "Encounter armor"))
-        (damage (runtime-encounter-damage-value
-                 (runtime-state-field entry :damage 1)))
-        (round (non-negative-integer-value
-                (runtime-state-field entry :round 0)
-                "Encounter round"))
-        (status (encounter-status-key
-                 (runtime-state-field entry :status :active)))
-        (source (runtime-state-field entry :source nil)))
-    (ensure-runtime-list source "encounter source")
-    (validate-encounter-current-maximum hp max-hp "HP")
-    (validate-encounter-current-maximum str max-str "STR")
-    (list :room room
-          :enemy-id enemy-id
-          :reaction reaction
-          :hp hp
-          :max-hp max-hp
-          :str str
-          :max-str max-str
-          :armor armor
-          :damage damage
-          :round round
-          :status status
-          :source (copy-tree source))))
 
 (defun runtime-state-pair-p (entry)
   (consp entry))
@@ -1211,15 +1051,6 @@ hyphens with each first letter capitalized, anything else as plain text."
   (ensure-runtime-list roll-log ":ROLL-LOG")
   (setf (game-roll-log game) (copy-list roll-log)))
 
-(defun restore-runtime-encounter-states (game encounters)
-  (ensure-runtime-list encounters ":ENCOUNTERS")
-  (clear-encounter-states game)
-  (dolist (entry encounters)
-    (register-encounter-state
-     game
-     (apply #'make-encounter-state
-            (runtime-encounter-state-plist entry)))))
-
 (defun restore-runtime-player-state (game player-state)
   (ensure-runtime-list player-state ":PLAYER")
   (dolist (entry player-state)
@@ -1235,7 +1066,6 @@ hyphens with each first letter capitalized, anything else as plain text."
          (player-state (runtime-state-field state :player nil))
          (rng-state (runtime-state-field state :rng-state (game-random-seed game)))
          (roll-log (runtime-state-field state :roll-log nil))
-         (encounters (runtime-state-field state :encounters nil))
          (globals (runtime-state-field state :globals nil))
          (locals (runtime-state-field state :locals nil))
          (tables (runtime-state-field state :tables nil))
@@ -1244,7 +1074,6 @@ hyphens with each first letter capitalized, anything else as plain text."
     (restore-runtime-player-state game player-state)
     (restore-runtime-random-state game rng-state)
     (restore-runtime-roll-log game roll-log)
-    (restore-runtime-encounter-states game encounters)
     (restore-runtime-global-state game globals)
     (restore-runtime-local-state game locals)
     (restore-runtime-table-state game tables)
@@ -1266,7 +1095,6 @@ hyphens with each first letter capitalized, anything else as plain text."
                                   (getf state :rng-state
                                         (game-random-seed game)))
     (restore-runtime-roll-log game (getf state :roll-log nil))
-    (restore-runtime-encounter-states game (getf state :encounters nil))
     (restore-runtime-global-state game (getf state :globals))
     (restore-runtime-local-state game (getf state :locals))
     (restore-runtime-table-state game (getf state :tables))
@@ -1512,52 +1340,6 @@ NIL (including cleared or unset state) as the empty string."
            (conditional-effect-else effect))
        (%make-sequence))
    context))
-
-(defun combat-result-message (encounter result)
-  (case (getf result :action)
-    (:attack
-     (case (getf result :status)
-       (:defeated
-        (format nil "You strike for ~D damage. ~A falls."
-                (getf result :player-damage)
-                (generated-room-display-word
-                 (encounter-enemy-id encounter))))
-       (:player-defeated
-        (format nil "You strike for ~D damage, but take ~D damage and fall."
-                (getf result :player-damage)
-                (getf result :enemy-damage)))
-       (otherwise
-        (format nil "You strike for ~D damage. ~A hits back for ~D damage."
-                (getf result :player-damage)
-                (generated-room-display-word
-                 (encounter-enemy-id encounter))
-                (getf result :enemy-damage)))))
-    (:flee
-     (format nil "You escape from ~A."
-             (generated-room-display-word (encounter-enemy-id encounter))))
-    (otherwise
-     "The encounter shifts.")))
-
-(defmethod execute-effect ((effect encounter-action) &optional context)
-  (let* ((game (runtime-context-game context))
-         (room-name (or (encounter-action-room-name effect)
-                        (and (runtime-context-scene context)
-                             (name (runtime-context-scene context)))))
-         (encounter (find-encounter-state game room-name :errorp t))
-         (result
-           (case (encounter-action-kind effect)
-             (:attack
-              (attack-encounter game encounter))
-             (:flee
-              (flee-encounter encounter))
-             (otherwise
-              (error "Unknown encounter action ~S."
-                     (encounter-action-kind effect))))))
-    (render-pending-choice-spacing)
-    (format *output* "~A~%~%" (combat-result-message encounter result))
-    ;; A defeated player's run is over.
-    (when (eq (encounter-status encounter) :player-defeated)
-      (%make-quit))))
 
 (defun evaluate-effects (effects context)
   (when effects

@@ -103,8 +103,10 @@ A string expression may name state in braces:
 (:say "The chest holds {self:coins} coins; you carry {global:gold}.")
 ```
 
-An interpolated string compiles to `:concat`. Room paragraphs (`:p`), labels,
-and titles are plain text and are not interpolated.
+An interpolated string compiles to `:concat`. Paragraph text (`:p`) is an
+expression too, so `(:p "HP {player:hp}.")` shows the current value each time
+the room renders. Paragraphs cannot roll dice, for the same reason conditions
+cannot. Choice labels and titles are plain text and are not interpolated.
 
 ### How Values Display
 

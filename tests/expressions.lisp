@@ -239,7 +239,8 @@
 (test validator-keeps-rolls-out-of-conditions
   (flet ((message (&rest body)
            (error-message-from (lambda () (apply #'source-game-with-body body)))))
-    (dolist (body '(((:when (:gt (:roll "1d6") 3) (:p "Lucky.")))
+    (dolist (body '(((:p (:roll "1d6")))
+                    ((:when (:gt (:roll "1d6") 3) (:p "Lucky.")))
                     ((:choice "Gamble" (:quit) :when (:eq (:roll "1d2") 1)))
                     ((:choice "Gamble"
                       (:if :when (:lt (:roll "1d6") 3)

@@ -237,8 +237,6 @@ body {
    "id" (dunge:name room)
    "title" (or (dunge:room-title room) (dunge:name room))
    "body" (compile-node-list (dunge:entities room))
-   "encounterOptions" (compile-node-list
-                       (dunge::generated-room-encounter-options room))
    "exits" (html-array
             (mapcar #'compile-generated-room-exit
                     (dunge:generated-room-exits room)))))
@@ -251,9 +249,15 @@ body {
    "body" (compile-node-list (dunge:entities room))))
 
 (defmethod compile-html-node ((paragraph dunge:p))
-  (html-object
-   "type" "p"
-   "text" (dunge:text paragraph)))
+  (let ((text (dunge:text paragraph)))
+    (html-object
+     "type" "p"
+     "text" (if (stringp text)
+                text
+                (compile-html-expression text)))))
+
+(defmethod compile-html-node ((exits dunge::generated-exits))
+  (html-object "type" "generated-exits"))
 
 (defmethod compile-html-node ((entity dunge:entity))
   (html-object
@@ -459,33 +463,6 @@ body {
   (declare (ignore effect))
   (html-object "type" "quit"))
 
-(defun compile-damage-value (damage)
-  "Compile encounter DAMAGE: an integer, or dice parsed now for the browser."
-  (if (stringp damage)
-      (let ((spec (dunge::parse-dice-expression damage)))
-        (html-object
-         "dice" (getf spec :expression)
-         "count" (compile-runtime-number (getf spec :count))
-         "sides" (compile-runtime-number (getf spec :sides))
-         "modifier" (compile-runtime-number (getf spec :modifier))))
-      (compile-runtime-number damage)))
-
-(defun compile-html-encounter (encounter)
-  (html-object
-   "room" (dunge:encounter-room-name encounter)
-   "enemy" (compile-keyword-value (dunge:encounter-enemy-id encounter))
-   "reaction" (and (dunge:encounter-reaction encounter)
-                   (compile-keyword-value
-                    (dunge:encounter-reaction encounter)))
-   "hp" (dunge:encounter-hp encounter)
-   "maxHp" (dunge:encounter-max-hp encounter)
-   "str" (dunge:encounter-str encounter)
-   "maxStr" (dunge:encounter-max-str encounter)
-   "armor" (dunge:encounter-armor encounter)
-   "damage" (compile-damage-value (dunge:encounter-damage encounter))
-   "round" (dunge:encounter-round encounter)
-   "status" (compile-keyword-value (dunge:encounter-status encounter))))
-
 (defun capture-compile-time-state (game)
   "Capture the play state that VALIDATE-GAME resets while preparing GAME."
   (list :globals (dunge::sorted-state-alist (dunge:game-global-state game))
@@ -506,17 +483,9 @@ body {
         (dunge:game-roll-log game) (getf state :roll-log))
   game)
 
-(defun restore-compile-time-runtime-instances (game encounters)
-  "Restore runtime instances that VALIDATE-GAME clears while preparing GAME."
-  (dunge::clear-encounter-states game)
-  (dolist (encounter encounters)
-    (dunge:register-encounter-state game encounter))
-  game)
-
 (defun compile-game-data (game)
   "Compile GAME to the browser data model used by the generated Parenscript."
   (let ((generated-rooms (dunge:game-generated-rooms game))
-        (encounters (dunge:game-encounter-states game))
         ;; Validation resets the generator to the seed, but the console plays
         ;; on from wherever building the game left it (character creation and
         ;; generated rooms roll dice). Until the build gets its own stream,
@@ -539,15 +508,12 @@ body {
             ;; reduced state is always a safe integer for JSON.
             "rngState" (mod random-state dunge::+dunge-rng-modulus+)
             "player" player
-            "encounters" (html-array
-                          (mapcar #'compile-html-encounter encounters))
             "generatedRooms" (html-array
                               (mapcar #'compile-html-node generated-rooms))
             "state" state
             "rooms" (html-array (mapcar #'compile-html-node
                                         (dunge:game-rooms game)))))
       ;; Validation resets play state; leave GAME as we found it.
-      (restore-compile-time-runtime-instances game encounters)
       (restore-compile-time-state game saved-state))))
 
 (defun json-escape-string (string stream)
@@ -640,7 +606,6 @@ same game data and the same runtime, since either can change the save shape."
     (defvar *debug* nil)
     (defvar *game* nil)
     (defvar *state* nil)
-    (defvar *encounters* (array))
     (defvar *generated-rooms* (array))
     (defvar *current-location* nil)
     (defvar *return-stack* (array))
@@ -880,7 +845,6 @@ same game data and the same runtime, since either can change the save shape."
       (setf *state* (create :globals (initial-state (@ *game* state))
                             :player (initial-state (@ *game* player))
                             :taken-choices (create)))
-      (setf *encounters* (copy-json-value (@ *game* encounters)))
       (setf *rng-state* (@ *game* rng-state))
       (setf *roll-log* (array))
       (setf *current-location* (room-by-id (@ *game* start))))
@@ -940,7 +904,6 @@ same game data and the same runtime, since either can change the save shape."
               "currentRoom" (fallback-current-room-id)
               "returnStack" (capture-return-stack)
               "player" (copy-object (@ *state* player))
-              "encounters" (copy-json-value *encounters*)
               "messages" (copy-array *visible-messages*)
               "rngState" *rng-state*
               "rollLog" (copy-json-value *roll-log*)
@@ -976,8 +939,6 @@ same game data and the same runtime, since either can change the save shape."
             (copy-object (or (getprop state "takenChoices") (create))))
       (setf (@ *state* player)
             (copy-object (or (getprop state "player") (create))))
-      (unless (eql (getprop state "encounters") undefined)
-        (setf *encounters* (copy-json-value (getprop state "encounters"))))
       (rebuild-room-index)
       (restore-local-state (getprop state "locals"))
       (restore-return-stack (getprop state "returnStack"))
@@ -1211,97 +1172,6 @@ same game data and the same runtime, since either can change the save shape."
         (t
          (runtime-error "Cannot toggle non-toggleable state value."))))
 
-    (defun encounter-status-name (encounter)
-      (keyword-name (@ encounter status)))
-
-    (defun encounter-active-p (encounter)
-      (and encounter
-           (eql (encounter-status-name encounter) "active")))
-
-    (defun encounter-for-room (room)
-      (let ((match nil))
-        (when room
-          (dolist (encounter (node-list *encounters*))
-            (when (and (not match)
-                       (eql (@ encounter room) (@ room id)))
-              (setf match encounter))))
-        match))
-
-    (defun roll-damage (damage label)
-      "Roll DAMAGE, an integer or compiled dice, as the console's
-ROLL-DICE-VALUE does: integers use no randomness."
-      (if (eql (typeof damage) "number")
-          damage
-          (evaluate-roll (create "dice" (@ damage dice)
-                                 "count" (@ damage count)
-                                 "sides" (@ damage sides)
-                                 "modifier" (@ damage modifier)
-                                 "label" label))))
-
-    (defun set-encounter-status (encounter status-name)
-      (setf (@ encounter status)
-            (create :type "keyword" :name status-name)))
-
-    (defvar *player-attack-dice*
-      (create "dice" "1d6" "count" 1 "sides" 6 "modifier" 0))
-
-    (defun attack-encounter (encounter)
-      (setf (@ encounter round) (+ (or (@ encounter round) 0) 1))
-      (let ((player-damage
-              (max 0 (- (roll-damage *player-attack-dice* "player-damage")
-                        (or (@ encounter armor) 0)))))
-        (setf (@ encounter hp) (max 0 (- (@ encounter hp) player-damage)))
-        (if (<= (@ encounter hp) 0)
-            (progn
-              (set-encounter-status encounter "defeated")
-              (+ "You strike for " player-damage " damage. "
-                 (generated-room-display-word (@ encounter enemy))
-                 " falls."))
-            (let ((enemy-damage
-                    (max 0 (- (roll-damage (@ encounter damage) "enemy-damage")
-                              (or (getprop (@ *state* player) "armor") 0)))))
-              (setf (getprop (@ *state* player) "hp")
-                    (max 0 (- (getprop (@ *state* player) "hp") enemy-damage)))
-              (when (<= (getprop (@ *state* player) "hp") 0)
-                (set-encounter-status encounter "player-defeated"))
-              (if (eql (encounter-status-name encounter) "player-defeated")
-                  (+ "You strike for " player-damage
-                     " damage, but take " enemy-damage
-                     " damage and fall.")
-                  (+ "You strike for " player-damage
-                     " damage. "
-                     (generated-room-display-word (@ encounter enemy))
-                     " hits back for " enemy-damage
-                     " damage."))))))
-
-    (defun flee-encounter (encounter)
-      (setf (@ encounter round) (+ (or (@ encounter round) 0) 1))
-      (set-encounter-status encounter "escaped")
-      (+ "You escape from "
-         (generated-room-display-word (@ encounter enemy))
-         "."))
-
-    (defun execute-encounter-action (effect)
-      (let* ((room (room-by-id (@ effect room)))
-             (encounter (encounter-for-room room)))
-        (unless (encounter-active-p encounter)
-          (runtime-error "No active encounter is available."))
-        (push-array
-         *messages*
-         (cond
-           ((eql (@ effect action) "attack")
-            (attack-encounter encounter))
-           ((eql (@ effect action) "flee")
-            (flee-encounter encounter))
-           (t
-            (runtime-error (+ "Unknown encounter action "
-                              (@ effect action)
-                              ".")))))
-        ;; A defeated player's run is over.
-        (if (eql (encounter-status-name encounter) "player-defeated")
-            (create :type "quit")
-            nil)))
-
     (defun execute-effect (effect context)
       (cond
         ((eql (@ effect type) "sequence")
@@ -1369,8 +1239,6 @@ ROLL-DICE-VALUE does: integers use no randomness."
         ((eql (@ effect type) "enter")
          (create :type "enter"
                  :target (@ effect target)))
-        ((eql (@ effect type) "encounter-action")
-         (execute-encounter-action effect))
         ((eql (@ effect type) "back")
          (create :type "back"))
         ((eql (@ effect type) "quit")
@@ -1379,7 +1247,11 @@ ROLL-DICE-VALUE does: integers use no randomness."
     (defun describe-node (node context parent)
       (cond
         ((eql (@ node type) "p")
-         (append-text parent "p" nil (@ node text)))
+         (append-text parent "p" nil
+                      (if (eql (typeof (@ node text)) "string")
+                          (@ node text)
+                          (format-value
+                           (evaluate-expression (@ node text) context)))))
         ((eql (@ node type) "entity")
          (describe-nodes (@ node body)
                          (create :scene (@ context scene)
@@ -1438,6 +1310,8 @@ ROLL-DICE-VALUE does: integers use no randomness."
               (@ node else))
           context
           choices))
+        ((eql (@ node type) "generated-exits")
+         (generated-room-exit-choices (@ context scene) choices))
         ((eql (@ node type) "action")
          (push-array choices
                      (create :label (@ node label)
@@ -1495,46 +1369,6 @@ ROLL-DICE-VALUE does: integers use no randomness."
                                                :value (@ exit target))))))
       choices)
 
-    (defun generated-room-encounter-line (encounter)
-      (+ "Encounter: "
-         (generated-room-display-word (@ encounter enemy))
-         " ("
-         (chain (display-value (@ encounter status)) (to-lower-case))
-         ", HP "
-         (@ encounter hp)
-         "/"
-         (@ encounter max-hp)
-         ")."))
-
-    (defun generated-room-encounter-choices (room encounter choices)
-      (when (encounter-active-p encounter)
-        (push-array
-         choices
-         (create :label (+ "Attack "
-                           (generated-room-display-lower (@ encounter enemy)))
-                 :target (create :type "encounter-action"
-                                 :room (@ room id)
-                                 :action "attack")))
-        (collect-choices-from (@ room encounter-options)
-                              (current-context)
-                              choices)
-        (push-array
-         choices
-         (create :label "Flee"
-                 :target (create :type "encounter-action"
-                                 :room (@ room id)
-                                 :action "flee"))))
-      choices)
-
-    (defun collect-generated-room-choices (room encounter)
-      (let ((choices (array)))
-        (if (encounter-active-p encounter)
-            (generated-room-encounter-choices room encounter choices)
-            (progn
-              (collect-choices-from (@ room body) (current-context) choices)
-              (generated-room-exit-choices room choices)))
-        choices))
-
     (defun render-location ()
       (let ((title (by-id "dunge-scene-title"))
             (body (by-id "dunge-scene-body"))
@@ -1544,8 +1378,6 @@ ROLL-DICE-VALUE does: integers use no randomness."
         (cond
           ((eql (@ *current-location* type) "container-view")
            (render-container-view title body choices-element))
-          ((eql (@ *current-location* type) "generated-room")
-           (render-generated-room title body choices-element))
           (t
            (render-room title body choices-element)))
         (update-undo-control)))
@@ -1567,21 +1399,6 @@ ROLL-DICE-VALUE does: integers use no randomness."
         (describe-nodes (@ *current-location* body) context body)
         (collect-choices-from (@ *current-location* body) context choices)
         (render-choices (with-continue-choice choices) choices-element)))
-
-    (defun render-generated-room (title body choices-element)
-      (let* ((room *current-location*)
-             (encounter (encounter-for-room room)))
-        (setf (@ title text-content) (@ room title))
-        (render-messages body)
-        (describe-nodes (@ room body) (current-context) body)
-        (when encounter
-          (append-text body
-                       "p"
-                       nil
-                       (generated-room-encounter-line encounter)))
-        (render-choices (with-continue-choice
-                         (collect-generated-room-choices room encounter))
-                        choices-element)))
 
     (defun render-container-view (title body choices-element)
       (let* ((container (@ *current-location* container))

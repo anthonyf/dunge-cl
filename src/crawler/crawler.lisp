@@ -286,34 +286,6 @@
           default
           value))))
 
-(defun ensure-room-encounter-state (game room result
-                                    &key hp max-hp str max-str armor damage)
-  (unless (table-result-encounter-p result)
-    (error "Encounter state requires an :ENCOUNTER table result; got ~S."
-           result))
-  (or (find-encounter-state game room)
-      (let* ((room-name (encounter-room-name-string room))
-             (enemy-id (second result))
-             (reaction (table-result-option result :reaction nil))
-             (hp (or hp (table-result-option result :hp 3)))
-             (max-hp (or max-hp (table-result-option result :max-hp hp)))
-             (str (or str (table-result-option result :str 10)))
-             (max-str (or max-str (table-result-option result :max-str str)))
-             (armor (or armor (table-result-option result :armor 0)))
-             (damage (or damage (table-result-option result :damage 1))))
-        (register-encounter-state
-         game
-         (make-encounter-state :room room-name
-                               :enemy-id enemy-id
-                               :reaction reaction
-                               :hp hp
-                               :max-hp max-hp
-                               :str str
-                               :max-str max-str
-                               :armor armor
-                               :damage damage
-                               :source result)))))
-
 ;;; Player state
 ;;;
 ;;; The player is ordinary :PLAYER state. Each inventory item or supply is a
@@ -509,24 +481,113 @@ distinct strings, even ones differing only in case, stay distinct."
   (intern (string-upcase (format nil "~A-loot-~D" (id-part room-id) index))
           :keyword))
 
+(defun encounter-spec (result &key hp max-hp armor damage)
+  "Describe the encounter an :ENCOUNTER table RESULT starts. Keyword
+arguments override the result's own options."
+  (unless (table-result-encounter-p result)
+    (error "An encounter needs an :ENCOUNTER table result; got ~S." result))
+  (let* ((hp (or hp (table-result-option result :hp 3)))
+         (max-hp (or max-hp (table-result-option result :max-hp hp))))
+    (list :enemy (second result)
+          :hp (non-negative-integer-value hp "Encounter HP")
+          :max-hp (non-negative-integer-value max-hp "Encounter max HP")
+          :armor (non-negative-integer-value
+                  (or armor (table-result-option result :armor 0))
+                  "Encounter armor")
+          :damage (or damage (table-result-option result :damage 1)))))
+
+(defun damage-expression (damage label)
+  "DAMAGE, an integer or dice, as an expression. Integers roll nothing."
+  (etypecase damage
+    (integer damage)
+    (string `(:roll ,damage :label ,label))))
+
+(defun encounter-entity-form (spec &key active-options inactive-options)
+  "An entity holding the encounter SPEC describes. While it is active it
+offers Attack, ACTIVE-OPTIONS, and Flee; afterwards, INACTIVE-OPTIONS."
+  (destructuring-bind (&key enemy hp max-hp armor damage) spec
+    (let ((name (escape-braces (generated-room-display-word enemy))))
+      `(:entity
+        :name ,name
+        :id "encounter"
+        :state ((:status :active) (:hp ,hp) (:max-hp ,max-hp) (:armor ,armor)
+                (:dealt 0) (:taken 0) (:round 0))
+        :body
+        ((:p ,(format nil "Encounter: ~A ({self:status}, HP {self:hp}/{self:max-hp})."
+                      name))
+         (:branch
+          :when (:eq (:self :status) :active)
+          :then
+          ((:action
+            :label ,(format nil "Attack ~A"
+                            (escape-braces (generated-room-display-lower enemy)))
+            :do
+            ((:inc :target (:self :round))
+             (:set :target (:self :dealt)
+                   :value (:max 0 (:sub (:roll "1d6" :label :player-damage)
+                                        (:self :armor))))
+             (:set :target (:self :hp)
+                   :value (:max 0 (:sub (:self :hp) (:self :dealt))))
+             (:if
+              :when (:lte (:self :hp) 0)
+              :then
+              ((:set :target (:self :status) :value :defeated)
+               (:say ,(format nil "You strike for {self:dealt} damage. ~A falls."
+                              name)))
+              :else
+              ((:set :target (:self :taken)
+                     :value (:max 0 (:sub ,(damage-expression damage :enemy-damage)
+                                          (:player :armor))))
+               (:set :target (:player :hp)
+                     :value (:max 0 (:sub (:player :hp) (:self :taken))))
+               (:if
+                :when (:lte (:player :hp) 0)
+                :then
+                ((:set :target (:self :status) :value :player-defeated)
+                 (:say "You strike for {self:dealt} damage, but take {self:taken} damage and fall.")
+                 (:quit))
+                :else
+                ((:say ,(format nil "You strike for {self:dealt} damage. ~A hits back for {self:taken} damage."
+                                name))))))))
+           ,@active-options
+           (:action
+            :label "Flee"
+            :do
+            ((:inc :target (:self :round))
+             (:set :target (:self :status) :value :escaped)
+             (:say ,(format nil "You escape from ~A." name)))))
+          :else ,inactive-options))))))
+
 (defun create-generated-room (game &key id title description zone (depth 0)
-                                     results exits options encounter-options)
+                                     results exits options encounter
+                                     encounter-options)
   "Create and register a generated room built from resolved table RESULTS.
-Its body describes it and offers a once-only choice for each loot result,
-followed by OPTIONS, a list of choice source forms. ENCOUNTER-OPTIONS are
-offered between Attack and Flee while the room's encounter is active."
+Its body describes the room and offers a once-only choice for each loot
+result, then OPTIONS (choice source forms), then its exits. ENCOUNTER, an
+ENCOUNTER-SPEC, adds an encounter that must end before any of those are
+offered; while it is active it offers Attack, ENCOUNTER-OPTIONS, and Flee."
   (let* ((room-id (or id (allocate-generated-room-id game zone)))
+         (choices (append
+                   (loop for result in results
+                         for index from 0
+                         when (table-result-loot-p result)
+                           collect (loot-choice-form
+                                    (loot-choice-id room-id index)
+                                    result))
+                   options
+                   (list '(:generated-exits))))
          (body (append
                 (when description
-                  (list `(:p ,description)))
-                (mapcar (lambda (result) `(:p ,(result-line result)))
+                  (list `(:p ,(escape-braces description))))
+                (mapcar (lambda (result)
+                          `(:p ,(escape-braces (result-line result))))
                         results)
-                (loop for result in results
-                      for index from 0
-                      when (table-result-loot-p result)
-                        collect (loot-choice-form (loot-choice-id room-id index)
-                                                  result))
-                options)))
+                (if encounter
+                    (list (encounter-entity-form
+                           encounter
+                           :active-options encounter-options
+                           :inactive-options choices))
+                    choices))))
     (register-generated-room
      game
      (make-generated-room :id room-id
@@ -536,6 +597,4 @@ offered between Attack and Flee while the room's encounter is active."
                           :depth depth
                           :results results
                           :exits exits
-                          :body (mapcar #'compile-dunge-source body)
-                          :encounter-options (mapcar #'compile-dunge-source
-                                                     encounter-options)))))
+                          :body (mapcar #'compile-dunge-source body)))))
