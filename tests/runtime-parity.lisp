@@ -521,3 +521,25 @@ A die with 2^31 sides rolls one more than the state it draws."
     (load-parity-dice-damage-game)
   ;; Enter, then attack until the fight ends, eating when offered.
   '(1 1 1 2 1 1 1 1 1))
+
+(def-parity-test parity-generated-room-results-of-any-shape ()
+    (let ((game (load-dunge-string
+                 "(:game
+                   :start \"hall\"
+                   :rooms
+                   ((:room
+                     :id \"hall\"
+                     :title \"Hall\"
+                     :body ((:choice \"Look around\" (:go \"generated:odd:1\"))))))")))
+      (create-generated-room game
+                             :id "generated:odd:1"
+                             :zone :odd
+                             :title "Odd Room"
+                             :results '(:nothing
+                                        "Plain words"
+                                        42
+                                        (:room-detail :old-bones)
+                                        (:omen "a strange light"))
+                             :exits '((:back . "hall")))
+      game)
+  '(1 1))

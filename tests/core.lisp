@@ -2641,6 +2641,16 @@
         (when (probe-file directory)
           (uiop:delete-directory-tree directory :validate t))))))
 
+(test html-compiler-leaves-the-game-generator-alone
+  (let* ((game (dunge-examples:load-instanced-adaptation-example))
+         (random-state (game-random-state game))
+         (roll-log (game-roll-log game))
+         (first-script (dunge-html:compile-game-script game)))
+    (is (string= first-script (dunge-html:compile-game-script game)))
+    (is (= random-state (game-random-state game)))
+    (is (equal roll-log (game-roll-log game)))
+    (is (= 2 (gethash :rooms-generated (game-global-state game))))))
+
 (test html-compiler-output-is-repeatable
   ;; site/check.sh checks reproducibility across fresh builds; this catches
   ;; nondeterminism within one image, such as hash-table ordering.

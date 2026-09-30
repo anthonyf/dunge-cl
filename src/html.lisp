@@ -519,6 +519,27 @@ body {
    "round" (dunge:encounter-round encounter)
    "status" (compile-keyword-value (dunge:encounter-status encounter))))
 
+(defun capture-compile-time-state (game)
+  "Capture the play state that VALIDATE-GAME resets while preparing GAME."
+  (list :globals (dunge::sorted-state-alist (dunge:game-global-state game))
+        :taken-choices (dunge::sorted-hash-keys (dunge:game-taken-choices game))
+        :locals (dunge::collect-runtime-local-state game)
+        :tables (dunge::collect-runtime-table-state game)
+        :player (dunge::player-state-plist (dunge:game-player game))
+        :random-state (dunge:game-random-state game)
+        :roll-log (dunge:game-roll-log game)))
+
+(defun restore-compile-time-state (game state)
+  (dunge::restore-runtime-global-state game (getf state :globals))
+  (dunge::restore-runtime-taken-choices game (getf state :taken-choices))
+  (dunge::restore-runtime-local-state game (getf state :locals))
+  (dunge::restore-runtime-table-state game (getf state :tables))
+  (when (dunge:game-player game)
+    (dunge::apply-player-state (dunge:game-player game) (getf state :player)))
+  (setf (dunge:game-random-state game) (getf state :random-state)
+        (dunge:game-roll-log game) (getf state :roll-log))
+  game)
+
 (defun restore-compile-time-runtime-instances (game generated-rooms encounters)
   "Restore runtime instances that VALIDATE-GAME clears while preparing GAME."
   (dunge::clear-generated-rooms game)
@@ -537,8 +558,8 @@ body {
         ;; on from wherever building the game left it (character creation and
         ;; generated rooms roll dice). Until the build gets its own stream,
         ;; start the browser from that same state.
-        (rng-state (mod (dunge:game-random-state game)
-                        dunge::+dunge-rng-modulus+))
+        (random-state (dunge:game-random-state game))
+        (saved-state (capture-compile-time-state game))
         (state (compile-state-declarations
                 (dunge:game-global-state-declarations game)
                 (dunge:game-global-state game))))
@@ -550,7 +571,7 @@ body {
             "start" (dunge:game-start game)
             ;; The next state depends only on the state modulo 2^31, and the
             ;; reduced state is always a safe integer for JSON.
-            "rngState" rng-state
+            "rngState" (mod random-state dunge::+dunge-rng-modulus+)
             "player" (compile-html-player (dunge:game-player game))
             "encounters" (html-array
                           (mapcar #'compile-html-encounter encounters))
@@ -559,7 +580,9 @@ body {
             "state" state
             "rooms" (html-array (mapcar #'compile-html-node
                                         (dunge:game-rooms game)))))
-      (restore-compile-time-runtime-instances game generated-rooms encounters))))
+      ;; Validation resets play state; leave GAME as we found it.
+      (restore-compile-time-runtime-instances game generated-rooms encounters)
+      (restore-compile-time-state game saved-state))))
 
 (defun json-escape-string (string stream)
   (write-char #\" stream)
@@ -864,14 +887,19 @@ same game data and the same runtime, since either can change the save shape."
       room)
 
     (defun generated-room-display-word (value)
-      (display-value value))
+      (if (keyword-p value)
+          (titleize-name (@ value name))
+          (format-value value)))
 
     (defun generated-room-display-lower (value)
       (chain (generated-room-display-word value) (to-lower-case)))
 
     (defun generated-room-result-line (result)
-      (let ((kind (result-kind result)))
+      (let ((kind (and (chain -array (is-array result))
+                       (result-kind result))))
         (cond
+          ((not (chain -array (is-array result)))
+           (+ (generated-room-display-word result) "."))
           ((eql kind "gold")
            (+ "Treasure: " (display-value (aref result 1)) " gold."))
           ((or (eql kind "item")
