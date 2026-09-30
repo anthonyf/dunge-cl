@@ -195,13 +195,17 @@ The AST is a semantic layer, not a second authoring language. Runtime behavior
 is implemented with CLOS generic functions over AST classes:
 
 ```lisp
-(defgeneric evaluate (node &optional context))
-(defgeneric describe-entity (node &optional context))
-(defgeneric collect-choices (node &optional context))
-(defgeneric execute-effect (node &optional context))
-(defgeneric evaluate-condition (node &optional context))
+(defgeneric describe-entity (node context))
+(defgeneric collect-choices (node context))
+(defgeneric execute-effect (node context))
+(defgeneric evaluate-expression (node context))
+(defgeneric evaluate-condition (node context))
 (defgeneric validate-node (node game context))
 ```
+
+Each takes the runtime context it runs in. `evaluate` is the entry point for
+playing a whole game, `(evaluate game)`, and is the only one whose context is
+optional.
 
 Structural passes that need to visit authored children use `node-children` and
 `walk-node-tree`. Context-sensitive passes, such as action-owner assignment and
