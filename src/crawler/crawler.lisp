@@ -819,7 +819,7 @@ and sets initial values, which the returned game starts with."
                      (cons (first source)
                            (source-plist-set (rest source) :seed seed))
                      source))
-         (scratch (let ((dunge::*validate-room-targets* nil))
+         (scratch (let ((*validate-room-targets* nil))
                     (compile-source source base-path)))
          (world (make-world scratch))
          (build (%make-build scratch world)))

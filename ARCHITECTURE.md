@@ -579,9 +579,10 @@ rather than silently accepted as validated.
 ## HTML Compiler
 
 The `dunge-html` package is the browser backend for the same CLOS AST used by
-the console runtime. It lives in the main `dunge` system but has its own package
-boundary so the compiler-specific API stays isolated from the source loader and
-console evaluator.
+the console runtime. It lives in its own `dunge/html` system, so the core
+`dunge` system needs neither Parenscript nor CL-WHO. It reads games only
+through the `dunge.ast` package, which re-exports the AST classes and readers a
+backend needs; a test keeps `dunge::` out of the backend.
 
 The backend emits a single self-contained `index.html` file. Lisp generates the
 static document shell, including the app mount points for scene title, scene

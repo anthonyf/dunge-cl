@@ -20,8 +20,13 @@ save/load pressure on the engine.
 
 ## Repository Layout
 
-- [src/](src/) contains the core Dunge model, source loader, runtime, and HTML
-  compiler.
+- [src/](src/) contains Dunge itself, as separate ASDF systems:
+  - `dunge`: the source loader (`source`), AST (`ast`), validator
+    (`validate`), play state (`world`), dice and tables (`dice`), evaluator
+    (`eval`), saves (`save`), and console runtime (`console`), plus the
+    `dunge.ast` protocol package for backends;
+  - `dunge/html`: the browser backend (`html-package`, `html`);
+  - `dunge/crawler`: build-time crawler procedures (`src/crawler/`).
 - [examples/](examples/) contains small Dunge examples.
 - [styles/](styles/) contains the playable Styles adaptation.
 - [tests/](tests/) and [styles/tests/](styles/tests/) contain the FiveAM test

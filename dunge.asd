@@ -1,18 +1,31 @@
 (require 'asdf)
 
 (asdf:defsystem "dunge"
-  :depends-on (:trivia
-               :parenscript
-               :cl-who)
+  :depends-on (:trivia)
   :serial t
   :description "A dungeon generation system"
   :components ((:module "src"
                 :components ((:file "package")
-                             (:file "html-package")
                              (:file "source")
-                             (:file "model")
+                             (:file "ast")
+                             (:file "validate")
                              (:file "world")
                              (:file "runtime")
+                             (:file "dice")
+                             (:file "eval")
+                             (:file "save")
+                             (:file "console")
+                             (:file "protocol")))))
+
+(asdf:defsystem "dunge/html"
+  :depends-on ("dunge"
+               :parenscript
+               :cl-who)
+  :serial t
+  :description "Compile Dunge games to standalone HTML with a browser runtime"
+  :components ((:module "html"
+                :pathname "src"
+                :components ((:file "html-package")
                              (:file "html")))))
 
 (asdf:defsystem "dunge/crawler"
@@ -25,7 +38,7 @@
                              (:file "crawler")))))
 
 (asdf:defsystem "dunge/examples"
-  :depends-on ("dunge" "dunge/crawler")
+  :depends-on ("dunge" "dunge/crawler" "dunge/html")
   :serial t
   :description "Examples for Dunge"
   :components ((:module "examples"
@@ -54,6 +67,7 @@
 
 (asdf:defsystem "dunge/pages"
   :depends-on ("dunge"
+               "dunge/html"
                "dunge/examples"
                "dunge-styles")
   :serial t
@@ -65,6 +79,7 @@
 
 (asdf:defsystem "dunge/parity"
   :depends-on ("dunge"
+               "dunge/html"
                :fiveam)
   :serial t
   :description "Console/browser runtime parity harness for Dunge tests"

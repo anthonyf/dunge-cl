@@ -143,9 +143,9 @@ body {
 (defun compile-runtime-number (value)
   (unless (integerp value)
     (error "HTML compiler only supports integer numeric values; got ~S." value))
-  (unless (dunge::safe-integer-p value)
+  (unless (dunge.ast:safe-integer-p value)
     (error "HTML compiler only supports integers within plus or minus ~D; got ~D."
-           dunge::+max-safe-integer+
+           dunge.ast:+max-safe-integer+
            value))
   value)
 
@@ -208,248 +208,248 @@ body {
 (defun compile-choice-data (choice)
   (html-object
    "type" "choice"
-   "label" (dunge:label choice)
-   "target" (compile-html-effect (dunge:target choice))
-   "id" (and (dunge:choice-id choice)
-             (keyword-name (dunge:choice-id choice)))
-   "once" (not (null (dunge:choice-once-p choice)))
-   "condition" (and (dunge:choice-condition choice)
-                    (compile-html-condition (dunge:choice-condition choice)))))
+   "label" (dunge.ast:label choice)
+   "target" (compile-html-effect (dunge.ast:target choice))
+   "id" (and (dunge.ast:choice-id choice)
+             (keyword-name (dunge.ast:choice-id choice)))
+   "once" (not (null (dunge.ast:choice-once-p choice)))
+   "condition" (and (dunge.ast:choice-condition choice)
+                    (compile-html-condition (dunge.ast:choice-condition choice)))))
 
-(defmethod compile-html-node ((room dunge:room))
+(defmethod compile-html-node ((room dunge.ast:room))
   (html-object
    "type" "room"
-   "id" (dunge:name room)
-   "title" (or (dunge:room-title room) (dunge:name room))
-   "body" (compile-node-list (dunge:entities room))))
+   "id" (dunge.ast:name room)
+   "title" (or (dunge.ast:room-title room) (dunge.ast:name room))
+   "body" (compile-node-list (dunge.ast:entities room))))
 
-(defmethod compile-html-node ((paragraph dunge:p))
-  (let ((text (dunge:text paragraph)))
+(defmethod compile-html-node ((paragraph dunge.ast:p))
+  (let ((text (dunge.ast:text paragraph)))
     (html-object
      "type" "p"
      "text" (if (stringp text)
                 text
                 (compile-html-expression text)))))
 
-(defmethod compile-html-node ((entity dunge:entity))
+(defmethod compile-html-node ((entity dunge.ast:entity))
   (html-object
    "type" "entity"
-   "id" (dunge::entity-id entity)
-   "name" (dunge:name entity)
-   "state" (compile-state-declarations (dunge::state-declarations entity))
-   "refs" (compile-ref-list (dunge::entity-refs entity))
-   "body" (compile-node-list (dunge:entities entity))))
+   "id" (dunge.ast:entity-id entity)
+   "name" (dunge.ast:name entity)
+   "state" (compile-state-declarations (dunge.ast:state-declarations entity))
+   "refs" (compile-ref-list (dunge.ast:entity-refs entity))
+   "body" (compile-node-list (dunge.ast:entities entity))))
 
-(defmethod compile-html-node ((branch dunge:branch))
+(defmethod compile-html-node ((branch dunge.ast:branch))
   (html-object
    "type" "branch"
-   "condition" (compile-html-condition (dunge::branch-condition branch))
-   "then" (compile-node-list (dunge::branch-then-entities branch))
-   "else" (compile-node-list (dunge::branch-else-entities branch))))
+   "condition" (compile-html-condition (dunge.ast:branch-condition branch))
+   "then" (compile-node-list (dunge.ast:branch-then-entities branch))
+   "else" (compile-node-list (dunge.ast:branch-else-entities branch))))
 
-(defmethod compile-html-node ((choices dunge:choices))
+(defmethod compile-html-node ((choices dunge.ast:choices))
   (html-object
    "type" "choices"
    "options" (html-array (mapcar #'compile-choice-data
-                                 (dunge:options choices)))))
+                                 (dunge.ast:options choices)))))
 
-(defmethod compile-html-node ((choice dunge:choice))
+(defmethod compile-html-node ((choice dunge.ast:choice))
   (compile-choice-data choice))
 
-(defmethod compile-html-node ((action dunge:action))
+(defmethod compile-html-node ((action dunge.ast:action))
   (html-object
    "type" "action"
-   "label" (dunge:label action)
-   "effects" (if (dunge::effects action)
-                 (compile-html-effect (dunge::effects action))
+   "label" (dunge.ast:label action)
+   "effects" (if (dunge.ast:effects action)
+                 (compile-html-effect (dunge.ast:effects action))
                  (compile-empty-sequence))))
 
-(defmethod compile-html-node ((item dunge:item))
+(defmethod compile-html-node ((item dunge.ast:item))
   (html-object
    "type" "item"
-   "name" (dunge:name item)
-   "description" (dunge:description item)))
+   "name" (dunge.ast:name item)
+   "description" (dunge.ast:description item)))
 
-(defmethod compile-html-node ((container dunge:container))
+(defmethod compile-html-node ((container dunge.ast:container))
   (html-object
    "type" "container"
-   "name" (dunge:name container)
-   "description" (dunge:description container)
-   "openLabel" (dunge:open-choice container)
-   "closeLabel" (dunge:close-choice container)
-   "contents" (compile-node-list (dunge:contents container))))
+   "name" (dunge.ast:name container)
+   "description" (dunge.ast:description container)
+   "openLabel" (dunge.ast:open-choice container)
+   "closeLabel" (dunge.ast:close-choice container)
+   "contents" (compile-node-list (dunge.ast:contents container))))
 
-(defmethod compile-html-node ((placement dunge::placement))
+(defmethod compile-html-node ((placement dunge.ast:placement))
   (html-object
    "type" "placement"
-   "description" (dunge:placement-description placement)
-   "label" (dunge:interaction-label placement)
-   "target" (and (dunge:interaction-target placement)
-                 (compile-html-effect (dunge:interaction-target placement)))))
+   "description" (dunge.ast:placement-description placement)
+   "label" (dunge.ast:interaction-label placement)
+   "target" (and (dunge.ast:interaction-target placement)
+                 (compile-html-effect (dunge.ast:interaction-target placement)))))
 
-(defmethod compile-html-node ((view dunge:container-view))
+(defmethod compile-html-node ((view dunge.ast:container-view))
   (html-object
    "type" "container-view"
-   "container" (compile-html-node (dunge:viewed-container view))))
+   "container" (compile-html-node (dunge.ast:viewed-container view))))
 
 (defmethod compile-html-expression ((expression t))
   (html-object
    "type" "literal"
    "value" (compile-runtime-value expression)))
 
-(defmethod compile-html-expression ((reference dunge:state-ref))
+(defmethod compile-html-expression ((reference dunge.ast:state-ref))
   (html-object
    "type" "state"
-   "scope" (keyword-name (dunge::state-ref-scope reference))
-   "role" (and (dunge::state-ref-role reference)
-               (keyword-name (dunge::state-ref-role reference)))
-   "key" (keyword-name (dunge::state-ref-key reference))))
+   "scope" (keyword-name (dunge.ast:state-ref-scope reference))
+   "role" (and (dunge.ast:state-ref-role reference)
+               (keyword-name (dunge.ast:state-ref-role reference)))
+   "key" (keyword-name (dunge.ast:state-ref-key reference))))
 
-(defmethod compile-html-expression ((expression dunge:arithmetic))
+(defmethod compile-html-expression ((expression dunge.ast:arithmetic))
   (html-object
    "type" "arithmetic"
-   "operator" (keyword-name (dunge::arithmetic-operator expression))
+   "operator" (keyword-name (dunge.ast:arithmetic-operator expression))
    "operands" (html-array (mapcar #'compile-html-expression
-                                  (dunge::arithmetic-operands expression)))))
+                                  (dunge.ast:arithmetic-operands expression)))))
 
-(defmethod compile-html-expression ((expression dunge:roll))
-  (let ((spec (dunge::roll-spec expression)))
+(defmethod compile-html-expression ((expression dunge.ast:roll))
+  (let ((spec (dunge.ast:roll-spec expression)))
     (html-object
      "type" "roll"
      "dice" (getf spec :expression)
      "count" (compile-runtime-number (getf spec :count))
      "sides" (compile-runtime-number (getf spec :sides))
      "modifier" (compile-runtime-number (getf spec :modifier))
-     "label" (and (dunge::roll-label expression)
-                  (keyword-name (dunge::roll-label expression))))))
+     "label" (and (dunge.ast:roll-label expression)
+                  (keyword-name (dunge.ast:roll-label expression))))))
 
-(defmethod compile-html-expression ((expression dunge:concat))
+(defmethod compile-html-expression ((expression dunge.ast:concat))
   (html-object
    "type" "concat"
    "parts" (html-array (mapcar #'compile-html-expression
-                               (dunge::concat-parts expression)))))
+                               (dunge.ast:concat-parts expression)))))
 
-(defmethod compile-html-condition ((reference dunge:state-ref))
+(defmethod compile-html-condition ((reference dunge.ast:state-ref))
   (compile-html-expression reference))
 
-(defmethod compile-html-condition ((condition dunge:condition-compare))
+(defmethod compile-html-condition ((condition dunge.ast:condition-compare))
   (html-object
    "type" "compare"
-   "operator" (keyword-name (dunge::comparison-operator condition))
-   "left" (compile-html-expression (dunge::condition-left condition))
-   "right" (compile-html-expression (dunge::condition-right condition))))
+   "operator" (keyword-name (dunge.ast:comparison-operator condition))
+   "left" (compile-html-expression (dunge.ast:condition-left condition))
+   "right" (compile-html-expression (dunge.ast:condition-right condition))))
 
-(defmethod compile-html-condition ((condition dunge:condition-eq))
+(defmethod compile-html-condition ((condition dunge.ast:condition-eq))
   (html-object
    "type" "eq"
-   "left" (compile-html-expression (dunge::condition-left condition))
-   "right" (compile-html-expression (dunge::condition-right condition))))
+   "left" (compile-html-expression (dunge.ast:condition-left condition))
+   "right" (compile-html-expression (dunge.ast:condition-right condition))))
 
-(defmethod compile-html-condition ((condition dunge:condition-not))
+(defmethod compile-html-condition ((condition dunge.ast:condition-not))
   (html-object
    "type" "not"
-   "condition" (compile-html-condition (dunge::condition-child condition))))
+   "condition" (compile-html-condition (dunge.ast:condition-child condition))))
 
-(defmethod compile-html-condition ((condition dunge:condition-and))
+(defmethod compile-html-condition ((condition dunge.ast:condition-and))
   (html-object
    "type" "and"
    "conditions" (html-array (mapcar #'compile-html-condition
-                                    (dunge::conditions condition)))))
+                                    (dunge.ast:conditions condition)))))
 
-(defmethod compile-html-condition ((condition dunge:condition-or))
+(defmethod compile-html-condition ((condition dunge.ast:condition-or))
   (html-object
    "type" "or"
    "conditions" (html-array (mapcar #'compile-html-condition
-                                    (dunge::conditions condition)))))
+                                    (dunge.ast:conditions condition)))))
 
-(defmethod compile-html-effect ((effect dunge:sequence))
+(defmethod compile-html-effect ((effect dunge.ast:sequence))
   (html-object
    "type" "sequence"
-   "effects" (compile-effect-list (dunge::sequence-effects effect))))
+   "effects" (compile-effect-list (dunge.ast:sequence-effects effect))))
 
-(defmethod compile-html-effect ((effect dunge:state-set))
+(defmethod compile-html-effect ((effect dunge.ast:state-set))
   (html-object
    "type" "set"
-   "target" (compile-html-expression (dunge::effect-target effect))
-   "value" (compile-html-expression (dunge::effect-value effect))))
+   "target" (compile-html-expression (dunge.ast:effect-target effect))
+   "value" (compile-html-expression (dunge.ast:effect-value effect))))
 
-(defmethod compile-html-effect ((effect dunge:state-clear))
+(defmethod compile-html-effect ((effect dunge.ast:state-clear))
   (html-object
    "type" "clear"
-   "target" (compile-html-expression (dunge::effect-target effect))))
+   "target" (compile-html-expression (dunge.ast:effect-target effect))))
 
-(defmethod compile-html-effect ((effect dunge:state-inc))
+(defmethod compile-html-effect ((effect dunge.ast:state-inc))
   (html-object
    "type" "inc"
-   "target" (compile-html-expression (dunge::effect-target effect))
-   "amount" (compile-html-expression (dunge::effect-amount effect))))
+   "target" (compile-html-expression (dunge.ast:effect-target effect))
+   "amount" (compile-html-expression (dunge.ast:effect-amount effect))))
 
-(defmethod compile-html-effect ((effect dunge:state-dec))
+(defmethod compile-html-effect ((effect dunge.ast:state-dec))
   (html-object
    "type" "dec"
-   "target" (compile-html-expression (dunge::effect-target effect))
-   "amount" (compile-html-expression (dunge::effect-amount effect))))
+   "target" (compile-html-expression (dunge.ast:effect-target effect))
+   "amount" (compile-html-expression (dunge.ast:effect-amount effect))))
 
-(defmethod compile-html-effect ((effect dunge:state-toggle))
+(defmethod compile-html-effect ((effect dunge.ast:state-toggle))
   (html-object
    "type" "toggle"
-   "target" (compile-html-expression (dunge::effect-target effect))))
+   "target" (compile-html-expression (dunge.ast:effect-target effect))))
 
-(defmethod compile-html-effect ((effect dunge:say))
+(defmethod compile-html-effect ((effect dunge.ast:say))
   (html-object
    "type" "say"
-   "text" (compile-html-expression (dunge::say-text effect))))
+   "text" (compile-html-expression (dunge.ast:say-text effect))))
 
-(defmethod compile-html-effect ((effect dunge:conditional-effect))
+(defmethod compile-html-effect ((effect dunge.ast:conditional-effect))
   (html-object
    "type" "if"
    "condition" (compile-html-condition
-                (dunge::conditional-effect-condition effect))
-   "then" (if (dunge::conditional-effect-then effect)
-              (compile-html-effect (dunge::conditional-effect-then effect))
+                (dunge.ast:conditional-effect-condition effect))
+   "then" (if (dunge.ast:conditional-effect-then effect)
+              (compile-html-effect (dunge.ast:conditional-effect-then effect))
               (compile-empty-sequence))
-   "else" (if (dunge::conditional-effect-else effect)
-              (compile-html-effect (dunge::conditional-effect-else effect))
+   "else" (if (dunge.ast:conditional-effect-else effect)
+              (compile-html-effect (dunge.ast:conditional-effect-else effect))
               (compile-empty-sequence))))
 
-(defmethod compile-html-effect ((effect dunge:goto))
+(defmethod compile-html-effect ((effect dunge.ast:goto))
   (html-object
    "type" "goto"
-   "room" (compile-html-expression (dunge:room-name effect))))
+   "room" (compile-html-expression (dunge.ast:room-name effect))))
 
-(defmethod compile-html-effect ((effect dunge:gosub))
+(defmethod compile-html-effect ((effect dunge.ast:gosub))
   (html-object
    "type" "gosub"
-   "room" (compile-html-expression (dunge:room-name effect))))
+   "room" (compile-html-expression (dunge.ast:room-name effect))))
 
-(defmethod compile-html-effect ((effect dunge:enter))
+(defmethod compile-html-effect ((effect dunge.ast:enter))
   (html-object
    "type" "enter"
-   "target" (compile-html-node (dunge:enter-target effect))))
+   "target" (compile-html-node (dunge.ast:enter-target effect))))
 
-(defmethod compile-html-effect ((effect dunge:back))
+(defmethod compile-html-effect ((effect dunge.ast:back))
   (declare (ignore effect))
   (html-object "type" "back"))
 
-(defmethod compile-html-effect ((effect dunge:quit))
+(defmethod compile-html-effect ((effect dunge.ast:quit))
   (declare (ignore effect))
   (html-object "type" "quit"))
 
 (defun compile-game-data (game)
   "Compile GAME's definition to the browser data model used by the generated
 Parenscript. Play state is not part of it: the browser makes its own world."
-  (dunge:validate-game game)
+  (dunge.ast:validate-game game)
   (html-object
    "version" 1
-   "start" (dunge:game-start game)
+   "start" (dunge.ast:game-start game)
    ;; Play starts from the seed. The next state depends only on the seed
    ;; modulo 2^31, which is always a safe integer for JSON.
-   "rngState" (mod (dunge:game-random-seed game) dunge::+dunge-rng-modulus+)
+   "rngState" (mod (dunge.ast:game-random-seed game) dunge.ast:+dunge-rng-modulus+)
    "player" (compile-state-declarations
-             (dunge:game-player-state-declarations game))
+             (dunge.ast:game-player-state-declarations game))
    "state" (compile-state-declarations
-            (dunge:game-global-state-declarations game))
-   "rooms" (html-array (mapcar #'compile-html-node (dunge:game-rooms game)))))
+            (dunge.ast:game-global-state-declarations game))
+   "rooms" (html-array (mapcar #'compile-html-node (dunge.ast:game-rooms game)))))
 
 (defun json-escape-string (string stream)
   (write-char #\" stream)

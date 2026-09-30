@@ -5,6 +5,7 @@
                           #:sequence)
   (:import-from #:dunge
                 #:ensure-runtime-property-list
+                #:*validate-room-targets*
                 #:+dunge-rng-modulus+
                 #:format-dunge-value
                 #:non-negative-integer-value
