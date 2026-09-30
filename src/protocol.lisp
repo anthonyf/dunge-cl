@@ -12,9 +12,9 @@ backend such as the HTML compiler never needs internal symbols.")
                 #:branch-then-entities
                 #:branch-else-entities
                 #:choice
-                #:choice-condition
-                #:choice-id
-                #:choice-once-p
+                #:availability-condition
+                #:consumable-id
+                #:consumable-once-p
                 #:choices
                 #:options
                 #:open-choice
@@ -108,9 +108,9 @@ backend such as the HTML compiler never needs internal symbols.")
    #:branch-then-entities
    #:branch-else-entities
    #:choice
-   #:choice-condition
-   #:choice-id
-   #:choice-once-p
+   #:availability-condition
+   #:consumable-id
+   #:consumable-once-p
    #:choices
    #:options
    #:open-choice

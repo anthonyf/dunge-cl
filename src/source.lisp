@@ -53,7 +53,9 @@
 
 (define-condition dunge-source-error (error)
   ((message :initarg :message :reader dunge-source-error-message)
-   (context :initarg :context :reader dunge-source-error-context))
+   (context :initarg :context :reader dunge-source-error-context)
+   ;; The error that compiling the source signalled, when this wraps one.
+   (cause :initarg :cause :initform nil :reader dunge-source-error-cause))
   (:report
    (lambda (condition stream)
      (let ((context (dunge-source-error-context condition)))
@@ -71,11 +73,16 @@
                                          :source-prefix " ")))))))
 
 (defmacro with-source-error-wrapping (&body body)
+  "Run BODY, turning any other error it signals into a DUNGE-SOURCE-ERROR that
+names the source being compiled and keeps the original as its cause."
   `(handler-bind
        ((error
           (lambda (condition)
             (unless (typep condition 'dunge-source-error)
-              (source-error "~A" condition)))))
+              (error 'dunge-source-error
+                     :message (princ-to-string condition)
+                     :context *dunge-source-context*
+                     :cause condition)))))
      ,@body))
 
 (defun source-error (format-control &rest format-arguments)
@@ -85,7 +92,7 @@
 
 (defun parse-field-options (field-name options)
   (unless (evenp (length options))
-    (source-error "Field ~S has malformed options ~S." field-name options))
+    (error "Field ~S has malformed options ~S." field-name options))
   (loop with required-p = nil
         with default = nil
         with default-p = nil
@@ -99,12 +106,12 @@
                     default-p t))
              (:to
               (unless (keywordp value)
-                (source-error "Field ~S :TO target must be a keyword; got ~S."
+                (error "Field ~S :TO target must be a keyword; got ~S."
                               field-name
                               value))
               (setf target value))
              (otherwise
-              (source-error "Unknown field option ~S on field ~S."
+              (error "Unknown field option ~S on field ~S."
                             key
                             field-name)))
         finally (return (values required-p default default-p target))))
@@ -112,9 +119,9 @@
 (defun parse-dunge-field-spec (spec)
   (destructuring-bind (name kind &rest options) spec
     (unless (keywordp name)
-      (source-error "Field names must be keywords; got ~S." name))
+      (error "Field names must be keywords; got ~S." name))
     (unless (keywordp kind)
-      (source-error "Field ~S type must be a keyword; got ~S." name kind))
+      (error "Field ~S type must be a keyword; got ~S." name kind))
     (multiple-value-bind (required-p default default-p target)
         (parse-field-options name options)
       (make-dunge-source-field
@@ -127,9 +134,9 @@
 
 (defun register-dunge-source-form (tag builder field-specs)
   (unless (keywordp tag)
-    (source-error "Source form tags must be keywords; got ~S." tag))
+    (error "Source form tags must be keywords; got ~S." tag))
   (unless (functionp builder)
-    (source-error "Source form ~S builder is not a function: ~S." tag builder))
+    (error "Source form ~S builder is not a function: ~S." tag builder))
   (setf (gethash tag *dunge-source-forms*)
         (make-dunge-source-form
          :tag tag
@@ -711,34 +718,35 @@ resolve beside it."
                (unless (and (listp lambda-list)
                             (= 1 (length lambda-list))
                             (symbolp (first lambda-list)))
-                 (source-error
+                 (error
                   "DEFINE-DUNGE-NODE method option for ~S needs one variable; got ~S."
                   name
                   lambda-list))
                `(defmethod ,generic-function ((,(first lambda-list) ,name))
                   ,@body))))
-    (let ((builder-name (intern (format nil "%MAKE-~A" name) *package*))
+    (let ((builder-name (intern (concatenate 'string "%MAKE-" (symbol-name name))
+                                (symbol-package name)))
           id
           children
           source)
       (dolist (option options)
         (unless (consp option)
-          (source-error "Malformed DEFINE-DUNGE-NODE option ~S." option))
+          (error "Malformed DEFINE-DUNGE-NODE option ~S." option))
         (case (first option)
           (:id
            (when id
-             (source-error "Duplicate :ID option for ~S." name))
+             (error "Duplicate :ID option for ~S." name))
            (setf id option))
           (:children
            (when children
-             (source-error "Duplicate :CHILDREN option for ~S." name))
+             (error "Duplicate :CHILDREN option for ~S." name))
            (setf children option))
           (:source
            (when source
-             (source-error "Duplicate :SOURCE option for ~S." name))
+             (error "Duplicate :SOURCE option for ~S." name))
            (setf source option))
           (otherwise
-           (source-error "Unknown DEFINE-DUNGE-NODE option ~S for ~S."
+           (error "Unknown DEFINE-DUNGE-NODE option ~S for ~S."
                          (first option)
                          name))))
       `(progn
@@ -756,14 +764,14 @@ resolve beside it."
                (let (fields)
                  (dolist (source-option source-options)
                    (unless (consp source-option)
-                     (source-error "Malformed :SOURCE option ~S for ~S."
+                     (error "Malformed :SOURCE option ~S for ~S."
                                    source-option
                                    name))
                    (case (first source-option)
                      (:fields
                       (setf fields (rest source-option)))
                      (otherwise
-                      (source-error "Unknown :SOURCE option ~S for ~S."
+                      (error "Unknown :SOURCE option ~S for ~S."
                                     (first source-option)
                                     name))))
                  `((register-dunge-source-form ,tag #',builder-name ',fields)))))))))

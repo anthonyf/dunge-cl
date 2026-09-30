@@ -48,19 +48,19 @@ return stack; or a ROOM or CONTAINER-VIEW instance when play fell through with n
 choices and an empty return stack. Control node identity is preserved, so callers
 can TYPEP the result against QUIT, BACK, and related classes."))
 
-(defgeneric describe-entity (thing &optional context)
+(defgeneric describe-entity (thing context)
   (:documentation "Describe an AST node as part of a room in CONTEXT."))
 
-(defgeneric collect-choices (thing &optional context)
+(defgeneric collect-choices (thing context)
   (:documentation "Collect a fresh list of choice objects contributed by an AST node in CONTEXT."))
 
-(defgeneric evaluate-expression (thing &optional context)
+(defgeneric evaluate-expression (thing context)
   (:documentation "Evaluate a Dunge expression AST node in CONTEXT."))
 
-(defgeneric evaluate-condition (thing &optional context)
+(defgeneric evaluate-condition (thing context)
   (:documentation "Evaluate a Dunge condition AST node in CONTEXT."))
 
-(defgeneric execute-effect (thing &optional context)
+(defgeneric execute-effect (thing context)
   (:documentation "Execute a Dunge effect/control AST node in CONTEXT."))
 
 (defun control-result-p (thing)
@@ -74,34 +74,10 @@ can TYPEP the result against QUIT, BACK, and related classes."))
        (error "No room named ~S." room-name)))))
 
 (defun ensure-runtime-room-name (room-name label)
-  (unless (stringp room-name)
-    (error "Runtime ~A must be a room id string." label))
-  room-name)
-
-(defun runtime-proper-list-length (value label)
-  (unless (listp value)
-    (error "Runtime ~A must be a proper list." label))
-  (let ((length (handler-case
-                    (list-length value)
-                  (type-error ()
-                    nil))))
-    (unless length
-      (error "Runtime ~A must be a proper, non-circular list." label))
-    length))
-
-(defun ensure-runtime-list (value label)
-  (runtime-proper-list-length value label)
-  value)
-
-(defun ensure-runtime-property-list (value label)
-  (let ((length (runtime-proper-list-length value label)))
-    (unless (evenp length)
-      (error "Runtime ~A must contain an even number of property entries."
-             label)))
-  value)
+  (check-value room-name 'string (format nil "Runtime ~A" label)))
 
 (defun ensure-runtime-return-stack (return-stack)
-  (ensure-runtime-list return-stack "return stack")
+  (check-value return-stack 'proper-list "Runtime return stack")
   (dolist (room-name return-stack)
     (ensure-runtime-room-name room-name "return stack entry"))
   return-stack)

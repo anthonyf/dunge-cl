@@ -184,6 +184,29 @@
        (push (node-id node) visited)))
     (is (equal '("root" "leaf") (nreverse visited)))))
 
+(test define-dunge-node-builder-names-ignore-print-case
+  ;; The builder is named from the symbol's name, not by printing it.
+  (let ((expansion (let ((*print-case* :downcase))
+                     (macroexpand-1
+                      '(dunge::define-dunge-node case-sample-node () ())))))
+    (is (find-if (lambda (form)
+                   (and (consp form)
+                        (eq (first form) 'defun)
+                        (string= "%MAKE-CASE-SAMPLE-NODE"
+                                 (symbol-name (second form)))))
+                 (rest expansion)))))
+
+(test source-errors-keep-their-cause
+  (let ((condition (handler-case
+                       (load-dunge-string "(:game :start \"r\" :seed -1
+                                            :rooms ((:room :id \"r\" :body ())))")
+                     (dunge-source-error (condition) condition))))
+    (is (typep condition 'dunge-source-error))
+    (is (typep (dunge-source-error-cause condition) 'error))
+    (is (not (typep (dunge-source-error-cause condition) 'dunge-source-error)))
+    (is (contains-substring-p "non-negative integer"
+                              (princ-to-string condition)))))
+
 (test define-dunge-node-rejects-unknown-options
   (signals error
     (macroexpand-1
@@ -235,8 +258,8 @@
   (is (typep (source-node '(:gosub :room "hall")) 'gosub))
   (let ((choice (source-node '(:choice :label "Leave" :do (:quit) :id :leave :once t))))
     (is (typep choice 'choice))
-    (is (eq :leave (choice-id choice)))
-    (is (choice-once-p choice)))
+    (is (eq :leave (consumable-id choice)))
+    (is (consumable-once-p choice)))
   (let ((reference (source-node '(:ref :door :open))))
     (is (eq :ref (dunge::state-ref-scope reference)))
     (is (eq :door (dunge::state-ref-role reference)))
@@ -1225,19 +1248,19 @@
 (test runtime-state-validation-rejects-malformed-session-input
   (let ((game (build-save-load-fixture)))
     (is (contains-substring-p
-         "return stack must be a proper list"
+         "return stack must be a proper, non-circular list"
          (error-message-from
           (lambda ()
             (make-runtime-session game :return-stack "start")))))
     (is (contains-substring-p
-         "return stack entry must be a room id string"
+         "return stack entry must be a string"
          (error-message-from
           (lambda ()
             (make-runtime-session game :return-stack '(42))))))
     (let ((state (list :current-room "start" :globals nil)))
       (setf (cddr state) state)
       (is (contains-substring-p
-           "state must be a proper, non-circular list"
+           "state must be a proper property list"
            (error-message-from
             (lambda ()
               (restore-runtime-state game state))))))))
@@ -1986,7 +2009,8 @@
            (list (source-node
                   '(:set
                     :target (:state :scope :global :key :x)
-                    :value t))))))))
+                    :value t)))
+           nil)))))
   (let ((game (source-game-with-body)))
     (is (null (execute-effect
                (source-node

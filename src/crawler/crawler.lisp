@@ -14,12 +14,12 @@
 ;;; KIND is :ITEM or :SUPPLY.
 
 (defun inventory-entry-options (entry)
-  (proper-list-length-value entry "Inventory entry")
+  (length (check-value entry 'proper-list "Inventory entry"))
   (unless (and (consp entry)
                (consp (cdr entry)))
     (error "Inventory entries must be (TYPE ID &KEY ...); got ~S." entry))
   (let ((options (cddr entry)))
-    (unless (evenp (proper-list-length-value options "Inventory entry options"))
+    (unless (evenp (length (check-value options 'proper-list "Inventory entry options")))
       (error "Inventory entry options must contain an even number of entries; got ~S."
              options))
     (loop for tail on options by #'cddr
@@ -47,8 +47,8 @@
   (getf (inventory-entry-options entry) option default))
 
 (defun inventory-entry-count (entry)
-  (positive-integer-value
-   (inventory-option-value entry :count 1)
+  (check-value
+   (inventory-option-value entry :count 1) 'positive-integer
    "Inventory entry count"))
 
 (defun inventory-entry-bulky-p (entry)
@@ -60,7 +60,7 @@
 
 (defun inventory-entry-tags (entry)
   (let ((tags (inventory-option-value entry :tags nil)))
-    (proper-list-length-value tags "Inventory entry :TAGS")
+    (length (check-value tags 'proper-list "Inventory entry :TAGS"))
     (dolist (tag tags)
       (unless (keywordp tag)
         (error "Inventory entry tags must be keywords; got ~S." tag)))
@@ -76,7 +76,7 @@
               (if (inventory-entry-bulky-p entry) 2 1)))
           (:supply
            1))
-        (non-negative-integer-value explicit-slots "Inventory entry slots"))))
+        (check-value explicit-slots 'non-negative-integer "Inventory entry slots"))))
 
 (defun validate-inventory-entry-data (entry)
   (let ((options (inventory-entry-options entry)))
@@ -148,16 +148,16 @@
     value))
 
 (defun resolve-table-result-options (world options random-state record)
-  (ensure-runtime-property-list options "table result options")
+  (check-value options 'property-list "Table result options")
   (loop for (key value) on options by #'cddr
         append (list key
                      (if (eq key :count)
-                         (positive-integer-value
+                         (check-value
                           (resolve-table-result-amount world
                                                        value
                                                        :result-count
                                                        random-state
-                                                       record)
+                                                       record) 'positive-integer
                           "Table result count")
                          value))))
 
@@ -280,7 +280,7 @@
     (t nil)))
 
 (defun table-result-option (result key &optional default)
-  (ensure-runtime-property-list (cddr result) "table result options")
+  (check-value (cddr result) 'property-list "Table result options")
   (let ((missing '#:missing))
     (let ((value (getf (cddr result) key missing)))
       (if (eq value missing)
@@ -329,7 +329,7 @@ supply stack uses one slot and each item one, or two when :BULKY."
          (slots (inventory-option-value entry :slots missing)))
     (cond
       ((not (eq slots missing))
-       (non-negative-integer-value slots "Inventory entry :SLOTS")
+       (check-value slots 'non-negative-integer "Inventory entry :SLOTS")
        (unless (zerop slots)
          `(:mul ,slots (:min 1 (:player ,id)))))
       ((eq (inventory-entry-kind entry) :supply)
@@ -346,7 +346,7 @@ item and supply in CATALOG."
                  when term
                    collect term)))
 
-(defparameter +player-stat-keys+
+(defparameter *player-stat-keys*
   '(:name :background :str :max-str :dex :max-dex :wil :max-wil :hp :max-hp
     :armor :gold :fate :fatigue :deprived))
 
@@ -360,7 +360,7 @@ every id in INVENTORY or CATALOG, an ITEM-CATALOG, gets a counter."
                                    "armor" armor "gold" gold "fate" fate
                                    "fatigue" fatigue)
         by #'cddr
-        do (non-negative-integer-value value (format nil "Player ~A" label)))
+        do (check-value value 'non-negative-integer (format nil "Player ~A" label)))
   (let ((counts '()))
     (dolist (entry inventory)
       (validate-inventory-entry-data entry)
@@ -370,7 +370,7 @@ every id in INVENTORY or CATALOG, an ITEM-CATALOG, gets a counter."
     (let ((ids (mapcar #'car (item-catalog
                               (append inventory (mapcar #'cdr catalog))))))
       (dolist (id ids)
-        (when (member id +player-stat-keys+)
+        (when (member id *player-stat-keys*)
           (error "Inventory id ~S collides with a player stat." id)))
       (append
        `((:name ,name) (:background ,background)
@@ -438,7 +438,7 @@ hyphens with each first letter capitalized, anything else as plain text."
              (write-char char out))))
 
 (defun result-count (result)
-  (positive-integer-value (getf (cddr result) :count 1)
+  (check-value (getf (cddr result) :count 1) 'positive-integer
                           "Generated room result count"))
 
 (defun result-line (result)
@@ -472,7 +472,7 @@ hyphens with each first letter capitalized, anything else as plain text."
   (ecase (table-result-kind result)
     (:gold
      (format nil "~D gold"
-             (non-negative-integer-value (second result)
+             (check-value (second result) 'non-negative-integer
                                          "Generated room gold amount")))
     ((:item :supply)
      (let ((count (result-count result))
@@ -509,23 +509,23 @@ distinct strings, even ones differing only in case, stay distinct."
 arguments override the result's own options."
   (unless (table-result-encounter-p result)
     (error "An encounter needs an :ENCOUNTER table result; got ~S." result))
-  (let* ((hp (non-negative-integer-value
-              (or hp (table-result-option result :hp 3))
+  (let* ((hp (check-value
+              (or hp (table-result-option result :hp 3)) 'non-negative-integer
               "Encounter HP"))
-         (max-hp (non-negative-integer-value
-                  (or max-hp (table-result-option result :max-hp hp))
+         (max-hp (check-value
+                  (or max-hp (table-result-option result :max-hp hp)) 'non-negative-integer
                   "Encounter max HP"))
          (damage (or damage (table-result-option result :damage 1))))
     (when (> hp max-hp)
       (error "Encounter HP ~D is above its maximum ~D." hp max-hp))
     (if (stringp damage)
         (parse-dice-expression damage)
-        (non-negative-integer-value damage "Encounter damage"))
+        (check-value damage 'non-negative-integer "Encounter damage"))
     (list :enemy (second result)
           :hp hp
           :max-hp max-hp
-          :armor (non-negative-integer-value
-                  (or armor (table-result-option result :armor 0))
+          :armor (check-value
+                  (or armor (table-result-option result :armor 0)) 'non-negative-integer
                   "Encounter armor")
           :damage damage)))
 

@@ -16,6 +16,7 @@
    #:compile-dunge-source-at
    #:dunge-source-error
    #:dunge-source-error-message
+   #:dunge-source-error-cause
    #:validate-game
    #:validate-room
    #:evaluate

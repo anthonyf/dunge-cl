@@ -210,11 +210,11 @@ body {
    "type" "choice"
    "label" (dunge.ast:label choice)
    "target" (compile-html-effect (dunge.ast:target choice))
-   "id" (and (dunge.ast:choice-id choice)
-             (keyword-name (dunge.ast:choice-id choice)))
-   "once" (not (null (dunge.ast:choice-once-p choice)))
-   "condition" (and (dunge.ast:choice-condition choice)
-                    (compile-html-condition (dunge.ast:choice-condition choice)))))
+   "id" (and (dunge.ast:consumable-id choice)
+             (keyword-name (dunge.ast:consumable-id choice)))
+   "once" (not (null (dunge.ast:consumable-once-p choice)))
+   "condition" (and (dunge.ast:availability-condition choice)
+                    (compile-html-condition (dunge.ast:availability-condition choice)))))
 
 (defmethod compile-html-node ((room dunge.ast:room))
   (html-object
