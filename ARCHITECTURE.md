@@ -324,82 +324,68 @@ stable when the player returns.
 
 ## Table Result Resolvers
 
-Table results remain authored data until Common Lisp asks to resolve or apply
-them. The shared resolver normalizes the first common crawler result shapes:
+Table results remain authored data until Common Lisp asks to resolve them. The
+resolvers live in the `dunge/crawler` system (package `dunge.crawler`), which
+holds the build-time procedures that turn tables into ordinary content. The
+shared resolver normalizes the common crawler result shapes:
 
 - `(:gold AMOUNT)` resolves integer or dice-string amounts.
 - `(:item ITEM-ID ...)` and `(:supply SUPPLY-ID ...)` resolve `:count` dice
-  strings into inventory-ready integer counts.
+  strings into integer counts.
 - `(:encounter ENCOUNTER-ID ...)` resolves optional `:count` dice and can be
   used by CL procedures to start persistent encounter state.
 - `(:exit DIRECTION ROOM-ID)` validates and extracts generated-room exits.
 
 `resolve-table-result-data` returns normalized result data without deciding
-where it belongs. `apply-resolved-table-result-to-player` and
-`apply-table-result-to-player` mutate player gold/inventory for the loot shapes
-only. `table-result-loot-results` extracts gold/item/supply results, and
-`table-result-exits` extracts room exits from resolved result data. This keeps
-the `.dunge` boundary intact: source files describe what was rolled, and CL
-procedure code decides whether that roll becomes a loot choice, an exit, room
-detail, an encounter marker, or something else.
-
-`table-result-encounters` extracts encounter result shapes for procedures that
-want to bind a rolled result to a room, generated site, NPC, or other runtime
-context.
+where it belongs. `table-result-loot-results` extracts gold/item/supply
+results, `table-result-exits` extracts room exits, and
+`table-result-encounters` extracts encounter results. This keeps the `.dunge`
+boundary intact: source files describe what was rolled, and CL procedure code
+decides whether that roll becomes a loot choice, an exit, room detail, an
+encounter, or something else.
 
 ## Generated Rooms
 
-Generated rooms are runtime room instances created by Common Lisp from authored
-tables and result data. They subclass normal rooms, receive stable generated ids
-such as `"generated:dungeon:1"`, and can be found by the same navigation lookup
-used for authored rooms once registered with a game.
+Generated rooms are room instances created by Common Lisp from authored tables
+before play. They subclass normal rooms, receive stable generated ids such as
+`"generated:dungeon:1"`, and can be found by the same navigation lookup used
+for authored rooms once registered with a game. They are part of the game's
+definition: preparing a game for a new run keeps them, and saves do not
+record them.
 
-The public CL API is intentionally small:
+`dunge.crawler:create-generated-room` builds a room's body from resolved table
+results as ordinary AST:
 
-- `create-generated-room` allocates and registers a generated room.
+- a paragraph for the description and one per result, such as `Find: Ration.`;
+- a once-only "Take ..." choice for each `:gold`, `:item`, or `:supply` result,
+  which adds the loot to `:player` state;
+- any extra `:options` choices, such as the crawler's "Eat ration" choice.
+
+`:encounter-options` choices are offered between Attack and Flee while the
+room's encounter is active. Exits are still rendered from the room's exit data.
+
+The core API for the room graph is small:
+
 - `register-generated-room` registers a room with an explicit id.
-- `find-generated-room` recalls a previously generated room.
-- `game-generated-rooms` returns the current generated room instances.
-- `generated-room-exit-target` reads the concrete target for a generated room
-  direction.
-- `set-generated-room-exit` adds or replaces a generated room exit.
-- `link-generated-rooms` links two generated rooms and can also write the
-  reciprocal exit.
-- `generated-room-result-claimed-p` and `claim-generated-room-result` track
-  claimed generated-room result indexes.
+- `find-generated-room` recalls a generated room.
+- `game-generated-rooms` returns the generated rooms.
+- `generated-room-exit-target` reads the concrete target for a direction.
+- `set-generated-room-exit` adds or replaces an exit.
+- `link-generated-rooms` links two rooms and can also write the reciprocal exit.
 
-Generated room save data records the id, zone, depth, title, description,
-resolved table results, claimed result indexes, exits, and visited flag.
-Runtime save/load restores generated rooms before resolving the current room
-and return stack, so a saved run can resume inside generated content. The graph
-helpers only store concrete room-id exits, so a generated room can link to
-authored rooms or other generated rooms through the same navigation path.
+Exits only store concrete room ids, so a generated room can link to authored
+rooms or other generated rooms through the same navigation path.
 
-Generated rooms render unclaimed `:gold`, `:item`, and `:supply` results as
-"Take ..." choices. Selecting one applies the resolved loot to the player,
-marks that result index claimed, and refreshes the room. This makes generated
-loot durable without turning the `.dunge` result data into imperative code.
+`.dunge` still describes the possible ingredients; CL decides which rooms
+exist. For example, the adaptation testbed rolls an authored
+`(:exit :deeper "generated:dungeon:*")` table result, then CL creates a
+concrete room such as `"generated:dungeon:2"` and links it back to the room that
+discovered it. The adaptation loader also rewires the authored
+`:enter-first-room` choice to the first generated room's id.
 
-`.dunge` still describes the possible ingredients. CL owns when those
-ingredients become persistent world state. For example, the adaptation testbed
-rolls an authored `(:exit :deeper "generated:dungeon:*")` table result, then CL
-creates a concrete room such as `"generated:dungeon:2"` and links it back to the
-room that discovered it.
-
-Generated content can also be introduced from an authored threshold without
-adding a language form for generation. The adaptation console loader creates or
-recalls the first generated room in CL, then rewires the authored
-`:enter-first-room` choice to the concrete generated room id. The `.dunge`
-choice still describes the player-facing affordance; CL decides when the room
-exists and which generated id it should enter.
-
-The browser backend follows the same boundary. It does not roll new generated
-rooms in JavaScript; CL still creates the generated-room instances before
-compilation. The compiler serializes those instances as `generatedRooms`, and
-the browser runtime registers them alongside authored rooms so ordinary `:go`
-navigation can enter them. Browser save data includes generated rooms and
-encounters, which preserves claimed loot, visited state, combat results, and
-the current generated room across refreshes.
+The browser backend does not roll rooms either. The compiler serializes the
+generated rooms as `generatedRooms`, and the browser runtime registers them
+alongside authored rooms so ordinary `:go` navigation can enter them.
 
 ## State
 
@@ -460,57 +446,38 @@ scoring flags.
 
 ## Player State
 
-Games may declare an initial player record:
+The player is ordinary state in the `:player` scope. A game declares its keys
+and starting values the same way it declares globals:
 
 ```lisp
 (:game
  :start "town"
- :player
- (:player
-  :name "Mara"
-  :background :soldier
-  :str 12
-  :dex 11
-  :wil 9
-  :hp 4
-  :armor 1
-  :gold 8
-  :fate 1
-  :inventory ((:item :rusted-dagger)
-              (:supply :ration :count 3))
-  :fatigue 0
-  :conditions nil)
+ :player ((:name "Mara")
+          (:hp 4) (:max-hp 4)
+          (:armor 1)
+          (:gold 8)
+          (:fatigue 0)
+          (:deprived nil)
+          (:rusted-dagger 1)
+          (:ration 3))
  :rooms ...)
 ```
 
-The player model tracks the current character-sheet foundation: name,
-background, current and maximum STR/DEX/WIL, current and maximum HP, armor,
-gold, fate, inventory data, fatigue, and conditions. Maximum STR/DEX/WIL/HP
-default to the corresponding current values when omitted.
+Content reads and writes it with `(:player KEY)` and `{player:key}`, and every
+reference must use a declared key. Each inventory item or supply is a counter
+named by its id.
 
-Inventory entries are literal data, usually following the table result
-conventions in [AUTHORING.md](AUTHORING.md). The engine validates two entry
-forms today: `(:item ITEM-ID ...)` for distinct inventory items and
-`(:supply SUPPLY-ID ...)` for stackable supplies. Items cost one slot per
-copy, or two slots per copy when `:bulky t` is present. Supplies cost one
-slot for the stack. Any entry may use `:slots N` to override its slot cost,
-`:condition KEYWORD` for item state, and `:tags (...)` for classification.
-Player inventory stores resolved data, so `:count` and `:slots` are integers
-there even if a loot table result used dice-string shorthand before CL added
-the entry.
-
-The Common Lisp inventory helpers add and remove counted entries, stack
-matching item/supply records, compute used and free slots, count Fatigue as
-slot pressure, and expose `player-deprived-p` when the player is explicitly
-Deprived or their inventory is full. Recovery helpers can restore HP, reduce
-Fatigue, and clear conditions. The first item-use procedure is ration use,
-which consumes one `:supply :ration` entry and recovers a small amount.
-Additional item effects, shop transactions, and richer gold handling remain CL
-behavior layered on this data model.
-
-If a game has no authored player, the runtime may still restore a saved player
-record. This keeps the model compatible with a future character creation flow,
-where CL creates the player before ordinary room play begins.
+The crawler builds these declarations from its richer inventory data.
+`dunge.crawler:player-declarations` turns a character sheet and inventory
+entries into counters, declaring every item the tables can award. Inventory
+entries follow the table result conventions in [AUTHORING.md](AUTHORING.md):
+`(:item ITEM-ID ...)` items cost one slot per copy, or two with `:bulky t`;
+`(:supply SUPPLY-ID ...)` stacks cost one slot; `:slots N` overrides either.
+`used-slots-expression` turns those rules into an expression over the
+counters, with fatigue filling slots too, and `ration-choice-form` builds the
+"Eat ration" choice. It is offered when the player has a ration and is hurt,
+fatigued, deprived, or at full inventory. Per-stack metadata such as an item's
+condition is not kept.
 
 ## Encounter State And Combat
 
@@ -540,7 +507,7 @@ same generator as the console, in the same order and with the same labels, so
 both runtimes play a fight identically.
 
 Runtime save data includes `:encounters`, and undo captures encounter state
-alongside player, generated room, table, RNG, and local/global state.
+alongside player, table, RNG, and local/global state.
 
 ## Effects And Sequences
 
@@ -568,22 +535,7 @@ The minimum save payload is still:
 ```lisp
 (:current-room "cupboard"
  :return-stack ("kitchen")
- :player (:name "Mara"
-          :background :soldier
-          :str 12
-          :max-str 12
-          :dex 11
-          :max-dex 11
-          :wil 9
-          :max-wil 9
-          :hp 4
-          :max-hp 4
-          :armor 1
-          :gold 8
-          :fate 1
-          :inventory ((:item :rusted-dagger))
-          :fatigue 0
-          :conditions nil)
+ :player ((:hp . 4) (:max-hp . 4) (:name . "Mara") (:ration . 3))
  :globals ((:recipe . t))
  :locals ((:room "kitchen"
            :entity "stove"
@@ -607,6 +559,7 @@ authoring errors before play:
 - malformed conditions and effects;
 - unknown state scopes;
 - undeclared global state references when game-level state declarations are present;
+- undeclared player state references;
 - once-only choices without stable IDs;
 - duplicate room IDs and duplicate scene IDs;
 - unresolved entity refs;
@@ -628,16 +581,12 @@ body, and choices. Parenscript generates the embedded browser runtime script.
 The script owns game state and re-renders those static mount points as the
 player selects choices.
 
-The browser runtime keeps the same serialized player state used by save/load:
-HP, attributes, armor, gold, fate, fatigue, conditions, inventory, and slot
-pressure. It does not display that state as a permanent dashboard. Character
-information should be rendered by authored narrative, character creation, or
-explicit room/action views when it is useful. The compiler also serializes
-current encounter states so generated rooms can render encounter text and
-choices in the narrative flow. For pre-instanced generated rooms, the browser
-runtime can render generated room facts, claim loot, use rations, resolve the
-minimal attack/flee loop, follow generated exits, and persist those mutations
-in local storage.
+The browser runtime keeps player state in the same `:player` scope as the
+console, and does not display it as a permanent dashboard. Character
+information should be rendered by authored narrative or explicit views when it
+is useful. The compiler also serializes current encounter states so generated
+rooms can render encounter text and choices in the narrative flow, resolve the
+minimal attack/flee loop, and persist combat in local storage.
 
 The generated file does not rely on modules, fetches, or a web server. It is
 intended to run directly from `file://` in ordinary browsers. Browser storage,

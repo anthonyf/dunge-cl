@@ -14,6 +14,19 @@
 (defmethod node-children ((thing t))
   nil)
 
+(defconstant +dunge-rng-modulus+ 2147483648
+  "The game generator's modulus, 2^31. Every generator state is below it.")
+(defconstant +dunge-rng-multiplier+ 1103515245)
+(defconstant +dunge-rng-increment+ 12345)
+
+(defconstant +max-safe-integer+ (1- (expt 2 53))
+  "The largest integer both runtimes represent exactly. Arithmetic results
+beyond plus or minus this value are errors.")
+
+(defun safe-integer-p (value)
+  (and (integerp value)
+       (<= (- +max-safe-integer+) value +max-safe-integer+)))
+
 (define-dunge-node game ()
   ((rooms :reader game-rooms :initarg :rooms :initform nil)
    (tables :reader game-tables :initarg :tables :initform nil)
@@ -33,7 +46,11 @@
                               :initform nil)
    (taken-choices :reader game-taken-choices
                   :initform (make-hash-table :test 'eql))
-   (player :accessor game-player :initarg :player :initform nil)
+   (player-state :reader game-player-state
+                 :initform (make-hash-table :test 'eql))
+   (player-state-declarations :accessor game-player-state-declarations
+                              :initarg :player
+                              :initform nil)
    (room-index :reader room-index :initform (make-hash-table :test 'equal))
    (generated-room-index :reader generated-room-index
                          :initform (make-hash-table :test 'equal))
@@ -52,7 +69,7 @@
     (:flags :state-key-list :default nil)
     (:marked :state-key-list :default nil)
     (:seed :non-negative-integer :default 1)
-    (:player :player)
+    (:player :state-declarations :default nil)
     (:tables :table-list :default nil)
     (:rooms :room-list :required t))))
 
@@ -62,355 +79,6 @@
 (defun (setf game-roll-log) (roll-log game)
   (setf (game-roll-log-reversed game) (reverse (copy-list roll-log)))
   roll-log)
-
-(define-dunge-node player ()
-  ((name :accessor player-name :initarg :name :initform nil)
-   (background :accessor player-background
-               :initarg :background
-               :initform nil)
-   (str :accessor player-str :initarg :str :initform 10)
-   (max-str :accessor player-max-str :initarg :max-str :initform nil)
-   (dex :accessor player-dex :initarg :dex :initform 10)
-   (max-dex :accessor player-max-dex :initarg :max-dex :initform nil)
-   (wil :accessor player-wil :initarg :wil :initform 10)
-   (max-wil :accessor player-max-wil :initarg :max-wil :initform nil)
-   (hp :accessor player-hp :initarg :hp :initform 1)
-   (max-hp :accessor player-max-hp :initarg :max-hp :initform nil)
-   (armor :accessor player-armor :initarg :armor :initform 0)
-   (gold :accessor player-gold :initarg :gold :initform 0)
-   (fate :accessor player-fate :initarg :fate :initform 0)
-   (inventory :accessor player-inventory
-              :initarg :inventory
-              :initform nil)
-   (fatigue :accessor player-fatigue :initarg :fatigue :initform 0)
-   (conditions :accessor player-conditions
-               :initarg :conditions
-               :initform nil)
-   (initial-state :accessor player-initial-state :initform nil))
-  (:source :player
-   (:fields
-    (:name :string)
-    (:background :keyword)
-    (:str :non-negative-integer :default 10)
-    (:max-str :non-negative-integer)
-    (:dex :non-negative-integer :default 10)
-    (:max-dex :non-negative-integer)
-    (:wil :non-negative-integer :default 10)
-    (:max-wil :non-negative-integer)
-    (:hp :non-negative-integer :default 1)
-    (:max-hp :non-negative-integer)
-    (:armor :non-negative-integer :default 0)
-    (:gold :non-negative-integer :default 0)
-    (:fate :non-negative-integer :default 0)
-    (:inventory :literal-list :default nil)
-    (:fatigue :non-negative-integer :default 0)
-    (:conditions :state-key-list :default nil))))
-
-(defun player-state-plist (player)
-  (when player
-    (list :name (player-name player)
-          :background (player-background player)
-          :str (player-str player)
-          :max-str (player-max-str player)
-          :dex (player-dex player)
-          :max-dex (player-max-dex player)
-          :wil (player-wil player)
-          :max-wil (player-max-wil player)
-          :hp (player-hp player)
-          :max-hp (player-max-hp player)
-          :armor (player-armor player)
-          :gold (player-gold player)
-          :fate (player-fate player)
-          :inventory (copy-tree (player-inventory player))
-          :fatigue (player-fatigue player)
-          :conditions (copy-list (player-conditions player)))))
-
-(defun apply-player-state (player state)
-  (setf (player-name player) (getf state :name)
-        (player-background player) (getf state :background)
-        (player-str player) (getf state :str)
-        (player-max-str player) (getf state :max-str)
-        (player-dex player) (getf state :dex)
-        (player-max-dex player) (getf state :max-dex)
-        (player-wil player) (getf state :wil)
-        (player-max-wil player) (getf state :max-wil)
-        (player-hp player) (getf state :hp)
-        (player-max-hp player) (getf state :max-hp)
-        (player-armor player) (getf state :armor)
-        (player-gold player) (getf state :gold)
-        (player-fate player) (getf state :fate)
-        (player-inventory player) (copy-tree (getf state :inventory))
-        (player-fatigue player) (getf state :fatigue)
-        (player-conditions player) (copy-list (getf state :conditions)))
-  player)
-
-(defun reset-player-state (player)
-  (when player
-    (apply-player-state player (player-initial-state player))))
-
-(defmethod initialize-instance :after ((player player) &key)
-  (unless (player-max-str player)
-    (setf (player-max-str player) (player-str player)))
-  (unless (player-max-dex player)
-    (setf (player-max-dex player) (player-dex player)))
-  (unless (player-max-wil player)
-    (setf (player-max-wil player) (player-wil player)))
-  (unless (player-max-hp player)
-    (setf (player-max-hp player) (player-hp player)))
-  (setf (player-initial-state player) (player-state-plist player)))
-
-(defconstant +player-inventory-capacity+ 10)
-
-(defun proper-list-length-value (value label)
-  (unless (listp value)
-    (error "~A must be a proper list; got ~S." label value))
-  (let ((length (handler-case
-                    (list-length value)
-                  (type-error ()
-                    nil))))
-    (unless length
-      (error "~A must be a proper, non-circular list." label))
-    length))
-
-(defun inventory-entry-options (entry)
-  (proper-list-length-value entry "Inventory entry")
-  (unless (and (consp entry)
-               (consp (cdr entry)))
-    (error "Inventory entries must be (TYPE ID &KEY ...); got ~S." entry))
-  (let ((options (cddr entry)))
-    (unless (evenp (proper-list-length-value options "Inventory entry options"))
-      (error "Inventory entry options must contain an even number of entries; got ~S."
-             options))
-    (loop for tail on options by #'cddr
-          for key = (car tail)
-          unless (keywordp key)
-            do (error "Inventory entry option names must be keywords; got ~S."
-                      key))
-    options))
-
-(defun inventory-entry-kind (entry)
-  (inventory-entry-options entry)
-  (let ((kind (first entry)))
-    (unless (member kind '(:item :supply) :test #'eq)
-      (error "Inventory entry type must be :ITEM or :SUPPLY; got ~S." kind))
-    kind))
-
-(defun inventory-entry-id (entry)
-  (inventory-entry-options entry)
-  (let ((id (second entry)))
-    (unless (keywordp id)
-      (error "Inventory entry ids must be keywords; got ~S." id))
-    id))
-
-(defun inventory-option-value (entry option &optional default)
-  (getf (inventory-entry-options entry) option default))
-
-(defun inventory-entry-count (entry)
-  (positive-integer-value
-   (inventory-option-value entry :count 1)
-   "Inventory entry count"))
-
-(defun inventory-entry-bulky-p (entry)
-  (let ((bulky (inventory-option-value entry :bulky nil)))
-    (unless (or (eq bulky t)
-                (null bulky))
-      (error "Inventory entry :BULKY must be a boolean; got ~S." bulky))
-    bulky))
-
-(defun inventory-entry-tags (entry)
-  (let ((tags (inventory-option-value entry :tags nil)))
-    (proper-list-length-value tags "Inventory entry :TAGS")
-    (dolist (tag tags)
-      (unless (keywordp tag)
-        (error "Inventory entry tags must be keywords; got ~S." tag)))
-    tags))
-
-(defun inventory-entry-slots (entry)
-  (let* ((missing '#:missing)
-         (explicit-slots (inventory-option-value entry :slots missing)))
-    (if (eq explicit-slots missing)
-        (ecase (inventory-entry-kind entry)
-          (:item
-           (* (inventory-entry-count entry)
-              (if (inventory-entry-bulky-p entry) 2 1)))
-          (:supply
-           1))
-        (non-negative-integer-value explicit-slots "Inventory entry slots"))))
-
-(defun validate-inventory-entry-data (entry)
-  (let ((options (inventory-entry-options entry)))
-    (inventory-entry-kind entry)
-    (inventory-entry-id entry)
-    (inventory-entry-count entry)
-    (inventory-entry-slots entry)
-    (inventory-entry-tags entry)
-    (let ((condition (inventory-option-value entry :condition nil)))
-      (unless (or (null condition)
-                  (keywordp condition))
-        (error "Inventory entry :CONDITION must be a keyword or NIL; got ~S."
-               condition)))
-    (loop for tail on options by #'cddr
-          for key = (car tail)
-          unless (member key '(:count :slots :bulky :condition :tags)
-                         :test #'eq)
-            do (error "Unknown inventory entry option ~S in ~S."
-                      key
-                      entry)))
-  entry)
-
-(defun validate-player-inventory-data (inventory)
-  (proper-list-length-value inventory "Player inventory")
-  (dolist (entry inventory)
-    (validate-inventory-entry-data entry))
-  inventory)
-
-(defun inventory-entry-metadata (entry)
-  (loop for (key value) on (inventory-entry-options entry) by #'cddr
-        unless (eq key :count)
-          append (list key value)))
-
-(defun inventory-entry-matches-p (entry kind id
-                                  &optional
-                                    (metadata nil metadata-supplied-p))
-  (and (eq (inventory-entry-kind entry) kind)
-       (eq (inventory-entry-id entry) id)
-       (or (not metadata-supplied-p)
-           (equal (inventory-entry-metadata entry) metadata))))
-
-(defun inventory-entry-with-count (entry count)
-  (let ((kind (inventory-entry-kind entry))
-        (id (inventory-entry-id entry))
-        (metadata (inventory-entry-metadata entry)))
-    (append (list kind id)
-            (when (/= count 1)
-              (list :count count))
-            metadata)))
-
-(defun normalize-inventory-entry (entry &optional count)
-  (validate-inventory-entry-data entry)
-  (inventory-entry-with-count entry
-                              (or count
-                                  (inventory-entry-count entry))))
-
-(defun find-player-inventory-entry (player kind id)
-  (find-if (lambda (entry)
-             (and (eq (inventory-entry-kind entry) kind)
-                  (eq (inventory-entry-id entry) id)))
-           (player-inventory player)))
-
-(defun player-inventory-count (player kind id)
-  (loop for entry in (player-inventory player)
-        when (and (eq (inventory-entry-kind entry) kind)
-                  (eq (inventory-entry-id entry) id))
-          sum (inventory-entry-count entry)))
-
-(defun add-player-inventory-entry (player entry &key count)
-  (let* ((count (if count
-                    (positive-integer-value count "Inventory add count")
-                    (inventory-entry-count entry)))
-         (normalized (normalize-inventory-entry entry count))
-         (kind (inventory-entry-kind normalized))
-         (id (inventory-entry-id normalized))
-         (metadata (inventory-entry-metadata normalized))
-         (existing (find-if (lambda (candidate)
-                              (inventory-entry-matches-p candidate
-                                                         kind
-                                                         id
-                                                         metadata))
-                            (player-inventory player))))
-    (if existing
-        (setf (player-inventory player)
-              (mapcar (lambda (candidate)
-                        (if (eq candidate existing)
-                            (inventory-entry-with-count
-                             candidate
-                             (+ (inventory-entry-count candidate) count))
-                            candidate))
-                      (player-inventory player)))
-        (setf (player-inventory player)
-              (append (player-inventory player)
-                      (list normalized)))))
-  player)
-
-(defun remove-player-inventory-entry (player kind id &key (count 1))
-  (let* ((count (positive-integer-value count "Inventory remove count"))
-         (available (player-inventory-count player kind id)))
-    (when (< available count)
-      (error "Player inventory has only ~D ~S ~S entries; cannot remove ~D."
-             available
-             kind
-             id
-             count))
-    (let ((remaining-to-remove count)
-          (new-inventory nil))
-      (dolist (entry (player-inventory player))
-        (if (and (plusp remaining-to-remove)
-                 (eq (inventory-entry-kind entry) kind)
-                 (eq (inventory-entry-id entry) id))
-            (let* ((entry-count (inventory-entry-count entry))
-                   (removed (min entry-count remaining-to-remove))
-                   (remaining-entry-count (- entry-count removed)))
-              (decf remaining-to-remove removed)
-              (when (plusp remaining-entry-count)
-                (push (inventory-entry-with-count entry remaining-entry-count)
-                      new-inventory)))
-            (push entry new-inventory)))
-      (setf (player-inventory player) (nreverse new-inventory))))
-  player)
-
-(defun player-inventory-capacity (player)
-  (declare (ignore player))
-  +player-inventory-capacity+)
-
-(defun player-inventory-used-slots (player)
-  (+ (player-fatigue player)
-     (loop for entry in (player-inventory player)
-           sum (inventory-entry-slots entry))))
-
-(defun player-inventory-free-slots (player)
-  (max 0
-       (- (player-inventory-capacity player)
-          (player-inventory-used-slots player))))
-
-(defun player-inventory-full-p (player)
-  (>= (player-inventory-used-slots player)
-      (player-inventory-capacity player)))
-
-(defun player-deprived-p (player)
-  (or (not (null (member :deprived (player-conditions player) :test #'eq)))
-      (player-inventory-full-p player)))
-
-(defun player-condition-p (player condition)
-  (not (null (member (state-key condition)
-                     (player-conditions player)
-                     :test #'eq))))
-
-(defun clear-player-condition (player condition)
-  (setf (player-conditions player)
-        (remove (state-key condition) (player-conditions player) :test #'eq))
-  player)
-
-(defun recover-player (player &key (hp 0) (fatigue 0) clear-conditions)
-  (let ((hp (non-negative-integer-value hp "Recovery HP"))
-        (fatigue (non-negative-integer-value fatigue "Recovery fatigue")))
-    (when (plusp hp)
-      (setf (player-hp player)
-            (min (player-max-hp player)
-                 (+ (player-hp player) hp))))
-    (when (plusp fatigue)
-      (setf (player-fatigue player)
-            (max 0 (- (player-fatigue player) fatigue))))
-    (dolist (condition clear-conditions)
-      (clear-player-condition player condition))
-    player))
-
-(defun use-player-ration (player &key (hp 1) (fatigue 1)
-                                  (clear-conditions '(:deprived)))
-  (remove-player-inventory-entry player :supply :ration :count 1)
-  (recover-player player
-                  :hp hp
-                  :fatigue fatigue
-                  :clear-conditions clear-conditions))
 
 (define-dunge-node room ()
   ((name :reader name :initarg :name :initform nil)
@@ -434,13 +102,13 @@
    (results :accessor generated-room-results
             :initarg :results
             :initform nil)
-   (claimed-results :accessor generated-room-claimed-results
-                    :initarg :claimed-results
-                    :initform nil)
    (exits :accessor generated-room-exits :initarg :exits :initform nil)
-   (visited-p :accessor generated-room-visited-p
-              :initarg :visited-p
-              :initform nil)))
+   ;; Choices offered between Attack and Flee while an encounter is active.
+   (encounter-options :accessor generated-room-encounter-options
+                      :initarg :encounter-options
+                      :initform nil))
+  (:children (thing) (append (entities thing)
+                             (generated-room-encounter-options thing))))
 
 (define-dunge-node effect-node ()
   ())
@@ -473,9 +141,9 @@
 
 (defun state-scope-key (scope)
   (case scope
-    ((:self :global :ref) scope)
+    ((:self :global :player :ref) scope)
     (otherwise
-     (error "State scope must be one of :SELF, :GLOBAL, or :REF; got ~S."
+     (error "State scope must be one of :SELF, :GLOBAL, :PLAYER, or :REF; got ~S."
             scope))))
 
 (defun state-key (key)
@@ -801,19 +469,6 @@
            :initarg :action
            :initform nil)))
 
-(define-dunge-node loot-action (effect-node)
-  ((room-name :reader loot-action-room-name
-              :initarg :room-name
-              :initform nil)
-   (result-index :reader loot-action-result-index
-                 :initarg :result-index
-                 :initform nil)))
-
-(define-dunge-node item-use-action (effect-node)
-  ((action :reader item-use-action-kind
-           :initarg :action
-           :initform nil)))
-
 (define-dunge-node choice (availability-mixin consumable-mixin)
   ((label :accessor label :initarg :label :initform nil)
    (target :accessor target :initarg :target :initform nil))
@@ -848,6 +503,17 @@
     (error "Table mode must be one of :WEIGHTED, :ROLL, :DECK, :SEQUENCE, :FIRST-MATCH, or :BUNDLE; got ~S."
            mode))
   mode)
+
+(defun proper-list-length-value (value label)
+  (unless (listp value)
+    (error "~A must be a proper list; got ~S." label value))
+  (let ((length (handler-case
+                    (list-length value)
+                  (type-error ()
+                    nil))))
+    (unless length
+      (error "~A must be a proper, non-circular list." label))
+    length))
 
 (defun positive-integer-value (value label)
   (unless (and (integerp value) (plusp value))
@@ -1068,31 +734,6 @@
   (proper-list-length-value results "Generated room results")
   results)
 
-(defun generated-room-claimed-result-list (claimed-results)
-  (proper-list-length-value claimed-results "Generated room claimed results")
-  (dolist (index claimed-results)
-    (non-negative-integer-value index "Generated room claimed result index"))
-  (sort (remove-duplicates (copy-list claimed-results) :test #'=) #'<))
-
-(defun generated-room-result-claimed-p (room index)
-  (not (null (member (non-negative-integer-value
-                      index
-                      "Generated room result index")
-                     (generated-room-claimed-results room)
-                     :test #'=))))
-
-(defun claim-generated-room-result (room index)
-  (let ((index (non-negative-integer-value index
-                                           "Generated room result index")))
-    (unless (< index (length (generated-room-results room)))
-      (error "Generated room ~S has no result at index ~D."
-             (name room)
-             index))
-    (unless (generated-room-result-claimed-p room index)
-      (setf (generated-room-claimed-results room)
-            (sort (cons index (generated-room-claimed-results room)) #'<)))
-    room))
-
 (defun generated-zone-id-part (zone)
   (string-downcase (symbol-name (generated-room-zone-key zone))))
 
@@ -1119,16 +760,12 @@
             (max (game-generated-room-counter game) counter)))))
 
 (defun make-generated-room (&key id title description zone (depth 0) results
-                              claimed-results exits visited-p)
-  (let* ((id (generated-room-id-string id))
-         (results (copy-tree (generated-room-result-list (or results nil))))
-         (claimed-results (generated-room-claimed-result-list
-                           (or claimed-results nil))))
-    (dolist (index claimed-results)
-      (unless (< index (length results))
-        (error "Generated room ~S has no result at claimed index ~D."
-               id
-               index)))
+                              exits body encounter-options)
+  "Make a generated room. BODY and ENCOUNTER-OPTIONS are AST nodes: BODY is
+described and offered like an authored room's, and ENCOUNTER-OPTIONS are
+offered between Attack and Flee while the room's encounter is active."
+  (let ((id (generated-room-id-string id))
+        (results (copy-tree (generated-room-result-list (or results nil)))))
     (make-instance 'generated-room
                    :name id
                    :title (generated-room-title-string title id)
@@ -1139,10 +776,10 @@
                            depth
                            "Generated room depth")
                    :results results
-                   :claimed-results claimed-results
                    :exits (copy-tree (generated-room-exit-list
                                       (or exits nil)))
-                   :visited-p (not (null visited-p)))))
+                   :entities body
+                   :encounter-options encounter-options)))
 
 (defun clear-generated-rooms (game)
   (clrhash (generated-room-index game))
@@ -1178,21 +815,6 @@
     (note-generated-room-id-counter game id)
     room))
 
-(defun create-generated-room (game &key id title description zone (depth 0)
-                                results claimed-results exits visited-p)
-  (let ((room-id (or id (allocate-generated-room-id game zone))))
-    (register-generated-room
-     game
-     (make-generated-room :id room-id
-                          :title title
-                          :description description
-                          :zone zone
-                          :depth depth
-                          :results results
-                          :claimed-results claimed-results
-                          :exits exits
-                          :visited-p visited-p))))
-
 (defun generated-room-exit-target (room direction)
   (let ((room (generated-room-value room "Generated room exit source")))
     (cdr (assoc (generated-room-exit-direction-key direction)
@@ -1226,17 +848,6 @@
       (set-generated-room-exit to reverse-direction from-target))
     (values from to)))
 
-(defun generated-room-state-plist (room)
-  (list :id (name room)
-        :title (room-title room)
-        :description (generated-room-description room)
-        :zone (generated-room-zone room)
-        :depth (generated-room-depth room)
-        :results (copy-tree (generated-room-results room))
-        :claimed-results (copy-list (generated-room-claimed-results room))
-        :exits (copy-tree (generated-room-exits room))
-        :visited (generated-room-visited-p room)))
-
 (defun tag-list-value (value)
   (unless (listp value)
     (source-error "Tag lists must be lists; got ~S." value))
@@ -1269,12 +880,6 @@
 (define-dunge-field-type :literal-list (value context)
   (declare (ignore context))
   (ensure-source-list :literal-list value))
-
-(define-dunge-field-type :player (value context)
-  (let ((node (compile-dunge-source-form value context)))
-    (unless (typep node 'player)
-      (source-error "Expected a player source form, got ~S." value))
-    node))
 
 (defun table-range-value (value)
   (cond
@@ -1496,6 +1101,30 @@
            (setf (gethash (state-key name) (local-state node))
                  value)))))))
 
+(defun reset-player-state (game)
+  (clrhash (game-player-state game))
+  (dolist (declaration (game-player-state-declarations game))
+    (destructuring-bind (name value) declaration
+      (setf (gethash (state-key name) (game-player-state game))
+            value))))
+
+(defun declare-player-state (game declarations)
+  "Replace GAME's :PLAYER state DECLARATIONS and reset the player to them."
+  (setf (game-player-state-declarations game) declarations)
+  (reset-player-state game)
+  game)
+
+(defun declared-player-state-keys (game)
+  (state-declaration-key-list (game-player-state-declarations game)))
+
+(defun ensure-declared-player-state-key (game key)
+  (let ((state-key (state-key key)))
+    (unless (member state-key (declared-player-state-keys game) :test #'eql)
+      (error "Game has no declared player state key ~S. Declared keys: ~S."
+             state-key
+             (declared-player-state-keys game)))
+    state-key))
+
 (defun reset-global-state (game)
   (clrhash (game-global-state game))
   (dolist (declaration (game-global-state-declarations game))
@@ -1559,9 +1188,8 @@
   (clrhash (game-taken-choices game))
   (setf (game-random-state game) (game-random-seed game)
         (game-roll-log-reversed game) nil)
-  (clear-generated-rooms game)
   (clear-encounter-states game)
-  (reset-player-state (game-player game))
+  (reset-player-state game)
   (dolist (table (game-tables game))
     (reset-table-state table))
   (dolist (room (game-rooms game))
@@ -1658,26 +1286,6 @@
                                 state-key)
               (setf (gethash state-key seen) t)))))))
 
-(defun validate-player-current-maximum (current maximum label)
-  (when (> current maximum)
-    (validation-error "Player ~A current value ~D exceeds maximum ~D."
-                      label
-                      current
-                      maximum)))
-
-(defconstant +max-safe-integer+ (1- (expt 2 53))
-  "The largest integer both runtimes represent exactly. Arithmetic results
-beyond plus or minus this value are errors.")
-
-(defconstant +dunge-rng-modulus+ 2147483648
-  "The game generator's modulus, 2^31. Every generator state is below it.")
-(defconstant +dunge-rng-multiplier+ 1103515245)
-(defconstant +dunge-rng-increment+ 12345)
-
-(defun safe-integer-p (value)
-  (and (integerp value)
-       (<= (- +max-safe-integer+) value +max-safe-integer+)))
-
 (defun expression-literal-p (thing)
   (or (stringp thing)
       (keywordp thing)
@@ -1741,11 +1349,13 @@ of times, such as on every render, so they must not roll dice.")
     (validate-game-start game)
     (validate-state-declaration-list "Game"
                                      (game-global-state-declarations game))
-    (when (game-player game)
-      (validate-node (game-player game) game game))
+    (validate-state-declaration-list "Player"
+                                     (game-player-state-declarations game))
     (dolist (table (game-tables game))
       (validate-node table game game))
     (dolist (room (game-rooms game))
+      (validate-node room game room))
+    (dolist (room (game-generated-rooms game))
       (validate-node room game room))
     (signal-validation-errors "Game"))
   game)
@@ -1761,6 +1371,10 @@ of times, such as on every render, so they must not roll dice.")
 (defmethod validate-node ((thing room) game context)
   (declare (ignore context))
   (validate-node-list (entities thing) game thing))
+
+(defmethod validate-node ((thing generated-room) game context)
+  (call-next-method)
+  (validate-node-list (generated-room-encounter-options thing) game thing))
 
 (defmethod validate-node ((thing entity) game context)
   (declare (ignore context))
@@ -1786,25 +1400,6 @@ of times, such as on every render, so they must not roll dice.")
   (validate-availability-node thing game context)
   (validate-choice-id thing)
   (validate-node (target thing) game context))
-
-(defmethod validate-node ((thing player) game context)
-  (declare (ignore game context))
-  (validate-player-current-maximum (player-str thing)
-                                   (player-max-str thing)
-                                   "STR")
-  (validate-player-current-maximum (player-dex thing)
-                                   (player-max-dex thing)
-                                   "DEX")
-  (validate-player-current-maximum (player-wil thing)
-                                   (player-max-wil thing)
-                                   "WIL")
-  (validate-player-current-maximum (player-hp thing)
-                                   (player-max-hp thing)
-                                   "HP")
-  (handler-case
-      (validate-player-inventory-data (player-inventory thing))
-    (error (condition)
-      (validation-error "~A" condition))))
 
 (defun table-result-reference-id (result)
   (when (and (consp result)
@@ -1979,6 +1574,17 @@ of times, such as on every render, so they must not roll dice.")
        (validation-error "GLOBAL state reference uses undeclared key ~S. Declared keys: ~S."
                          (state-ref-key thing)
                          (declared-global-state-keys game))))
+    (:player
+     (unless (state-ref-key thing)
+       (validation-error "PLAYER state reference is missing a key."))
+     (when (and game
+                (state-ref-key thing)
+                (not (member (state-key (state-ref-key thing))
+                             (declared-player-state-keys game)
+                             :test #'eql)))
+       (validation-error "PLAYER state reference uses undeclared key ~S. Declared keys: ~S."
+                         (state-ref-key thing)
+                         (declared-player-state-keys game))))
     (otherwise
      (validation-error "Unknown state scope ~S."
                        (state-ref-scope thing))))

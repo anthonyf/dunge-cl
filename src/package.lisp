@@ -9,7 +9,6 @@
    #:*output*
    #:*pause-after-say*
    #:*debug*
-   #:+player-inventory-capacity+
    #:action
    #:action-owner
    #:back
@@ -60,9 +59,11 @@
    #:game-encounter-states
    #:game-global-state
    #:game-global-state-declarations
+   #:game-player-state
+   #:game-player-state-declarations
+   #:declare-player-state
    #:game-generated-room-counter
    #:game-generated-rooms
-   #:game-player
    #:game-random-seed
    #:game-random-state
    #:game-rooms
@@ -70,9 +71,6 @@
    #:game-start
    #:game-tables
    #:game-taken-choices
-   #:claim-generated-room-result
-   #:clear-player-condition
-   #:find-player-inventory-entry
    #:find-generated-room
    #:find-encounter-state
    #:encounter-active-p
@@ -92,29 +90,16 @@
    #:encounter-status
    #:encounter-str
    #:generated-room
-   #:generated-room-claimed-results
    #:generated-room-description
    #:generated-room-depth
    #:generated-room-exits
    #:generated-room-exit-target
    #:generated-room-results
-   #:generated-room-result-claimed-p
-   #:generated-room-state-plist
-   #:generated-room-visited-p
    #:generated-room-zone
    #:gosub
    #:goto
-   #:add-player-inventory-entry
-   #:apply-resolved-table-result-to-player
-   #:apply-table-result-to-player
    #:interaction-label
    #:interaction-target
-   #:inventory-entry-bulky-p
-   #:inventory-entry-count
-   #:inventory-entry-id
-   #:inventory-entry-kind
-   #:inventory-entry-slots
-   #:inventory-entry-tags
    #:item
    #:label
    #:link-generated-rooms
@@ -135,30 +120,6 @@
    #:parse-dice-expression
    #:placed-thing
    #:placement-description
-   #:player
-   #:player-armor
-   #:player-background
-   #:player-conditions
-   #:player-condition-p
-   #:player-deprived-p
-   #:player-dex
-   #:player-fatigue
-   #:player-fate
-   #:player-gold
-   #:player-hp
-   #:player-inventory
-   #:player-inventory-capacity
-   #:player-inventory-count
-   #:player-inventory-free-slots
-   #:player-inventory-full-p
-   #:player-inventory-used-slots
-   #:player-max-dex
-   #:player-max-hp
-   #:player-max-str
-   #:player-max-wil
-   #:player-name
-   #:player-str
-   #:player-wil
    #:quit
    #:roll
    #:room
@@ -167,13 +128,9 @@
    #:read-runtime-state-file
    #:register-generated-room
    #:register-encounter-state
-   #:remove-player-inventory-entry
-   #:recover-player
    #:restore-runtime-state
    #:attack-encounter
-   #:ensure-room-encounter-state
    #:flee-encounter
-   #:use-player-ration
    #:make-runtime-context
    #:prioritized-mixin
    #:random-table
@@ -200,7 +157,6 @@
    #:roll-dice
    #:roll-dice-value
    #:roll-table
-   #:create-generated-room
    #:allocate-generated-room-id
    #:game-random
    #:table-entries
@@ -209,13 +165,9 @@
    #:table-entry-range
    #:table-entry-result
    #:table-entry-weight
-   #:table-result-encounters
-   #:table-result-exits
-   #:table-result-loot-results
    #:table-id
    #:table-index
    #:table-mode
-   #:resolve-table-result-data
    #:target
    #:text
    #:validate-game

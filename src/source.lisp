@@ -306,11 +306,14 @@ keyword value, as in (:say :open) or (:eq :open (:self :status))."
                   arguments))
   `(:branch :when ,(first arguments) :then ,(rest arguments)))
 
-;;; State references: (:global key), (:self key), and (:ref role key) stand
-;;; for (:state :scope SCOPE [:role ROLE] :key KEY).
+;;; State references: (:global key), (:self key), (:player key), and
+;;; (:ref role key) stand for (:state :scope SCOPE [:role ROLE] :key KEY).
 
 (define-dunge-shorthand :global (arguments)
   (state-source-form :global (exactly-one-shorthand-argument :global arguments)))
+
+(define-dunge-shorthand :player (arguments)
+  (state-source-form :player (exactly-one-shorthand-argument :player arguments)))
 
 (define-dunge-shorthand :self (arguments)
   (state-source-form :self (exactly-one-shorthand-argument :self arguments)))
@@ -432,7 +435,7 @@ keyword value, as in (:say :open) or (:eq :open (:self :status))."
     (let ((parts (uiop:split-string placeholder :separator ":")))
       (cond
         ((and (= 2 (length parts))
-              (member (first parts) '("self" "global") :test #'string=))
+              (member (first parts) '("self" "global" "player") :test #'string=))
          (state-source-form (intern (string-upcase (first parts)) :keyword)
                             (key (second parts))))
         ((and (= 3 (length parts))
@@ -440,7 +443,7 @@ keyword value, as in (:say :open) or (:eq :open (:self :status))."
          (state-source-form :ref (key (third parts)) (key (second parts))))
         (t
          (source-error "Unknown interpolation {~A}; expected {self:key}, ~
-                        {global:key}, or {ref:role:key}."
+                        {global:key}, {player:key}, or {ref:role:key}."
                        placeholder))))))
 
 (defun parse-interpolated-string (string)

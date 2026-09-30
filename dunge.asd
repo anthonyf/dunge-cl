@@ -14,8 +14,17 @@
                              (:file "runtime")
                              (:file "html")))))
 
-(asdf:defsystem "dunge/examples"
+(asdf:defsystem "dunge/crawler"
   :depends-on ("dunge")
+  :serial t
+  :description "Crawler build procedures: generated rooms, loot, and player state"
+  :components ((:module "crawler"
+                :pathname "src/crawler"
+                :components ((:file "package")
+                             (:file "crawler")))))
+
+(asdf:defsystem "dunge/examples"
+  :depends-on ("dunge" "dunge/crawler")
   :serial t
   :description "Examples for Dunge"
   :components ((:module "examples"
@@ -65,6 +74,7 @@
 
 (asdf:defsystem "dunge/tests"
   :depends-on ("dunge/examples"
+               "dunge/crawler"
                "dunge/parity"
                :fiveam)
   :serial t

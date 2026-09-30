@@ -644,275 +644,183 @@
              (second (entities start-room))
              restored-context))))))
 
-(test player-source-form-parses-and-validates-core-state
-  (let* ((game
-           (source-game-with-player
-            '(:player
-              :name "Mara"
-              :background :soldier
-              :str 12
-              :dex 11
-              :wil 9
-              :hp 4
-              :armor 1
-              :gold 8
-              :fate 1
-              :inventory ((:item :rusted-dagger)
-                          (:supply :ration :count 3))
-              :fatigue 1
-              :conditions (:deprived))))
-         (player (game-player game)))
-    (is (typep player 'player))
-    (is (equal "Mara" (player-name player)))
-    (is (eq :soldier (player-background player)))
-    (is (= 12 (player-str player)))
-    (is (= 12 (player-max-str player)))
-    (is (= 4 (player-hp player)))
-    (is (= 4 (player-max-hp player)))
-    (is (equal '((:item :rusted-dagger)
-                 (:supply :ration :count 3))
-               (player-inventory player)))
-    (is (equal '(:deprived) (player-conditions player)))))
+(defparameter *mara-player*
+  '((:name "Mara") (:background :soldier)
+    (:hp 4) (:max-hp 4) (:armor 1) (:gold 8)
+    (:fatigue 0) (:deprived nil)
+    (:rusted-dagger 1) (:ration 3)))
 
-(test malformed-player-source-fails-validation
-  (signals error
-    (source-game-with-player
-     '(:player :str -1)))
-  (signals error
-    (source-game-with-player
-     '(:player :str 12 :max-str 10)))
-  (signals error
-    (source-game-with-player
-     '(:player :conditions ("deprived"))))
-  (signals error
-    (source-game-with-player
-     '(:player :inventory ((:gold 1)))))
-  (signals error
-    (source-game-with-player
-     '(:player :inventory ((:item "dagger")))))
-  (signals error
-    (source-game-with-player
-     '(:player :inventory ((:supply :ration :count 0)))))
-  (signals error
-    (source-game-with-player
-     '(:player :inventory ((:item :rope :unknown t)))))
-  (signals error
-    (source-game-with-player
-     '(:player :inventory ((:item :rope :tags ("gear")))))))
+(test player-state-is-declared-and-read-like-global-state
+  (let* ((game (source-game-with-player *mara-player*))
+         (context (test-context game)))
+    (is (equal "Mara" (state-value (source-node '(:player :name)) context)))
+    (is (= 4 (evaluate-expression (source-node '(:player :hp)) context)))
+    (is (equal "Mara has 3 rations."
+               (evaluate-expression
+                (compile-dunge-source '(:concat "{player:name} has "
+                                        (:player :ration) " rations."))
+                context)))
+    (execute-effect (source-node '(:dec :target (:player :ration) :amount 2))
+                    context)
+    (is (= 1 (gethash :ration (game-player-state game))))
+    (dunge::prepare-game game)
+    (is (= 3 (gethash :ration (game-player-state game)))))
+  (flet ((rejects (player &rest body)
+           (is (not (null (error-message-from
+                           (lambda ()
+                             (apply #'source-game-with-player player body))))))))
+    (rejects '((:hp 1)) '(:choice "Heal" (:inc :target (:player :max-hp))))
+    (rejects '((:hp 1) (:hp 2)))
+    (rejects '((:hp 9007199254740992)))))
 
-(test player-inventory-data-model-computes-slots-and-status
-  (let* ((game
-           (source-game-with-player
-            '(:player
-              :inventory ((:item :rusted-dagger)
-                          (:item :mail :bulky t :tags (:armor))
-                          (:supply :ration :count 3)
-                          (:item :coin-purse :slots 0))
-              :fatigue 2)))
-         (player (game-player game))
-         (dagger (first (player-inventory player)))
-         (mail (second (player-inventory player)))
-         (ration (third (player-inventory player)))
-         (coin-purse (fourth (player-inventory player))))
-    (is (eq :item (inventory-entry-kind dagger)))
-    (is (eq :rusted-dagger (inventory-entry-id dagger)))
-    (is (= 1 (inventory-entry-count dagger)))
-    (is (= 1 (inventory-entry-slots dagger)))
-    (is (inventory-entry-bulky-p mail))
-    (is (= 2 (inventory-entry-slots mail)))
-    (is (equal '(:armor) (inventory-entry-tags mail)))
-    (is (= 3 (inventory-entry-count ration)))
-    (is (= 1 (inventory-entry-slots ration)))
-    (is (= 0 (inventory-entry-slots coin-purse)))
-    (is (= 6 (player-inventory-used-slots player)))
-    (is (= 4 (player-inventory-free-slots player)))
-    (is (not (player-inventory-full-p player)))
-    (is (not (player-deprived-p player)))
-    (setf (player-fatigue player) 6)
-    (is (player-inventory-full-p player))
-    (is (player-deprived-p player))))
+(test crawler-player-declarations-count-inventory
+  (is (equal '((:name "Mara") (:background :soldier)
+               (:str 12) (:max-str 12) (:dex 10) (:max-dex 10)
+               (:wil 10) (:max-wil 10) (:hp 4) (:max-hp 4)
+               (:armor 1) (:gold 0) (:fate 0) (:fatigue 0) (:deprived nil)
+               (:rusted-dagger 1) (:ration 3) (:chalk 0))
+             (player-declarations
+              :name "Mara" :background :soldier :str 12 :hp 4 :armor 1
+              :inventory '((:item :rusted-dagger)
+                           (:supply :ration :count 2)
+                           (:supply :ration))
+              :catalog (item-catalog '((:item :chalk :slots 0)
+                                       (:supply :ration :count 9))))))
+  (signals error
+    (player-declarations :inventory '((:item :hp)))))
 
-(test player-inventory-mutators-stack-and-remove-counted-entries
-  (let ((player (make-instance 'player
-                               :inventory '((:supply :ration :count 2)
-                                            (:item :torch)))))
-    (add-player-inventory-entry player '(:supply :ration) :count 3)
-    (is (equal '((:supply :ration :count 5)
-                 (:item :torch))
-               (player-inventory player)))
-    (add-player-inventory-entry player '(:item :torch))
-    (is (= 2 (player-inventory-count player :item :torch)))
-    (is (equal '(:item :torch :count 2)
-               (find-player-inventory-entry player :item :torch)))
-    (add-player-inventory-entry player '(:item :torch :condition :lit))
-    (is (= 3 (player-inventory-count player :item :torch)))
-    (is (equal '((:supply :ration :count 5)
-                 (:item :torch :count 2)
-                 (:item :torch :condition :lit))
-               (player-inventory player)))
-    (remove-player-inventory-entry player :supply :ration :count 4)
-    (is (equal '((:supply :ration)
-                 (:item :torch :count 2)
-                 (:item :torch :condition :lit))
-               (player-inventory player)))
-    (remove-player-inventory-entry player :item :torch :count 2)
-    (is (equal '((:supply :ration)
-                 (:item :torch :condition :lit))
-               (player-inventory player)))
-    (signals error
-      (remove-player-inventory-entry player :supply :ration :count 2))))
+(test crawler-used-slots-follow-inventory-rules
+  ;; A dagger uses a slot, bulky mail two, a supply stack one however many,
+  ;; and a purse with explicit :SLOTS 0 none; fatigue fills slots too.
+  (let* ((catalog (item-catalog '((:item :rusted-dagger)
+                                  (:item :mail :bulky t)
+                                  (:supply :ration :count 3)
+                                  (:item :coin-purse :slots 0))))
+         (used (used-slots-expression catalog))
+         (game (source-game-with-player
+                '((:hp 4) (:max-hp 4) (:fatigue 2) (:deprived nil)
+                  (:rusted-dagger 1) (:mail 1) (:ration 3) (:coin-purse 1))
+                (ration-choice-form :used-slots used)))
+         (context (test-context game))
+         (ration (first (entities (first (game-rooms game))))))
+    (is (equal '(:add (:player :fatigue)
+                 (:mul 1 (:player :rusted-dagger))
+                 (:mul 2 (:player :mail))
+                 (:min 1 (:player :ration)))
+               used))
+    (is (= 6 (evaluate-expression (compile-dunge-source used) context)))
+    ;; Rested, healthy, and not deprived: no ration.
+    (setf (gethash :fatigue (game-player-state game)) 0)
+    (is (not (available-p ration context)))
+    ;; A full inventory counts as deprived.
+    (setf (gethash :mail (game-player-state game)) 4)
+    (is (= 10 (evaluate-expression (compile-dunge-source used) context)))
+    (is (available-p ration context))))
 
-(test player-recovery-and-ration-use-mutates-state
-  (let ((player (make-instance 'player
-                               :hp 2
-                               :max-hp 4
-                               :inventory '((:supply :ration :count 2))
-                               :fatigue 2
-                               :conditions '(:deprived :poisoned))))
-    (is (player-condition-p player :deprived))
-    (recover-player player
-                    :hp 5
-                    :fatigue 1
-                    :clear-conditions '(:deprived))
-    (is (= 4 (player-hp player)))
-    (is (= 1 (player-fatigue player)))
-    (is (not (player-condition-p player :deprived)))
-    (is (player-condition-p player :poisoned))
-    (use-player-ration player)
-    (is (= 1 (player-inventory-count player :supply :ration)))
-    (is (= 0 (player-fatigue player)))))
+(test crawler-ration-choice-recovers-and-consumes
+  (let* ((game (source-game-with-player
+                '((:hp 2) (:max-hp 4) (:fatigue 2) (:deprived t) (:ration 2))
+                (ration-choice-form)))
+         (context (test-context game))
+         (state (game-player-state game))
+         (ration (first (entities (first (game-rooms game))))))
+    (is (available-p ration context))
+    (with-output-to-string (*output*)
+      (execute-effect (target ration) context))
+    (is (= 3 (gethash :hp state)))
+    (is (= 1 (gethash :fatigue state)))
+    (is (null (gethash :deprived state)))
+    (is (= 1 (gethash :ration state)))
+    (setf (gethash :hp state) 4
+          (gethash :fatigue state) 0)
+    (is (not (available-p ration context)))
+    (setf (gethash :hp state) 1
+          (gethash :ration state) 0)
+    (is (not (available-p ration context)))))
 
 (test runtime-state-captures-and-restores-player-state
-  (let* ((game
-           (source-game-with-player
-            '(:player
-              :name "Mara"
-              :background :soldier
-              :str 12
-              :dex 11
-              :wil 9
-              :hp 4
-              :armor 1
-              :gold 8
-              :fate 1
-              :inventory ((:item :rusted-dagger))
-              :conditions (:deprived))))
-         (session (make-runtime-session game))
-         (player (game-player game)))
-    (setf (player-hp player) 2
-          (player-gold player) 13
-          (player-inventory player) '((:item :rusted-dagger)
-                                      (:supply :ration :count 2))
-          (player-conditions player) '(:deprived :poisoned))
+  (let* ((game (source-game-with-player *mara-player*))
+         (session (make-runtime-session game)))
+    (setf (gethash :hp (game-player-state game)) 2
+          (gethash :ration (game-player-state game)) 1)
     (let* ((state (capture-runtime-state session))
-           (fresh-game
-             (source-game-with-player
-              '(:player
-                :name "Mara"
-                :background :soldier
-                :str 12
-                :dex 11
-                :wil 9
-                :hp 4
-                :armor 1
-                :gold 8
-                :fate 1
-                :inventory ((:item :rusted-dagger))
-                :conditions (:deprived))))
-           (restored-session (restore-runtime-state fresh-game state))
-           (restored-player (game-player fresh-game)))
-      (declare (ignore restored-session))
-      (is (equal "Mara" (getf (getf state :player) :name)))
-      (is (= 2 (player-hp restored-player)))
-      (is (= 4 (player-max-hp restored-player)))
-      (is (= 13 (player-gold restored-player)))
-      (is (equal '((:item :rusted-dagger)
-                   (:supply :ration :count 2))
-                 (player-inventory restored-player)))
-      (is (equal '(:deprived :poisoned)
-                 (player-conditions restored-player))))))
+           (fresh-game (source-game-with-player *mara-player*)))
+      (is (equal '(:hp . 2) (assoc :hp (getf state :player))))
+      (restore-runtime-state fresh-game state)
+      (is (= 2 (gethash :hp (game-player-state fresh-game))))
+      (is (= 4 (gethash :max-hp (game-player-state fresh-game))))
+      (is (= 1 (gethash :ration (game-player-state fresh-game))))
+      (setf (getf state :player) '((:mana . 3)))
+      (signals error
+        (restore-runtime-state (source-game-with-player *mara-player*)
+                               state)))))
 
-(test runtime-state-restores-saved-player-into-game-without-authored-player
-  (let* ((game (source-game-with-player
-                '(:player :name "Mara" :str 12 :hp 4)))
-         (session (make-runtime-session game))
-         (state (capture-runtime-state session))
-         (fresh-game (source-game-with-body)))
-    (restore-runtime-state fresh-game state)
-    (is (game-player fresh-game))
-    (is (equal "Mara" (player-name (game-player fresh-game))))
-    (is (= 12 (player-str (game-player fresh-game))))))
-
-(test runtime-state-rejects-malformed-player-inventory
-  (let* ((game (source-game-with-player
-                '(:player :name "Mara" :str 12 :hp 4)))
-         (session (make-runtime-session game))
-         (state (capture-runtime-state session))
-         (player-state (copy-list (getf state :player))))
-    (setf (getf player-state :inventory) '((:gold 1))
-          (getf state :player) player-state)
-    (signals error
-      (restore-runtime-state (source-game-with-body) state))))
-
-(test encounter-state-starts-from-table-results-and-round-trips-runtime-state
-  (let* ((game (source-game-with-player
-                '(:player :name "Mara" :hp 4 :armor 1)))
+(defun shadow-room-game (&key (player '((:hp 4) (:max-hp 4) (:armor 1)))
+                              (hp 1) (damage 1) options encounter-options)
+  "A game whose generated room holds a watchful shadow."
+  (let* ((game (source-game-with-player player))
          (room (create-generated-room
                 game
                 :zone :dungeon
-                :results '((:encounter :watchful-shadow
-                             :reaction :uncertain))))
-         (encounter-result (first (table-result-encounters
-                                   (generated-room-results room))))
-         (encounter (ensure-room-encounter-state
-                     game
-                     room
-                     encounter-result
-                     :hp 5
-                     :str 8
-                     :damage 2))
-         (session (make-runtime-session game :current-room (name room)))
-         (state (capture-runtime-state session)))
-    (is (eq encounter (find-encounter-state game room)))
-    (is (eq :watchful-shadow (encounter-enemy-id encounter)))
-    (is (eq :uncertain (encounter-reaction encounter)))
-    (is (= 5 (encounter-hp encounter)))
-    (is (= 8 (encounter-str encounter)))
-    (is (= 1 (length (getf state :encounters))))
-    (let* ((fresh-game (source-game-with-body))
-           (restored-session (restore-runtime-state fresh-game state))
-           (restored-encounter (find-encounter-state
+                :title "Shadowed Room"
+                :results '((:encounter :watchful-shadow :reaction :uncertain))
+                :exits '((:back . "room"))
+                :options options
+                :encounter-options encounter-options)))
+    (values game
+            room
+            (ensure-room-encounter-state game
+                                         room
+                                         (first (table-result-encounters
+                                                 (generated-room-results room)))
+                                         :hp hp
+                                         :str 8
+                                         :damage damage))))
+
+(test encounter-state-starts-from-table-results-and-round-trips-runtime-state
+  (multiple-value-bind (game room encounter) (shadow-room-game :hp 5 :damage 2)
+    (let* ((session (make-runtime-session game :current-room (name room)))
+           (state (capture-runtime-state session)))
+      (is (eq encounter (find-encounter-state game room)))
+      (is (eq :watchful-shadow (encounter-enemy-id encounter)))
+      (is (eq :uncertain (encounter-reaction encounter)))
+      (is (= 5 (encounter-hp encounter)))
+      (is (= 8 (encounter-str encounter)))
+      (is (= 1 (length (getf state :encounters))))
+      (is (null (getf state :generated-rooms)))
+      (setf (encounter-hp encounter) 3)
+      (let* ((fresh-game (shadow-room-game :hp 5 :damage 2))
+             (restored-session (restore-runtime-state
                                 fresh-game
-                                (name room)
-                                :errorp t)))
-      (is (equal (name room)
-                 (runtime-session-current-room-name restored-session)))
-      (is (eq :watchful-shadow
-              (encounter-enemy-id restored-encounter)))
-      (is (= 5 (encounter-hp restored-encounter)))
-      (is (= 2 (encounter-damage restored-encounter)))
-      (is (equal encounter-result
-                 (encounter-source restored-encounter))))))
+                                (capture-runtime-state session)))
+             (restored-encounter (find-encounter-state
+                                  fresh-game
+                                  (name room)
+                                  :errorp t)))
+        (is (equal (name room)
+                   (runtime-session-current-room-name restored-session)))
+        (is (eq :watchful-shadow (encounter-enemy-id restored-encounter)))
+        (is (= 3 (encounter-hp restored-encounter)))
+        (is (= 2 (encounter-damage restored-encounter)))))))
 
 (test encounter-combat-attacks-and-flee-update-state
-  (let* ((game (source-game-with-player
-                '(:player :name "Mara" :hp 4 :armor 1)))
-         (player (game-player game))
+  (let* ((game (source-game-with-player '((:hp 4) (:max-hp 4) (:armor 1))))
          (encounter (make-encounter-state
                      :room "room"
                      :enemy-id :watchful-shadow
                      :hp 3
                      :damage 2)))
     (register-encounter-state game encounter)
-    (let ((result (attack-encounter game player encounter :damage 1)))
+    (let ((result (attack-encounter game encounter :damage 1)))
       (is (equal :attack (getf result :action)))
       (is (= 2 (encounter-hp encounter)))
-      (is (= 3 (player-hp player)))
+      ;; Damage 2 less armor 1.
+      (is (= 3 (gethash :hp (game-player-state game))))
       (is (= 1 (encounter-round encounter)))
       (is (eq :active (encounter-status encounter))))
-    (let ((result (attack-encounter game player encounter :damage 2)))
+    (let ((result (attack-encounter game encounter :damage 2)))
       (is (= 0 (encounter-hp encounter)))
-      (is (= 3 (player-hp player)))
+      (is (= 3 (gethash :hp (game-player-state game))))
       (is (= 2 (encounter-round encounter)))
       (is (eq :defeated (getf result :status)))
       (is (eq :defeated (encounter-status encounter))))
@@ -925,95 +833,64 @@
       (is (encounter-finished-p fleeing)))))
 
 (test generated-room-active-encounter-renders-combat-choices
-  (let* ((game (source-game-with-player
-                '(:player :name "Mara" :hp 4)))
-         (room (create-generated-room
-                game
-                :zone :dungeon
-                :title "Shadowed Room"
-                :results '((:encounter :watchful-shadow))
-                :exits '((:back . "room"))))
-         (encounter (ensure-room-encounter-state
-                     game
-                     room
-                     '(:encounter :watchful-shadow)
-                     :hp 1
-                     :damage 1))
-         (session (make-runtime-session game :current-room (name room))))
-    (multiple-value-bind (output result)
-        (run-session-script session (format nil "1~%1~%"))
-      (is (equal "room" (name result)))
-      (is (contains-substring-p "Encounter: Watchful Shadow" output))
-      (is (contains-substring-p "1. Attack watchful shadow" output))
-      (is (contains-substring-p "Watchful Shadow falls." output))
-      (is (contains-substring-p "1. Return" output))
-      (is (eq :defeated (encounter-status encounter))))))
+  (multiple-value-bind (game room encounter) (shadow-room-game)
+    (let ((session (make-runtime-session game :current-room (name room))))
+      (multiple-value-bind (output result)
+          (run-session-script session (format nil "1~%1~%"))
+        (is (equal "room" (name result)))
+        (is (contains-substring-p "Encounter: Watchful Shadow" output))
+        (is (contains-substring-p "1. Attack watchful shadow" output))
+        (is (contains-substring-p "Watchful Shadow falls." output))
+        (is (contains-substring-p "1. Return" output))
+        (is (eq :defeated (encounter-status encounter)))))))
 
 (test generated-room-active-encounter-allows-ration-use
-  (let* ((game (source-game-with-player
-                '(:player
-                  :name "Mara"
-                  :hp 3
-                  :max-hp 4
-                  :inventory ((:supply :ration)))))
-         (player (game-player game))
-         (room (create-generated-room
-                game
-                :zone :dungeon
-                :title "Shadowed Room"
-                :results '((:encounter :watchful-shadow))
-                :exits '((:back . "room"))))
-         (encounter (ensure-room-encounter-state
-                     game
-                     room
-                     '(:encounter :watchful-shadow)
-                     :hp 1
-                     :damage 1))
-         (session (make-runtime-session game :current-room (name room))))
-    (multiple-value-bind (output result)
-        (run-session-script session (format nil "2~%1~%1~%"))
-      (is (equal "room" (name result)))
-      (is (contains-substring-p "2. Eat ration" output))
-      (is (contains-substring-p "3. Flee" output))
-      (is (contains-substring-p "You eat a ration and recover." output))
-      (is (= 4 (player-hp player)))
-      (is (= 0 (player-inventory-count player :supply :ration)))
-      (is (eq :defeated (encounter-status encounter))))))
+  (multiple-value-bind (game room encounter)
+      (shadow-room-game :player '((:hp 3) (:max-hp 4) (:armor 0)
+                                  (:fatigue 0) (:deprived nil) (:ration 1))
+                        :encounter-options (list (ration-choice-form)))
+    (let ((session (make-runtime-session game :current-room (name room))))
+      (multiple-value-bind (output result)
+          (run-session-script session (format nil "2~%1~%1~%"))
+        (is (equal "room" (name result)))
+        (is (contains-substring-p "2. Eat ration" output))
+        (is (contains-substring-p "3. Flee" output))
+        (is (contains-substring-p "You eat a ration and recover." output))
+        (is (= 4 (gethash :hp (game-player-state game))))
+        (is (= 0 (gethash :ration (game-player-state game))))
+        (is (eq :defeated (encounter-status encounter)))))))
 
-(test generated-room-loot-choices-claim-and-persist
-  (let* ((game (source-game-with-player
-                '(:player :name "Mara" :hp 4)))
-         (room (create-generated-room
-                game
-                :zone :dungeon
-                :title "Looted Room"
-                :results '((:supply :ration)
-                           (:gold 3)
-                           (:room-detail :old-bones))
-                :exits '((:back . "room"))))
+(test generated-room-loot-choices-are-taken-once-and-saved
+  (let* ((player '((:hp 4) (:gold 0) (:ration 0)))
+         (game (source-game-with-player player))
+         (results '((:supply :ration) (:gold 3) (:room-detail :old-bones)))
+         (room (create-generated-room game
+                                      :zone :dungeon
+                                      :title "Looted Room"
+                                      :results results
+                                      :exits '((:back . "room"))))
          (session (make-runtime-session game :current-room (name room))))
     (multiple-value-bind (output result)
         (run-session-script session (format nil "1~%1~%1~%"))
       (is (equal "room" (name result)))
+      (is (contains-substring-p "Room Detail: Old Bones." output))
       (is (contains-substring-p "1. Take ration" output))
       (is (contains-substring-p "You take ration." output))
       (is (contains-substring-p "1. Take 3 gold" output))
       (is (contains-substring-p "You take 3 gold." output))
-      (is (= 1 (player-inventory-count (game-player game) :supply :ration)))
-      (is (= 3 (player-gold (game-player game))))
-      (is (equal '(0 1) (generated-room-claimed-results room))))
+      (is (= 1 (gethash :ration (game-player-state game))))
+      (is (= 3 (gethash :gold (game-player-state game)))))
     (let* ((state (capture-runtime-state session))
-           (fresh-game (source-game-with-player
-                        '(:player :name "Mara" :hp 4)))
-           (restored-session (restore-runtime-state fresh-game state))
-           (restored-room (find-generated-room fresh-game
-                                               (name room)
-                                               :errorp t)))
-      (declare (ignore restored-session))
-      (is (equal '(0 1) (generated-room-claimed-results restored-room)))
+           (fresh-game (source-game-with-player player))
+           (fresh-room (create-generated-room fresh-game
+                                              :zone :dungeon
+                                              :title "Looted Room"
+                                              :results results
+                                              :exits '((:back . "room")))))
+      (restore-runtime-state fresh-game state)
       (multiple-value-bind (output result)
           (run-session-script
-           (make-runtime-session fresh-game :current-room (name restored-room))
+           (make-runtime-session fresh-game :current-room (name fresh-room))
            (format nil "1~%"))
         (is (equal "room" (name result)))
         (is (not (contains-substring-p "Take ration" output)))
@@ -1022,31 +899,26 @@
 
 (test generated-room-ration-use-recovers-in-exploration
   (let* ((game (source-game-with-player
-                '(:player
-                  :name "Mara"
-                  :hp 2
-                  :max-hp 3
-                  :inventory ((:supply :ration :count 2))
-                  :fatigue 1
-                  :conditions (:deprived))))
-         (player (game-player game))
+                '((:hp 2) (:max-hp 3) (:fatigue 1) (:deprived t) (:ration 2))))
          (room (create-generated-room
                 game
                 :zone :dungeon
                 :title "Quiet Room"
-                :exits '((:back . "room"))))
-         (session (make-runtime-session game :current-room (name room))))
+                :exits '((:back . "room"))
+                :options (list (ration-choice-form))))
+         (session (make-runtime-session game :current-room (name room)))
+         (state (game-player-state game)))
     (multiple-value-bind (output result)
         (run-session-script session (format nil "1~%1~%"))
       (is (equal "room" (name result)))
       (is (contains-substring-p "1. Eat ration" output))
       (is (contains-substring-p "You eat a ration and recover." output))
-      (is (= 3 (player-hp player)))
-      (is (= 0 (player-fatigue player)))
-      (is (not (player-condition-p player :deprived)))
-      (is (= 1 (player-inventory-count player :supply :ration))))))
+      (is (= 3 (gethash :hp state)))
+      (is (= 0 (gethash :fatigue state)))
+      (is (null (gethash :deprived state)))
+      (is (= 1 (gethash :ration state))))))
 
-(test generated-rooms-register-render-and-round-trip-runtime-state
+(test generated-rooms-register-and-render-their-body
   (let* ((game (source-game-with-body))
          (room (create-generated-room
                 game
@@ -1057,54 +929,30 @@
                 :results '((:room-detail :flooded-floor)
                            (:loot :minor))
                 :exits '((:back . "room"))))
-         (session (make-runtime-session game :current-room (name room)))
-         (state (capture-runtime-state session)))
+         (session (make-runtime-session game :current-room (name room))))
     (is (eq room (find-generated-room game (name room) :errorp t)))
     (is (equal (name room) (runtime-session-current-room-name session)))
     (is (= 1 (game-generated-room-counter game)))
-    (is (= 1 (length (getf state :generated-rooms))))
-    (let ((room-state (first (getf state :generated-rooms))))
-      (is (equal (name room) (getf room-state :id)))
-      (is (equal "Flooded Guardroom" (getf room-state :title)))
-      (is (eq :dungeon (getf room-state :zone)))
-      (is (equal '((:back . "room")) (getf room-state :exits))))
-    (let* ((fresh-game (source-game-with-body))
-           (restored-session (restore-runtime-state fresh-game state))
-           (restored-room (find-generated-room fresh-game
-                                               (name room)
-                                               :errorp t)))
-      (is (equal (name room)
-                 (runtime-session-current-room-name restored-session)))
-      (is (equal "Cold water covers the floor."
-                 (generated-room-description restored-room)))
-      (is (equal '((:room-detail :flooded-floor)
-                   (:loot :minor))
-                 (generated-room-results restored-room)))
-      (multiple-value-bind (output result)
-          (run-session-script restored-session (format nil "1~%"))
-        (is (contains-substring-p "Flooded Guardroom" output))
-        (is (contains-substring-p "Cold water covers the floor." output))
-        (is (contains-substring-p "Room Detail: Flooded Floor." output))
-        (is (contains-substring-p "Loot: Minor." output))
-        (is (contains-substring-p "1. Return" output))
-        (is (equal "room" (name result)))
-        (is (generated-room-visited-p restored-room))))))
+    (is (equal '(p p p) (mapcar #'type-of (entities room))))
+    ;; Generated rooms are part of the game's definition: preparing the game
+    ;; for a new run keeps them.
+    (dunge::prepare-game game)
+    (is (eq room (find-generated-room game (name room) :errorp t)))
+    (multiple-value-bind (output result)
+        (run-session-script session (format nil "1~%"))
+      (is (contains-substring-p "Flooded Guardroom" output))
+      (is (contains-substring-p "Cold water covers the floor." output))
+      (is (contains-substring-p "Room Detail: Flooded Floor." output))
+      (is (contains-substring-p "Loot: Minor." output))
+      (is (contains-substring-p "1. Return" output))
+      (is (equal "room" (name result))))))
 
-(test generated-room-restore-keeps-counter-ahead-of-explicit-ids
-  (let* ((game (source-game-with-body))
-         (session (restore-runtime-state
-                   game
-                   '(:current-room "generated:dungeon:7"
-                     :generated-room-counter 0
-                     :generated-rooms
-                     ((:id "generated:dungeon:7"
-                       :title "Seventh Room"
-                       :zone :dungeon
-                       :exits ((:back . "room")))))))
-         (next-room (create-generated-room game :zone :dungeon)))
-    (declare (ignore session))
-    (is (= 8 (game-generated-room-counter game)))
-    (is (equal "generated:dungeon:8" (name next-room)))))
+(test generated-room-ids-keep-the-counter-ahead-of-explicit-ids
+  (let ((game (source-game-with-body)))
+    (create-generated-room game :id "generated:dungeon:7" :zone :dungeon)
+    (let ((next-room (create-generated-room game :zone :dungeon)))
+      (is (= 8 (game-generated-room-counter game)))
+      (is (equal "generated:dungeon:8" (name next-room))))))
 
 (test generated-room-graph-helpers-link-and-replace-exits
   (let* ((game (source-game-with-body))
@@ -1150,24 +998,6 @@
                               :reverse-direction :south))
       (is (null (generated-room-exits source)))
       (is (null (generated-room-exits target))))))
-
-(test runtime-state-rejects-malformed-generated-room-state
-  (signals error
-    (restore-runtime-state
-     (source-game-with-body)
-     '(:current-room "room"
-       :generated-rooms
-       ((:id 42
-         :zone :dungeon)))))
-  (signals error
-    (restore-runtime-state
-     (source-game-with-body)
-     '(:current-room "room"
-       :generated-rooms
-       ((:id "generated:dungeon:1"
-         :zone :dungeon
-         :results ((:gold 1))
-         :claimed-results (1)))))))
 
 (test runtime-state-rejects-malformed-encounter-state
   (signals error
@@ -1450,13 +1280,8 @@
       (is (null record))
       (is (null (game-roll-log game))))))
 
-(test table-result-resolvers-normalize-amounts-and-apply-player-mutations
-  (let* ((game (source-game-with-player
-                '(:player
-                  :name "Resolver"
-                  :gold 2
-                  :inventory ((:supply :ration :count 1)))))
-         (player (game-player game))
+(test table-result-resolvers-normalize-amounts
+  (let* ((game (source-game-with-body))
          (resolved (resolve-table-result-data
                     game
                     '((:gold "1d6")
@@ -1472,21 +1297,11 @@
           (ration-count (getf (second resolved) :count)))
       (is (<= 1 gold 6))
       (is (<= 1 ration-count 4))
+      (is (equal '(:item :chalk :slots 0) (third resolved)))
       (is (equal (list (first resolved)
                        (second resolved)
                        (third resolved))
-                 (table-result-loot-results resolved)))
-      (apply-resolved-table-result-to-player player resolved)
-      (is (= (+ 2 gold) (player-gold player)))
-      (is (= (+ 1 ration-count)
-             (player-inventory-count player :supply :ration)))
-      (is (find-player-inventory-entry player :item :chalk))
-      (is (equal '(:item :torch :count 2)
-                 (apply-table-result-to-player
-                  game
-                  player
-                  '(:item :torch :count 2))))
-      (is (= 2 (player-inventory-count player :item :torch))))))
+                 (table-result-loot-results resolved))))))
 
 (test table-result-resolvers-extract-exits-and-reject-bad-shapes
   (let ((game (source-game-with-body)))
@@ -2224,19 +2039,22 @@
                                                   :name "Nia"
                                                   :background :delver)
       (is (eq game returned-game))
-      (is (eq player (game-player game)))
-      (is (equal "Nia" (player-name player)))
-      (is (eq :delver (player-background player)))
-      (is (<= 5 (player-str player) 15))
-      (is (<= 5 (player-dex player) 15))
-      (is (<= 5 (player-wil player) 15))
-      (is (<= 1 (player-hp player) 6))
-      (is (<= 1 (player-gold player) 6))
-      (is (= 1 (player-armor player)))
-      (is (equal '((:item :rusted-dagger)
-                   (:item :lantern)
-                   (:supply :ration :count 1))
-                 (player-inventory player)))
+      (is (eq player (game-player-state game)))
+      (flet ((stat (key) (gethash key player)))
+        (is (equal "Nia" (stat :name)))
+        (is (eq :delver (stat :background)))
+        (is (<= 5 (stat :str) 15))
+        (is (<= 5 (stat :dex) 15))
+        (is (<= 5 (stat :wil) 15))
+        (is (<= 1 (stat :hp) 6))
+        (is (= (stat :hp) (stat :max-hp)))
+        (is (<= 1 (stat :gold) 6))
+        (is (= 1 (stat :armor)))
+        (is (= 1 (stat :rusted-dagger)))
+        (is (= 1 (stat :lantern)))
+        (is (= 1 (stat :ration)))
+        ;; Items the tables can award are declared too.
+        (is (= 0 (stat :chalk))))
       (is (equal '(:adaptation-str
                    :adaptation-dex
                    :adaptation-wil
@@ -2248,12 +2066,11 @@
 
 (test generated-adaptation-example-loads-with-created-player
   (let* ((game (dunge-examples:load-generated-adaptation-example))
-         (player (game-player game)))
-    (is (equal "Generated Delver" (player-name player)))
-    (is (eq :wanderer (player-background player)))
-    (is (equal '((:item :lantern)
-                 (:supply :ration :count 2))
-               (player-inventory player)))
+         (player (game-player-state game)))
+    (is (equal "Generated Delver" (gethash :name player)))
+    (is (eq :wanderer (gethash :background player)))
+    (is (= 1 (gethash :lantern player)))
+    (is (= 2 (gethash :ration player)))
     (is (= 5 (length (game-roll-log game))))))
 
 (test adaptation-generated-room-instances-use-authored-tables-and-persist
@@ -2289,7 +2106,7 @@
                game
                room
                :deeper))))
-    (is (= 2 (player-inventory-count (game-player game) :supply :ration)))
+    (is (= 2 (gethash :ration (game-player-state game))))
     (is (= 2 (gethash :rooms-generated (game-global-state game))))
     (is (= 2 (gethash :dungeon-depth (game-global-state game))))
     (is (gethash :first-room-generated (game-global-state game)))
@@ -2300,10 +2117,9 @@
     (let* ((session (make-runtime-session game :current-room (name room)))
            (state (capture-runtime-state session))
            (fresh-game (dunge-examples:load-adaptation-example))
-           (restored-session (restore-runtime-state fresh-game state))
-           (restored-room (find-generated-room fresh-game
-                                               (name room)
-                                               :errorp t)))
+           (restored-room (dunge-examples:ensure-adaptation-first-room
+                           fresh-game))
+           (restored-session (restore-runtime-state fresh-game state)))
       (is (equal (name room)
                  (runtime-session-current-room-name restored-session)))
       (is (equal (generated-room-results room)
@@ -2322,19 +2138,18 @@
         (is (contains-substring-p "2. Continue deeper" output))
         (is (contains-substring-p "This chamber sits at depth 2" output))
         (is (typep result 'quit))
-        (is (= 3 (player-inventory-count (game-player fresh-game)
-                                          :supply
-                                          :ration)))
-        (is (equal '(1) (generated-room-claimed-results restored-room)))
+        (is (= 3 (gethash :ration (game-player-state fresh-game))))
+        (is (gethash :generated-dungeon-1-loot-1
+                     (game-taken-choices fresh-game)))
         (is (equal (name restored-room)
                    (runtime-session-current-room-name restored-session)))))))
 
 (test instanced-adaptation-example-loads-with-first-generated-room
   (let ((game (dunge-examples:load-instanced-adaptation-example)))
-    (is (game-player game))
+    (is (equal "Generated Delver" (gethash :name (game-player-state game))))
     (is (= 2 (length (game-generated-rooms game))))
     (is (= 2 (length (game-encounter-states game))))
-    (is (= 2 (player-inventory-count (game-player game) :supply :ration)))
+    (is (= 2 (gethash :ration (game-player-state game))))
     (is (= 13 (length (game-roll-log game))))
     (signals error
       (dunge-examples:find-adaptation-choice game nil))
@@ -2473,38 +2288,23 @@
     (is (contains-substring-p "function renderChoices" script))))
 
 (test html-compiler-lowers-player-state-for-browser-runtime
-  (let* ((game
-           (source-game-with-player
-            '(:player
-              :name "Mara"
-              :background :soldier
-              :str 12
-              :hp 4
-              :inventory ((:item :rusted-dagger))
-              :conditions (:deprived))))
-         (script (dunge-html:compile-game-script game)))
-    (is (contains-substring-p "\"player\":{\"name\":\"Mara\"" script))
-    (is (contains-substring-p "\"background\":{\"type\":\"keyword\",\"name\":\"soldier\"}"
-                              script))
-    (is (contains-substring-p "\"maxStr\":12" script))
-    (is (contains-substring-p "\"inventoryCapacity\":10" script))
-    (is (contains-substring-p "\"inventory\":[[{\"type\":\"keyword\",\"name\":\"item\"}"
-                              script))
-    (is (contains-substring-p "function copyJsonValue" script))
-    (is (not (contains-substring-p "function renderStatusPanel" script)))
-    (is (not (contains-substring-p "function renderPlayerStatus" script)))
-    (is (not (contains-substring-p "function inventoryUsedSlots" script)))
-    (is (not (contains-substring-p "function renderInventoryList" script)))
-    (is (contains-substring-p "'player' : copyJsonValue(PLAYER)" script))
-    (is (contains-substring-p "if (state['player'] !== undefined)" script))))
+  (let ((script (dunge-html:compile-game-script
+                 (source-game-with-player
+                  '((:name "Mara") (:background :soldier) (:hp 4) (:ration 2))
+                  '(:choice "Eat" (:dec :target (:player :ration)))))))
+    (is (contains-substring-p
+         "\"player\":{\"keys\":[\"name\",\"background\",\"hp\",\"ration\"],\"values\":{\"name\":\"Mara\",\"background\":{\"type\":\"keyword\",\"name\":\"soldier\"},\"hp\":4,\"ration\":2}}"
+         script))
+    (is (contains-substring-p
+         "\"target\":{\"type\":\"state\",\"scope\":\"player\",\"role\":null,\"key\":\"ration\"}"
+         script))
+    (is (contains-substring-p "'player' : copyObject(STATE.player)" script))
+    (is (not (contains-substring-p "inventory" script)))
+    (is (not (contains-substring-p "function playerCanUseRationP" script)))))
 
 (test html-compiler-lowers-encounter-state-for-browser-runtime
-  (let* ((game
-           (source-game-with-player
-            '(:player
-              :name "Mara"
-              :hp 4)
-            '(:p "A shadow waits.")))
+  (let* ((game (source-game-with-player '((:hp 4) (:armor 0))
+                                        '(:p "A shadow waits.")))
          (encounter (make-encounter-state
                      :room "room"
                      :enemy-id :watchful-shadow
@@ -2528,48 +2328,39 @@
       (is (contains-substring-p "\"status\":{\"type\":\"keyword\",\"name\":\"active\"}"
                                 script))
       (is (contains-substring-p "function encounterForRoom" script))
-      (is (contains-substring-p "function generatedRoomEncounterLine" script))
-      (is (not (contains-substring-p "function renderEncounterStatus" script)))
-      (is (not (contains-substring-p "renderStatusPanel();" script))))))
+      (is (contains-substring-p "function generatedRoomEncounterLine" script)))))
 
 (test html-compiler-lowers-generated-rooms-for-browser-runtime
   (let* ((game (dunge-examples:load-instanced-adaptation-example))
          (room (dunge-examples:ensure-adaptation-first-room game))
          (script (dunge-html:compile-game-script game)))
-    (is (contains-substring-p "\"generatedRooms\":[{\"type\":\"generated-room\""
+    (is (contains-substring-p "\"generatedRooms\":[{\"type\":\"generated-room\",\"id\":\"generated:dungeon:1\""
                               script))
     (is (contains-substring-p "\"rooms-generated\":2" script))
     (is (contains-substring-p "\"dungeon-depth\":2" script))
     (is (contains-substring-p "\"first-room-generated\":true" script))
-    (is (contains-substring-p "\"id\":\"generated:dungeon:1\"" script))
-    (is (contains-substring-p "\"claimedResults\":[]" script))
+    ;; The body is ordinary content: paragraphs and choices.
+    (is (contains-substring-p "{\"type\":\"p\",\"text\":\"Find: Ration.\"}" script))
+    (is (contains-substring-p "\"label\":\"Take ration\"" script))
+    (is (contains-substring-p "\"id\":\"generated-dungeon-1-loot-1\",\"once\":true" script))
+    (is (contains-substring-p "\"label\":\"Eat ration\"" script))
+    (is (contains-substring-p "\"encounterOptions\":[{\"type\":\"choice\",\"label\":\"Eat ration\"" script))
     (is (contains-substring-p "\"exits\":[{\"direction\":{\"type\":\"keyword\",\"name\":\"back\"},\"target\":\"threshold\"}"
-                              script))
-    (is (contains-substring-p "\"room\":{\"type\":\"literal\",\"value\":\"generated:dungeon:1\"}"
                               script))
     (is (contains-substring-p (format nil "\"room\":\"~A\"" (name room))
                               script))
-    (is (contains-substring-p "function rebuildRoomIndex" script))
     (is (contains-substring-p "function renderGeneratedRoom" script))
-    (is (contains-substring-p "function generatedRoomLootChoices" script))
-    (is (contains-substring-p "function executeLootAction" script))
-    (is (contains-substring-p "effect['result-index']" script))
     (is (contains-substring-p "function executeEncounterAction" script))
-    (is (contains-substring-p "'generatedRooms' : copyJsonValue(GENERATEDROOMS)"
-                              script))
+    (is (not (contains-substring-p "claimedResults" script)))
+    (is (not (contains-substring-p "function executeLootAction" script)))
+    ;; Generated rooms are definition, not saved state.
+    (is (not (contains-substring-p "'generatedRooms' :" script)))
     (is (contains-substring-p "'encounters' : copyJsonValue(ENCOUNTERS)"
-                              script))
-    (is (contains-substring-p "if (state['generatedRooms'] !== undefined)"
-                              script))
-    (is (contains-substring-p "if (state['encounters'] !== undefined)"
                               script))
     (is (= 2 (length (game-generated-rooms game))))
     (is (= 2 (length (game-encounter-states game))))
     (is (find-generated-room game (name room) :errorp t))
-    (is (find-encounter-state game room :errorp t))
-    (is (contains-substring-p
-         "\"generatedRooms\":[{\"type\":\"generated-room\""
-         (dunge-html:compile-game-script game)))))
+    (is (find-encounter-state game room :errorp t))))
 
 (test html-compiler-can-enable-debug-controls
   (let* ((game (source-game-with-body

@@ -236,19 +236,12 @@ body {
    "type" "generated-room"
    "id" (dunge:name room)
    "title" (or (dunge:room-title room) (dunge:name room))
-   "description" (dunge:generated-room-description room)
-   "zone" (and (dunge:generated-room-zone room)
-               (compile-keyword-value (dunge:generated-room-zone room)))
-   "depth" (dunge:generated-room-depth room)
-   "results" (html-array
-              (mapcar #'compile-html-literal-data
-                      (dunge:generated-room-results room)))
-   "claimedResults" (html-array
-                     (dunge:generated-room-claimed-results room))
+   "body" (compile-node-list (dunge:entities room))
+   "encounterOptions" (compile-node-list
+                       (dunge::generated-room-encounter-options room))
    "exits" (html-array
             (mapcar #'compile-generated-room-exit
-                    (dunge:generated-room-exits room)))
-   "visited" (not (null (dunge:generated-room-visited-p room)))))
+                    (dunge:generated-room-exits room)))))
 
 (defmethod compile-html-node ((room dunge:room))
   (html-object
@@ -466,32 +459,6 @@ body {
   (declare (ignore effect))
   (html-object "type" "quit"))
 
-(defun compile-html-player (player)
-  (when player
-    (html-object
-     "name" (dunge:player-name player)
-     "background" (and (dunge:player-background player)
-                       (compile-keyword-value (dunge:player-background player)))
-     "str" (dunge:player-str player)
-     "maxStr" (dunge:player-max-str player)
-     "dex" (dunge:player-dex player)
-     "maxDex" (dunge:player-max-dex player)
-     "wil" (dunge:player-wil player)
-     "maxWil" (dunge:player-max-wil player)
-     "hp" (dunge:player-hp player)
-     "maxHp" (dunge:player-max-hp player)
-     "armor" (dunge:player-armor player)
-     "gold" (dunge:player-gold player)
-     "fate" (dunge:player-fate player)
-     "inventoryCapacity" dunge:+player-inventory-capacity+
-     "inventory" (html-array
-                  (mapcar #'compile-html-literal-data
-                          (dunge:player-inventory player)))
-     "fatigue" (dunge:player-fatigue player)
-     "conditions" (html-array
-                   (mapcar #'compile-keyword-value
-                           (dunge:player-conditions player))))))
-
 (defun compile-damage-value (damage)
   "Compile encounter DAMAGE: an integer, or dice parsed now for the browser."
   (if (stringp damage)
@@ -525,7 +492,7 @@ body {
         :taken-choices (dunge::sorted-hash-keys (dunge:game-taken-choices game))
         :locals (dunge::collect-runtime-local-state game)
         :tables (dunge::collect-runtime-table-state game)
-        :player (dunge::player-state-plist (dunge:game-player game))
+        :player (dunge::sorted-state-alist (dunge:game-player-state game))
         :random-state (dunge:game-random-state game)
         :roll-log (dunge:game-roll-log game)))
 
@@ -534,18 +501,14 @@ body {
   (dunge::restore-runtime-taken-choices game (getf state :taken-choices))
   (dunge::restore-runtime-local-state game (getf state :locals))
   (dunge::restore-runtime-table-state game (getf state :tables))
-  (when (dunge:game-player game)
-    (dunge::apply-player-state (dunge:game-player game) (getf state :player)))
+  (dunge::restore-runtime-player-state game (getf state :player))
   (setf (dunge:game-random-state game) (getf state :random-state)
         (dunge:game-roll-log game) (getf state :roll-log))
   game)
 
-(defun restore-compile-time-runtime-instances (game generated-rooms encounters)
+(defun restore-compile-time-runtime-instances (game encounters)
   "Restore runtime instances that VALIDATE-GAME clears while preparing GAME."
-  (dunge::clear-generated-rooms game)
   (dunge::clear-encounter-states game)
-  (dolist (room generated-rooms)
-    (dunge:register-generated-room game room))
   (dolist (encounter encounters)
     (dunge:register-encounter-state game encounter))
   game)
@@ -572,7 +535,8 @@ body {
             ;; The next state depends only on the state modulo 2^31, and the
             ;; reduced state is always a safe integer for JSON.
             "rngState" (mod random-state dunge::+dunge-rng-modulus+)
-            "player" (compile-html-player (dunge:game-player game))
+            "player" (compile-state-declarations
+                      (dunge:game-player-state-declarations game))
             "encounters" (html-array
                           (mapcar #'compile-html-encounter encounters))
             "generatedRooms" (html-array
@@ -581,7 +545,7 @@ body {
             "rooms" (html-array (mapcar #'compile-html-node
                                         (dunge:game-rooms game)))))
       ;; Validation resets play state; leave GAME as we found it.
-      (restore-compile-time-runtime-instances game generated-rooms encounters)
+      (restore-compile-time-runtime-instances game encounters)
       (restore-compile-time-state game saved-state))))
 
 (defun json-escape-string (string stream)
@@ -674,7 +638,6 @@ same game data and the same runtime, since either can change the save shape."
     (defvar *debug* nil)
     (defvar *game* nil)
     (defvar *state* nil)
-    (defvar *player* nil)
     (defvar *encounters* (array))
     (defvar *generated-rooms* (array))
     (defvar *current-location* nil)
@@ -834,57 +797,12 @@ same game data and the same runtime, since either can change the save shape."
         (t
          (+ "" value))))
 
-    (defun inventory-option (entry option default-value)
-      (let ((result default-value)
-            (length (@ entry length)))
-        (dotimes (offset length)
-          (let ((index (+ 2 (* offset 2))))
-            (when (< (+ index 1) length)
-              (let ((key (aref entry index)))
-                (when (and (keyword-p key)
-                           (eql (@ key name) option))
-                  (setf result (aref entry (+ index 1))))))))
-        result))
-
-    (defun inventory-entry-count (entry)
-      (let ((count (inventory-option entry "count" 1)))
-        (if (eql (typeof count) "number")
-            count
-            1)))
-
     (defun keyword-name (value)
       (and (keyword-p value) (@ value name)))
 
     (defun keyword-name-p (value name)
       (and (keyword-p value)
            (eql (@ value name) name)))
-
-    (defun result-kind (result)
-      (keyword-name (aref result 0)))
-
-    (defun result-id (result)
-      (aref result 1))
-
-    (defun result-option (result option default-value)
-      (inventory-option result option default-value))
-
-    (defun result-loot-p (result)
-      (let ((kind (result-kind result)))
-        (or (eql kind "gold")
-            (eql kind "item")
-            (eql kind "supply"))))
-
-    (defun generated-room-result-claimed-p (room index)
-      (let ((claimed nil))
-        (dolist (claimed-index (node-list (@ room claimed-results)))
-          (when (eql claimed-index index)
-            (setf claimed t)))
-        claimed))
-
-    (defun claim-generated-room-result (room index)
-      (unless (generated-room-result-claimed-p room index)
-        (push-array (@ room claimed-results) index))
-      room)
 
     (defun generated-room-display-word (value)
       (if (keyword-p value)
@@ -893,158 +811,6 @@ same game data and the same runtime, since either can change the save shape."
 
     (defun generated-room-display-lower (value)
       (chain (generated-room-display-word value) (to-lower-case)))
-
-    (defun generated-room-result-line (result)
-      (let ((kind (and (chain -array (is-array result))
-                       (result-kind result))))
-        (cond
-          ((not (chain -array (is-array result)))
-           (+ (generated-room-display-word result) "."))
-          ((eql kind "gold")
-           (+ "Treasure: " (display-value (aref result 1)) " gold."))
-          ((or (eql kind "item")
-               (eql kind "supply"))
-           (let ((count (inventory-entry-count result)))
-             (if (> count 1)
-                 (+ "Find: " (generated-room-display-word (result-id result))
-                    " x" count ".")
-                 (+ "Find: " (generated-room-display-word (result-id result))
-                    "."))))
-          ((eql kind "encounter")
-           (+ "Sign: " (generated-room-display-word (result-id result))
-              " stirs here."))
-          ((eql kind "exit")
-           (+ "Passage: "
-              (generated-room-display-word (aref result 1))
-              "."))
-          ((keyword-p (aref result 1))
-           (+ (generated-room-display-word (aref result 0))
-              ": "
-              (generated-room-display-word (aref result 1))
-              "."))
-          (t
-           (+ (generated-room-display-word (aref result 0)) ".")))))
-
-    (defun generated-room-loot-text (result)
-      (let ((kind (result-kind result)))
-        (cond
-          ((eql kind "gold")
-           (+ (display-value (aref result 1)) " gold"))
-          ((or (eql kind "item")
-               (eql kind "supply"))
-           (let ((count (inventory-entry-count result))
-                 (name (generated-room-display-lower (result-id result))))
-             (if (> count 1)
-                 (+ name " x" count)
-                 name)))
-          (t
-           (generated-room-display-lower (aref result 0))))))
-
-    (defun generated-room-loot-label (result)
-      (+ "Take " (generated-room-loot-text result)))
-
-    (defun generated-room-loot-message (result)
-      (+ "You take " (generated-room-loot-text result) "."))
-
-    (defun set-inventory-count (entry count)
-      (let ((found nil)
-            (length (@ entry length)))
-        (dotimes (offset length)
-          (let ((index (+ 2 (* offset 2))))
-            (when (< (+ index 1) length)
-              (let ((key (aref entry index)))
-                (when (keyword-name-p key "count")
-                  (setf (aref entry (+ index 1)) count
-                        found t))))))
-        (unless found
-          (push-array entry (create :type "keyword" :name "count"))
-          (push-array entry count))
-        entry))
-
-    (defun inventory-entry-matches-result-p (entry result)
-      (and (value-equal (aref entry 0) (aref result 0))
-           (value-equal (aref entry 1) (aref result 1))))
-
-    (defun add-inventory-result (result)
-      (let ((existing nil)
-            (count (inventory-entry-count result)))
-        (dolist (entry (node-list (@ *player* inventory)))
-          (when (and (not existing)
-                     (inventory-entry-matches-result-p entry result))
-            (setf existing entry)))
-        (if existing
-            (set-inventory-count existing
-                                 (+ (inventory-entry-count existing) count))
-            (push-array (@ *player* inventory) (copy-json-value result)))))
-
-    (defun apply-loot-result-to-player (result)
-      (let ((kind (result-kind result)))
-        (cond
-          ((eql kind "gold")
-           (setf (@ *player* gold)
-                 (+ (or (@ *player* gold) 0)
-                    (or (aref result 1) 0))))
-          ((or (eql kind "item")
-               (eql kind "supply"))
-           (add-inventory-result result)))))
-
-    (defun remove-inventory-count (kind-name id-name count)
-      (let ((updated (array))
-            (remaining count))
-        (dolist (entry (node-list (@ *player* inventory)))
-          (if (and (> remaining 0)
-                   (keyword-name-p (aref entry 0) kind-name)
-                   (keyword-name-p (aref entry 1) id-name))
-              (let* ((entry-count (inventory-entry-count entry))
-                     (removed (min entry-count remaining))
-                     (left (- entry-count removed)))
-                (setf remaining (- remaining removed))
-                (when (> left 0)
-                  (let ((copy (copy-json-value entry)))
-                    (set-inventory-count copy left)
-                    (push-array updated copy))))
-              (push-array updated entry)))
-        (when (> remaining 0)
-          (runtime-error (+ "Missing inventory entry " id-name ".")))
-        (setf (@ *player* inventory) updated)))
-
-    (defun remove-player-condition (condition-name)
-      (let ((updated (array)))
-        (dolist (condition (node-list (@ *player* conditions)))
-          (unless (keyword-name-p condition condition-name)
-            (push-array updated condition)))
-        (setf (@ *player* conditions) updated)))
-
-    (defun player-condition-p (condition-name)
-      (let ((present nil))
-        (dolist (condition (node-list (@ *player* conditions)))
-          (when (keyword-name-p condition condition-name)
-            (setf present t)))
-        present))
-
-    (defun recover-player-from-ration ()
-      (remove-inventory-count "supply" "ration" 1)
-      (setf (@ *player* hp)
-            (min (@ *player* max-hp)
-                 (+ (@ *player* hp) 1)))
-      (setf (@ *player* fatigue)
-            (max 0 (- (or (@ *player* fatigue) 0) 1)))
-      (remove-player-condition "deprived"))
-
-    (defun player-ration-count ()
-      (let ((count 0))
-        (dolist (entry (node-list (@ *player* inventory)))
-          (when (and (keyword-name-p (aref entry 0) "supply")
-                     (keyword-name-p (aref entry 1) "ration"))
-            (setf count (+ count (inventory-entry-count entry)))))
-        count))
-
-    (defun player-can-use-ration-p ()
-      (and *player*
-           (> (player-ration-count) 0)
-           (or (< (@ *player* hp) (@ *player* max-hp))
-               (> (or (@ *player* fatigue) 0) 0)
-               (player-condition-p "deprived"))))
 
     (defun object-key-count (object)
       (@ (chain -object (keys object)) length))
@@ -1107,12 +873,11 @@ same game data and the same runtime, since either can change the save shape."
       (setf *undo-stack* (array))
       (setf *messages* (array))
       (setf *visible-messages* (array))
-      (setf *generated-rooms*
-            (copy-json-value (@ *game* generated-rooms)))
+      (setf *generated-rooms* (node-list (@ *game* generated-rooms)))
       (rebuild-room-index)
       (setf *state* (create :globals (initial-state (@ *game* state))
+                            :player (initial-state (@ *game* player))
                             :taken-choices (create)))
-      (setf *player* (copy-json-value (@ *game* player)))
       (setf *encounters* (copy-json-value (@ *game* encounters)))
       (setf *rng-state* (@ *game* rng-state))
       (setf *roll-log* (array))
@@ -1172,8 +937,7 @@ same game data and the same runtime, since either can change the save shape."
               "signature" *save-signature*
               "currentRoom" (fallback-current-room-id)
               "returnStack" (capture-return-stack)
-              "player" (copy-json-value *player*)
-              "generatedRooms" (copy-json-value *generated-rooms*)
+              "player" (copy-object (@ *state* player))
               "encounters" (copy-json-value *encounters*)
               "messages" (copy-array *visible-messages*)
               "rngState" *rng-state*
@@ -1208,11 +972,8 @@ same game data and the same runtime, since either can change the save shape."
             (copy-object (or (getprop state "globals") (create))))
       (setf (getprop *state* "taken-choices")
             (copy-object (or (getprop state "takenChoices") (create))))
-      (unless (eql (getprop state "player") undefined)
-        (setf *player* (copy-json-value (getprop state "player"))))
-      (unless (eql (getprop state "generatedRooms") undefined)
-        (setf *generated-rooms*
-              (copy-json-value (getprop state "generatedRooms"))))
+      (setf (@ *state* player)
+            (copy-object (or (getprop state "player") (create))))
       (unless (eql (getprop state "encounters") undefined)
         (setf *encounters* (copy-json-value (getprop state "encounters"))))
       (rebuild-room-index)
@@ -1269,6 +1030,9 @@ same game data and the same runtime, since either can change the save shape."
       (cond
         ((eql (@ reference scope) "global")
          (create :holder (@ *state* globals)
+                 :key (@ reference key)))
+        ((eql (@ reference scope) "player")
+         (create :holder (@ *state* player)
                  :key (@ reference key)))
         ((eql (@ reference scope) "self")
          (create :holder (@ (@ context self) state)
@@ -1493,10 +1257,10 @@ ROLL-DICE-VALUE does: integers use no randomness."
                  " falls."))
             (let ((enemy-damage
                     (max 0 (- (roll-damage (@ encounter damage) "enemy-damage")
-                              (or (@ *player* armor) 0)))))
-              (setf (@ *player* hp)
-                    (max 0 (- (@ *player* hp) enemy-damage)))
-              (when (<= (@ *player* hp) 0)
+                              (or (getprop (@ *state* player) "armor") 0)))))
+              (setf (getprop (@ *state* player) "hp")
+                    (max 0 (- (getprop (@ *state* player) "hp") enemy-damage)))
+              (when (<= (getprop (@ *state* player) "hp") 0)
                 (set-encounter-status encounter "player-defeated"))
               (if (eql (encounter-status-name encounter) "player-defeated")
                   (+ "You strike for " player-damage
@@ -1535,34 +1299,6 @@ ROLL-DICE-VALUE does: integers use no randomness."
         (if (eql (encounter-status-name encounter) "player-defeated")
             (create :type "quit")
             nil)))
-
-    (defun execute-loot-action (effect)
-      (let* ((room (room-by-id (@ effect room)))
-             (index (getprop effect "result-index"))
-             (result (aref (@ room results) index)))
-        (unless result
-          (runtime-error "No generated room result exists there."))
-        (when (generated-room-result-claimed-p room index)
-          (runtime-error "That generated room result is already claimed."))
-        (unless (result-loot-p result)
-          (runtime-error "That generated room result is not loot."))
-        (apply-loot-result-to-player result)
-        (claim-generated-room-result room index)
-        (push-array *messages* (generated-room-loot-message result))
-        nil))
-
-    (defun execute-item-use-action (effect)
-      (cond
-        ((eql (@ effect action) "ration")
-         (unless (player-can-use-ration-p)
-           (runtime-error "The player cannot use a ration right now."))
-         (recover-player-from-ration)
-         (push-array *messages* "You eat a ration and recover.")
-         nil)
-        (t
-         (runtime-error (+ "Unknown item-use action "
-                           (@ effect action)
-                           ".")))))
 
     (defun execute-effect (effect context)
       (cond
@@ -1633,10 +1369,6 @@ ROLL-DICE-VALUE does: integers use no randomness."
                  :target (@ effect target)))
         ((eql (@ effect type) "encounter-action")
          (execute-encounter-action effect))
-        ((eql (@ effect type) "loot-action")
-         (execute-loot-action effect))
-        ((eql (@ effect type) "item-use-action")
-         (execute-item-use-action effect))
         ((eql (@ effect type) "back")
          (create :type "back"))
         ((eql (@ effect type) "quit")
@@ -1751,29 +1483,6 @@ ROLL-DICE-VALUE does: integers use no randomness."
           ((eql name "out") "Leave")
           (t (+ "Go " (generated-room-display-lower direction))))))
 
-    (defun generated-room-loot-choices (room choices)
-      (let ((results (node-list (@ room results))))
-        (dotimes (index (@ results length))
-          (let ((result (aref results index)))
-            (when (and (result-loot-p result)
-                       (not (generated-room-result-claimed-p room index)))
-              (push-array
-               choices
-               (create :label (generated-room-loot-label result)
-                       :target (create :type "loot-action"
-                                       :room (@ room id)
-                                       :result-index index)))))))
-      choices)
-
-    (defun generated-room-item-use-choices (choices)
-      (when (player-can-use-ration-p)
-        (push-array
-         choices
-         (create :label "Eat ration"
-                 :target (create :type "item-use-action"
-                                 :action "ration"))))
-      choices)
-
     (defun generated-room-exit-choices (room choices)
       (dolist (exit (node-list (@ room exits)))
         (push-array
@@ -1804,7 +1513,9 @@ ROLL-DICE-VALUE does: integers use no randomness."
                  :target (create :type "encounter-action"
                                  :room (@ room id)
                                  :action "attack")))
-        (generated-room-item-use-choices choices)
+        (collect-choices-from (@ room encounter-options)
+                              (current-context)
+                              choices)
         (push-array
          choices
          (create :label "Flee"
@@ -1818,8 +1529,7 @@ ROLL-DICE-VALUE does: integers use no randomness."
         (if (encounter-active-p encounter)
             (generated-room-encounter-choices room encounter choices)
             (progn
-              (generated-room-loot-choices room choices)
-              (generated-room-item-use-choices choices)
+              (collect-choices-from (@ room body) (current-context) choices)
               (generated-room-exit-choices room choices)))
         choices))
 
@@ -1859,13 +1569,9 @@ ROLL-DICE-VALUE does: integers use no randomness."
     (defun render-generated-room (title body choices-element)
       (let* ((room *current-location*)
              (encounter (encounter-for-room room)))
-        (setf (@ room visited) t)
         (setf (@ title text-content) (@ room title))
         (render-messages body)
-        (when (@ room description)
-          (append-text body "p" nil (@ room description)))
-        (dolist (result (node-list (@ room results)))
-          (append-text body "p" nil (generated-room-result-line result)))
+        (describe-nodes (@ room body) (current-context) body)
         (when encounter
           (append-text body
                        "p"
