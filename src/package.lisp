@@ -9,141 +9,62 @@
    #:*output*
    #:*pause-after-say*
    #:*debug*
-   #:action
-   #:action-owner
-   #:back
-   #:branch
-   #:availability-condition
-   #:availability-mixin
-   #:available-p
-   #:choice
-   #:choice-condition
-   #:choice-id
-   #:choice-once-p
-   #:choices
-   #:close-choice
-   #:arithmetic
-   #:condition-and
-   #:condition-compare
-   #:condition-eq
-   #:condition-not
-   #:condition-or
-   #:conditional-effect
-   #:consumable-id
-   #:consumable-mixin
-   #:consumable-once-p
-   #:consume-node
-   #:consumed-p
-   #:collect-choices
+   #:load-dunge-file
+   #:load-dunge-string
+   #:read-dunge-file
    #:compile-dunge-source
-   #:concat
-   #:container
-   #:container-view
-   #:capture-runtime-state
+   #:compile-dunge-source-at
    #:dunge-source-error
    #:dunge-source-error-message
-   #:contents
-   #:describe-entity
-   #:description
-   #:enter
-   #:enter-target
-   #:entity
-   #:entities
-   #:evaluate-expression
-   #:evaluate-condition
+   #:validate-game
+   #:validate-room
    #:evaluate
    #:evaluate-session
-   #:execute-effect
-   #:game
-   #:copy-world
-   #:entity-state
-   #:make-world
-   #:plist->world
-   #:runtime-session-world
-   #:runtime-context-world
-   #:world
-   #:world-globals
-   #:world-location
-   #:world-player
-   #:world-rng-state
-   #:world-rolls
-   #:world-taken
-   #:game-global-state-declarations
-   #:game-player-state-declarations
-   #:game-random-seed
-   #:game-rooms
-   #:game-start
-   #:game-tables
-   #:gosub
-   #:goto
-   #:interaction-label
-   #:interaction-target
-   #:item
-   #:label
-   #:load-dunge-file
-   #:read-dunge-file
-   #:compile-dunge-source-at
-   #:load-dunge-string
-   #:load-runtime-state-file
    #:make-runtime-session
-   #:name
-   #:node-children
-   #:node-id
-   #:node-priority
-   #:node-tags
-   #:open-choice
-   #:options
-   #:p
-   #:parse-dice-expression
-   #:placed-thing
-   #:placement-description
-   #:quit
-   #:roll
-   #:room
-   #:room-title
-   #:room-name
-   #:read-runtime-state-file
-   #:restore-runtime-state
-   #:make-runtime-context
-   #:prioritized-mixin
-   #:random-table
+   #:runtime-session
+   #:runtime-session-game
+   #:runtime-session-world
+   #:runtime-session-current-room-name
    #:runtime-context
+   #:make-runtime-context
    #:runtime-context-game
+   #:runtime-context-world
    #:runtime-context-scene
    #:runtime-context-self
-   #:runtime-session
-   #:runtime-session-current-room-name
-   #:runtime-session-game
-   #:runtime-session-location
-   #:runtime-session-return-stack
-   #:runtime-session-return-stack-room-names
-   #:say
-   #:sequence
-   #:state-clear
-   #:state-dec
-   #:state-inc
-   #:state-ref
-   #:state-set
-   #:state-toggle
-   #:tagged-mixin
+   #:world
+   #:make-world
+   #:copy-world
+   #:plist->world
+   #:world-globals
+   #:world-player
+   #:world-taken
+   #:world-rng-state
+   #:world-rolls
+   #:world-location
+   #:entity-state
+   #:capture-runtime-state
+   #:restore-runtime-state
+   #:read-runtime-state-file
+   #:write-runtime-state-file
+   #:load-runtime-state-file
+   #:parse-dice-expression
    #:roll-dice
    #:roll-dice-value
    #:roll-table
-   #:game-random
-   #:table-entries
-   #:table-entry
-   #:table-entry-id
-   #:table-entry-range
-   #:table-entry-result
-   #:table-entry-weight
-   #:table-id
-   #:table-index
-   #:table-mode
-   #:target
-   #:text
-   #:validate-game
-   #:validate-node
-   #:validate-room
+   #:evaluate-expression
+   #:evaluate-condition
+   #:execute-effect
+   #:game
+   #:game-rooms
+   #:game-start
+   #:game-tables
+   #:game-random-seed
+   #:game-global-state-declarations
+   #:game-player-state-declarations
+   #:name
+   #:room
+   #:room-title
    #:walk-node-tree
-   #:viewed-container
-   #:write-runtime-state-file))
+   #:table-id
+   #:table-entries
+   #:table-entry-result))

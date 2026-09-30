@@ -2520,6 +2520,16 @@
     (is (string= (dunge-html:compile-game-script game)
                  (dunge-html:compile-game-script game)))))
 
+(test html-backend-uses-only-the-ast-protocol
+  ;; The browser backend reads the AST only through DUNGE.AST: no DUNGE: or
+  ;; DUNGE:: reference, in any case. (DUNGE.AST: does not contain "dunge:".)
+  (dolist (file '("src/html-package.lisp" "src/html.lisp"))
+    (is (not (search "dunge:"
+                     (uiop:read-file-string
+                      (asdf:system-relative-pathname "dunge" file))
+                     :test #'char-equal))
+        "~A refers to DUNGE directly instead of DUNGE.AST." file)))
+
 (test html-compiler-output-is-repeatable
   ;; site/check.sh checks reproducibility across fresh builds; this catches
   ;; nondeterminism within one image, such as hash-table ordering.
