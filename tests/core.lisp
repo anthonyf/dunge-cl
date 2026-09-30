@@ -1061,6 +1061,31 @@
                   :builder (lambda (build)
                              (set-initial-global build :undeclared 1))))))
 
+(test planned-rooms-keep-order-ids-and-empty-players
+  ;; A replacement keeps its authored room's place, so an inferred start
+  ;; room stays the same.
+  (let ((game (build-game
+               '(:game
+                 :player ((:hp 3))
+                 :rooms ((:room :id "hall" :body ((:choice "Go" (:go "yard"))))
+                         (:room :id "yard" :body ((:choice "Back" (:go "hall"))))))
+               :builder (lambda (build)
+                          (create-generated-room build
+                                                 :id "hall"
+                                                 :title "Planned Hall"
+                                                 :exits '((:out . "yard")))
+                          (set-player build nil)))))
+    (is (equal '("hall" "yard") (mapcar #'name (game-rooms game))))
+    (is (equal "hall" (game-start game)))
+    (is (null (game-player-state-declarations game))))
+  ;; Automatic ids skip ids already planned explicitly.
+  (built-game nil
+              (lambda (build)
+                (create-generated-room build :id "generated:dungeon:1")
+                (is (equal "generated:dungeon:2"
+                           (room-plan-id
+                            (create-generated-room build :zone :dungeon)))))))
+
 (test planned-room-ids-and-links
   (let ((plans nil))
     (built-game nil

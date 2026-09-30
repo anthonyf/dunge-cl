@@ -605,6 +605,8 @@ offers Attack, ACTIVE-OPTIONS, and Flee; afterwards, INACTIVE-OPTIONS."
   (rooms '())
   (room-counter 0)
   player
+  ;; Whether SET-PLAYER was called, since NIL is a valid set of declarations.
+  (player-set-p nil)
   (globals '()))
 
 (defstruct room-plan
@@ -618,6 +620,14 @@ offers Attack, ACTIVE-OPTIONS, and Flee; afterwards, INACTIVE-OPTIONS."
   "The scratch game whose tables and generator BUILD uses."
   (build-scratch build))
 
+(defun next-room-id (build zone)
+  "The next automatic id for a room in ZONE, skipping ids already planned."
+  (loop for id = (format nil "generated:~(~A~):~D"
+                         (or zone :room)
+                         (incf (build-room-counter build)))
+        unless (find id (build-rooms build) :key #'room-plan-id :test #'equal)
+          return id))
+
 (defun create-generated-room (build &key id zone title description results
                                       exits options encounter
                                       encounter-options)
@@ -629,10 +639,7 @@ before any of those are offered; while it is active it offers Attack,
 ENCOUNTER-OPTIONS, and Flee. A plan whose ID matches an authored room
 replaces that room."
   (let ((plan (make-room-plan
-               :id (or id
-                       (format nil "generated:~(~A~):~D"
-                               (or zone :room)
-                               (incf (build-room-counter build))))
+               :id (or id (next-room-id build zone))
                :title title
                :description description
                :results (copy-tree results)
@@ -712,8 +719,9 @@ REVERSE-DIRECTION when given."
             :body ,body)))
 
 (defun set-player (build declarations)
-  "Replace the built game's :PLAYER declarations."
-  (setf (build-player build) declarations))
+  "Replace the built game's :PLAYER declarations, even with none."
+  (setf (build-player build) declarations
+        (build-player-set-p build) t))
 
 (defun set-initial-global (build key value)
   "Start the built game with global KEY set to VALUE."
@@ -766,16 +774,24 @@ BASE-PATH."
 (defun built-source (source build base-path)
   (destructuring-bind (tag &rest plist) source
     (let* ((plans (reverse (build-rooms build)))
-           (plan-ids (mapcar #'room-plan-id plans))
+           (authored-ids (mapcar (lambda (entry)
+                                   (room-entry-id entry base-path))
+                                 (getf plist :rooms)))
+           ;; A plan replaces its authored room in place, so room order (and
+           ;; a start room inferred from the first room) is kept; other plans
+           ;; follow the authored rooms.
            (rooms (append
-                   (remove-if (lambda (entry)
-                                (member (room-entry-id entry base-path)
-                                        plan-ids
-                                        :test #'equal))
-                              (getf plist :rooms))
-                   (mapcar #'room-plan-form plans)))
+                   (loop for entry in (getf plist :rooms)
+                         for id in authored-ids
+                         for plan = (find id plans :key #'room-plan-id
+                                                   :test #'equal)
+                         collect (if plan (room-plan-form plan) entry))
+                   (loop for plan in plans
+                         unless (member (room-plan-id plan) authored-ids
+                                        :test #'equal)
+                           collect (room-plan-form plan))))
            (plist (source-plist-set plist :rooms rooms))
-           (plist (if (build-player build)
+           (plist (if (build-player-set-p build)
                       (source-plist-set plist :player (build-player build))
                       plist)))
       (cons tag (built-state-fields plist (build-globals build))))))
