@@ -23,10 +23,15 @@
 
 (defparameter +adaptation-browser-demo-title+ "Dunge Adaptation Testbed")
 
-(defun load-adaptation-example ()
-  (load-dunge-file
-   (asdf:system-relative-pathname "dunge/examples"
-                                  "examples/adaptation.dunge")))
+(defun load-adaptation-example (&key seed)
+  "Load the adaptation game, optionally replacing its :SEED."
+  (let ((game (load-dunge-file
+               (asdf:system-relative-pathname "dunge/examples"
+                                              "examples/adaptation.dunge"))))
+    (when seed
+      (reinitialize-instance game :seed seed)
+      (setf (game-random-state game) seed))
+    game))
 
 (defun adaptation-browser-demo-path ()
   (asdf:system-relative-pathname "dunge/examples"
@@ -78,6 +83,8 @@
 
 (defun adaptation-result-label (result)
   (cond
+    ((and (consp result) (eq (first result) :gold))
+     (format nil "~D gold" (second result)))
     ((adaptation-result-id result)
      (adaptation-titleize-keyword (adaptation-result-id result)))
     ((keywordp result)
@@ -292,8 +299,9 @@
 
 (defun load-generated-adaptation-example (&key
                                             (name "Generated Delver")
-                                            (background :wanderer))
-  (let ((game (load-adaptation-example)))
+                                            (background :wanderer)
+                                            seed)
+  (let ((game (load-adaptation-example :seed seed)))
     (install-adaptation-player game
                                :name name
                                :background background)
@@ -301,10 +309,12 @@
 
 (defun load-instanced-adaptation-example (&key
                                             (name "Generated Delver")
-                                            (background :wanderer))
+                                            (background :wanderer)
+                                            seed)
   (let ((game (load-generated-adaptation-example
                :name name
-               :background background)))
+               :background background
+               :seed seed)))
     (install-adaptation-entrance-flow game)
     game))
 

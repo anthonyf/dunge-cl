@@ -944,7 +944,7 @@
         (run-session-script session (format nil "1~%1~%"))
       (is (equal "room" (name result)))
       (is (contains-substring-p "Encounter: Watchful Shadow" output))
-      (is (contains-substring-p "1. Attack watchful-shadow" output))
+      (is (contains-substring-p "1. Attack watchful shadow" output))
       (is (contains-substring-p "Watchful Shadow falls." output))
       (is (contains-substring-p "1. Return" output))
       (is (eq :defeated (encounter-status encounter))))))
@@ -2524,7 +2524,7 @@
                                 script))
       (is (contains-substring-p "\"reaction\":{\"type\":\"keyword\",\"name\":\"uncertain\"}"
                                 script))
-      (is (contains-substring-p "\"damage\":\"1d4\"" script))
+      (is (contains-substring-p "\"damage\":{\"dice\":\"1d4\",\"count\":1,\"sides\":4,\"modifier\":0}" script))
       (is (contains-substring-p "\"status\":{\"type\":\"keyword\",\"name\":\"active\"}"
                                 script))
       (is (contains-substring-p "function encounterForRoom" script))
@@ -2640,6 +2640,16 @@
       (let ((directory (uiop:pathname-directory-pathname path)))
         (when (probe-file directory)
           (uiop:delete-directory-tree directory :validate t))))))
+
+(test html-compiler-leaves-the-game-generator-alone
+  (let* ((game (dunge-examples:load-instanced-adaptation-example))
+         (random-state (game-random-state game))
+         (roll-log (game-roll-log game))
+         (first-script (dunge-html:compile-game-script game)))
+    (is (string= first-script (dunge-html:compile-game-script game)))
+    (is (= random-state (game-random-state game)))
+    (is (equal roll-log (game-roll-log game)))
+    (is (= 2 (gethash :rooms-generated (game-global-state game))))))
 
 (test html-compiler-output-is-repeatable
   ;; site/check.sh checks reproducibility across fresh builds; this catches

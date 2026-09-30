@@ -256,39 +256,59 @@ when the return stack is not empty, and otherwise ends play with FALL-THROUGH."
         (%make-fall-through))))
 
 (defun generated-room-display-word (value)
-  (let ((text (etypecase value
-                (keyword (symbol-name value))
-                (string value))))
-    (string-capitalize
-     (substitute #\Space #\- (string-downcase text)))))
+  "Show VALUE as the browser's DISPLAY-VALUE does: a keyword's words split at
+hyphens with each first letter capitalized, anything else as plain text."
+  (if (keywordp value)
+      (format nil "~{~A~^ ~}"
+              (loop for part in (uiop:split-string
+                                 (string-downcase (symbol-name value))
+                                 :separator "-")
+                    when (plusp (length part))
+                      collect (concatenate 'string
+                                           (string-upcase (subseq part 0 1))
+                                           (subseq part 1))))
+      (format-dunge-value value)))
+
+(defun generated-room-result-count (result)
+  (positive-integer-value (getf (cddr result) :count 1)
+                          "Generated room result count"))
 
 (defun generated-room-result-line (result)
-  (cond
-    ((and (consp result)
-          (keywordp (first result)))
-     (format nil "~A: ~{~A~^, ~}."
-             (generated-room-display-word (first result))
-             (mapcar (lambda (value)
-                       (if (keywordp value)
-                           (generated-room-display-word value)
-                           (princ-to-string value)))
-                     (rest result))))
-    ((keywordp result)
-     (format nil "~A." (generated-room-display-word result)))
-    (t
-     (princ-to-string result))))
+  "Describe one generated room table RESULT, the same way the browser does."
+  (let ((kind (and (consp result) (first result))))
+    (case kind
+      (:gold
+       (format nil "Treasure: ~D gold." (second result)))
+      ((:item :supply)
+       (let ((count (generated-room-result-count result)))
+         (format nil "Find: ~A~:[~; x~D~]."
+                 (generated-room-display-word (second result))
+                 (> count 1)
+                 count)))
+      (:encounter
+       (format nil "Sign: ~A stirs here."
+               (generated-room-display-word (second result))))
+      (:exit
+       (format nil "Passage: ~A." (generated-room-display-word (second result))))
+      (t
+       (if (and (consp result) (keywordp (second result)))
+           (format nil "~A: ~A."
+                   (generated-room-display-word kind)
+                   (generated-room-display-word (second result)))
+           (format nil "~A."
+                   (generated-room-display-word (if (consp result)
+                                                    kind
+                                                    result))))))))
 
 (defun generated-room-display-lower (value)
   (string-downcase (generated-room-display-word value)))
 
 (defun generated-room-counted-loot-text (result)
-  (let ((count (positive-integer-value
-                (getf (cddr result) :count 1)
-                "Generated room loot count"))
+  (let ((count (generated-room-result-count result))
         (name (generated-room-display-lower (second result))))
     (if (= count 1)
         name
-        (format nil "~D ~A" count name))))
+        (format nil "~A x~D" name count))))
 
 (defun generated-room-loot-text (result)
   (case (table-result-kind result)
@@ -347,7 +367,7 @@ when the return stack is not empty, and otherwise ends play with FALL-THROUGH."
 (defun generated-room-encounter-line (encounter)
   (format nil "Encounter: ~A (~A, HP ~D/~D)."
           (generated-room-display-word (encounter-enemy-id encounter))
-          (string-downcase (symbol-name (encounter-status encounter)))
+          (generated-room-display-lower (encounter-status encounter))
           (encounter-hp encounter)
           (encounter-max-hp encounter)))
 
@@ -356,9 +376,8 @@ when the return stack is not empty, and otherwise ends play with FALL-THROUGH."
              (encounter-active-p encounter))
     (append
      (list (%make-choice :label (format nil "Attack ~A"
-                                        (string-downcase
-                                         (symbol-name
-                                          (encounter-enemy-id encounter))))
+                                        (generated-room-display-lower
+                                         (encounter-enemy-id encounter)))
                          :target (%make-encounter-action
                                   :room-name (name room)
                                   :action :attack)))
@@ -2014,7 +2033,9 @@ NIL (including cleared or unset state) as the empty string."
                      (encounter-action-kind effect))))))
     (render-pending-choice-spacing)
     (format *output* "~A~%~%" (combat-result-message encounter result))
-    nil))
+    ;; A defeated player's run is over.
+    (when (eq (encounter-status encounter) :player-defeated)
+      (%make-quit))))
 
 (defun effect-generated-room (game room-name context label)
   (let ((room-name (or room-name
