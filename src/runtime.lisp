@@ -993,7 +993,7 @@ hyphens with each first letter capitalized, anything else as plain text."
 
 (defun collect-runtime-local-state (game)
   (let (entries)
-    (dolist (room (game-rooms game))
+    (dolist (room (append (game-rooms game) (game-generated-rooms game)))
       (walk-node-tree
        room
        (lambda (node)

@@ -525,7 +525,10 @@ body {
         (saved-state (capture-compile-time-state game))
         (state (compile-state-declarations
                 (dunge:game-global-state-declarations game)
-                (dunge:game-global-state game))))
+                (dunge:game-global-state game)))
+        (player (compile-state-declarations
+                 (dunge:game-player-state-declarations game)
+                 (dunge:game-player-state game))))
     (unwind-protect
          (progn
            (dunge:validate-game game)
@@ -535,8 +538,7 @@ body {
             ;; The next state depends only on the state modulo 2^31, and the
             ;; reduced state is always a safe integer for JSON.
             "rngState" (mod random-state dunge::+dunge-rng-modulus+)
-            "player" (compile-state-declarations
-                      (dunge:game-player-state-declarations game))
+            "player" player
             "encounters" (html-array
                           (mapcar #'compile-html-encounter encounters))
             "generatedRooms" (html-array
@@ -919,7 +921,7 @@ same game data and the same runtime, since either can change the save shape."
 
     (defun capture-local-state ()
       (let ((locals (array)))
-        (dolist (room (@ *game* rooms))
+        (dolist (room (chain (@ *game* rooms) (concat *generated-rooms*)))
           (walk-nodes
            (@ room body)
            (lambda (node)

@@ -1194,6 +1194,9 @@ offered between Attack and Flee while the room's encounter is active."
     (reset-table-state table))
   (dolist (room (game-rooms game))
     (prepare-room-scene room))
+  ;; Generated rooms are definition, but their entities' state is play state.
+  (dolist (room (game-generated-rooms game))
+    (prepare-room-scene room))
   game)
 
 (defvar *validation-errors* nil)
@@ -1326,6 +1329,24 @@ of times, such as on every render, so they must not roll dice.")
       (validation-error "Condition must be a condition node; got ~S."
                         condition)))
 
+(defun validate-current-maximum-pairs (owner-label declarations)
+  "Where DECLARATIONS declare both KEY and MAX-KEY, such as :HP and :MAX-HP,
+require non-negative integers with KEY at most MAX-KEY."
+  (dolist (declaration declarations)
+    (destructuring-bind (key value) declaration
+      (let* ((max-key (intern (format nil "MAX-~A" (symbol-name key)) :keyword))
+             (max-declaration (assoc max-key declarations)))
+        (when max-declaration
+          (let ((maximum (second max-declaration)))
+            (cond
+              ((not (and (integerp value) (not (minusp value))
+                         (integerp maximum) (not (minusp maximum))))
+               (validation-error "~A ~S and ~S must be non-negative integers; got ~S and ~S."
+                                 owner-label key max-key value maximum))
+              ((> value maximum)
+               (validation-error "~A ~S starts at ~D, above its maximum ~D."
+                                 owner-label key value maximum)))))))))
+
 (defun signal-validation-errors (label)
   (when *validation-errors*
     (error "~A validation failed:~%~{  - ~A~%~}"
@@ -1351,6 +1372,8 @@ of times, such as on every render, so they must not roll dice.")
                                      (game-global-state-declarations game))
     (validate-state-declaration-list "Player"
                                      (game-player-state-declarations game))
+    (validate-current-maximum-pairs "Player"
+                                    (game-player-state-declarations game))
     (dolist (table (game-tables game))
       (validate-node table game game))
     (dolist (room (game-rooms game))

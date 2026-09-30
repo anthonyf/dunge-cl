@@ -324,9 +324,17 @@
 entry for each id. Counts in ENTRIES are ignored."
   (let ((catalog '()))
     (dolist (entry entries)
-      (inventory-entry-kind entry)
-      (unless (assoc (inventory-entry-id entry) catalog)
-        (push (cons (inventory-entry-id entry) entry) catalog)))
+      (let* ((id (inventory-entry-id entry))
+             (known (cdr (assoc id catalog))))
+        (cond
+          ((null known)
+           (push (cons id entry) catalog))
+          ((not (eq (inventory-entry-kind known) (inventory-entry-kind entry)))
+           ;; One counter per id cannot hold both an item and a supply.
+           (error "Inventory id ~S is both an ~(~A~) and a ~(~A~)."
+                  id
+                  (inventory-entry-kind known)
+                  (inventory-entry-kind entry))))))
     (nreverse catalog)))
 
 (defun table-loot-entries (game)
@@ -348,6 +356,7 @@ supply stack uses one slot and each item one, or two when :BULKY."
          (slots (inventory-option-value entry :slots missing)))
     (cond
       ((not (eq slots missing))
+       (non-negative-integer-value slots "Inventory entry :SLOTS")
        (unless (zerop slots)
          `(:mul ,slots (:min 1 (:player ,id)))))
       ((eq (inventory-entry-kind entry) :supply)
@@ -374,8 +383,14 @@ item and supply in CATALOG."
                               deprived inventory catalog)
   "Return :PLAYER state declarations. INVENTORY entries give starting counts;
 every id in INVENTORY or CATALOG, an ITEM-CATALOG, gets a counter."
+  (loop for (label value) on (list "STR" str "DEX" dex "WIL" wil "HP" hp
+                                   "armor" armor "gold" gold "fate" fate
+                                   "fatigue" fatigue)
+        by #'cddr
+        do (non-negative-integer-value value (format nil "Player ~A" label)))
   (let ((counts '()))
     (dolist (entry inventory)
+      (validate-inventory-entry-data entry)
       (let ((id (inventory-entry-id entry)))
         (setf (getf counts id)
               (+ (getf counts id 0) (inventory-entry-count entry)))))
@@ -480,9 +495,18 @@ as deprived."
         :id ,id
         :once t))))
 
+(defun id-part (string)
+  "Encode STRING for use in a keyword id: lower-case letters and digits stand
+for themselves, and any other character becomes _ and its code in hex, so
+distinct strings, even ones differing only in case, stay distinct."
+  (with-output-to-string (out)
+    (loop for char across string
+          do (if (or (char<= #\a char #\z) (char<= #\0 char #\9))
+                 (write-char char out)
+                 (format out "_~(~X~)_" (char-code char))))))
+
 (defun loot-choice-id (room-id index)
-  (intern (string-upcase
-           (format nil "~A-loot-~D" (substitute #\- #\: room-id) index))
+  (intern (string-upcase (format nil "~A-loot-~D" (id-part room-id) index))
           :keyword))
 
 (defun create-generated-room (game &key id title description zone (depth 0)

@@ -687,7 +687,63 @@
               :catalog (item-catalog '((:item :chalk :slots 0)
                                        (:supply :ration :count 9))))))
   (signals error
-    (player-declarations :inventory '((:item :hp)))))
+    (player-declarations :inventory '((:item :hp))))
+  ;; Malformed stats and starting kits are rejected.
+  (signals error (player-declarations :armor -1))
+  (signals error (player-declarations :inventory '((:item :torch :unknown t))))
+  ;; One counter per id cannot hold both an item and a supply.
+  (signals error (item-catalog '((:item :ration) (:supply :ration))))
+  (signals error (used-slots-expression (item-catalog '((:item :rope :slots -1))))))
+
+(test player-current-and-maximum-stats-are-validated
+  (flet ((rejects (player)
+           (is (not (null (error-message-from
+                           (lambda () (source-game-with-player player))))))))
+    (rejects '((:hp 5) (:max-hp 3)))
+    (rejects '((:hp "four") (:max-hp 4)))
+    (rejects '((:str -1) (:max-str 10))))
+  (is (typep (source-game-with-player '((:hp 3) (:max-hp 4) (:name "Mara")))
+             'game)))
+
+(test loot-choice-ids-stay-distinct
+  (let ((ids (list (dunge.crawler::loot-choice-id "a:b" 0)
+                   (dunge.crawler::loot-choice-id "a-b" 0)
+                   (dunge.crawler::loot-choice-id "A-b" 0)
+                   (dunge.crawler::loot-choice-id "a-b" 1))))
+    (is (= 4 (length (remove-duplicates ids))))
+    (is (= 4 (length (remove-duplicates
+                      (mapcar (lambda (id) (string-downcase (symbol-name id)))
+                              ids)
+                      :test #'string=))))))
+
+(test html-compiler-starts-the-player-from-current-values
+  (let ((game (source-game-with-player '((:hp 4) (:max-hp 4)))))
+    (setf (gethash :hp (game-player-state game)) 2)
+    (is (contains-substring-p "\"values\":{\"hp\":2,\"max-hp\":4}"
+                              (dunge-html:compile-game-script game)))))
+
+(test generated-room-entity-state-is-saved-and-reset
+  (let* ((game (source-game-with-body))
+         (room (create-generated-room
+                game
+                :zone :dungeon
+                :exits '((:back . "room"))
+                :options '((:entity
+                            :name "lever"
+                            :id "lever"
+                            :state ((:pulled nil))
+                            :body ((:action :label "Pull the lever"
+                                    :do ((:set :target (:self :pulled)
+                                               :value t))))))))
+         (lever (gethash "lever" (dunge::scene-index room)))
+         (session (make-runtime-session game :current-room (name room))))
+    (run-session-script session (format nil "1~%"))
+    (is (eq t (gethash :pulled (dunge::local-state lever))))
+    (is (find (name room) (getf (capture-runtime-state session) :locals)
+              :key (lambda (entry) (getf entry :room))
+              :test #'equal))
+    (dunge::prepare-game game)
+    (is (null (gethash :pulled (dunge::local-state lever))))))
 
 (test crawler-used-slots-follow-inventory-rules
   ;; A dagger uses a slot, bulky mail two, a supply stack one however many,
@@ -2139,7 +2195,7 @@
         (is (contains-substring-p "This chamber sits at depth 2" output))
         (is (typep result 'quit))
         (is (= 3 (gethash :ration (game-player-state fresh-game))))
-        (is (gethash :generated-dungeon-1-loot-1
+        (is (gethash :generated_3a_dungeon_3a_1-loot-1
                      (game-taken-choices fresh-game)))
         (is (equal (name restored-room)
                    (runtime-session-current-room-name restored-session)))))))
@@ -2342,7 +2398,7 @@
     ;; The body is ordinary content: paragraphs and choices.
     (is (contains-substring-p "{\"type\":\"p\",\"text\":\"Find: Ration.\"}" script))
     (is (contains-substring-p "\"label\":\"Take ration\"" script))
-    (is (contains-substring-p "\"id\":\"generated-dungeon-1-loot-1\",\"once\":true" script))
+    (is (contains-substring-p "\"id\":\"generated_3a_dungeon_3a_1-loot-1\",\"once\":true" script))
     (is (contains-substring-p "\"label\":\"Eat ration\"" script))
     (is (contains-substring-p "\"encounterOptions\":[{\"type\":\"choice\",\"label\":\"Eat ration\"" script))
     (is (contains-substring-p "\"exits\":[{\"direction\":{\"type\":\"keyword\",\"name\":\"back\"},\"target\":\"threshold\"}"
