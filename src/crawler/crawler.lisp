@@ -486,15 +486,25 @@ distinct strings, even ones differing only in case, stay distinct."
 arguments override the result's own options."
   (unless (table-result-encounter-p result)
     (error "An encounter needs an :ENCOUNTER table result; got ~S." result))
-  (let* ((hp (or hp (table-result-option result :hp 3)))
-         (max-hp (or max-hp (table-result-option result :max-hp hp))))
+  (let* ((hp (non-negative-integer-value
+              (or hp (table-result-option result :hp 3))
+              "Encounter HP"))
+         (max-hp (non-negative-integer-value
+                  (or max-hp (table-result-option result :max-hp hp))
+                  "Encounter max HP"))
+         (damage (or damage (table-result-option result :damage 1))))
+    (when (> hp max-hp)
+      (error "Encounter HP ~D is above its maximum ~D." hp max-hp))
+    (if (stringp damage)
+        (parse-dice-expression damage)
+        (non-negative-integer-value damage "Encounter damage"))
     (list :enemy (second result)
-          :hp (non-negative-integer-value hp "Encounter HP")
-          :max-hp (non-negative-integer-value max-hp "Encounter max HP")
+          :hp hp
+          :max-hp max-hp
           :armor (non-negative-integer-value
                   (or armor (table-result-option result :armor 0))
                   "Encounter armor")
-          :damage (or damage (table-result-option result :damage 1)))))
+          :damage damage)))
 
 (defun damage-expression (damage label)
   "DAMAGE, an integer or dice, as an expression. Integers roll nothing."

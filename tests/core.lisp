@@ -859,6 +859,20 @@
           (is (= 3 (encounter-value fresh-room :hp)))
           (is (eq :active (encounter-value fresh-room :status))))))))
 
+(test encounter-specs-and-exits-nodes-are-validated
+  (signals error (encounter-spec '(:encounter :shade) :hp 5 :max-hp 2))
+  (signals error (encounter-spec '(:encounter :shade) :damage -1))
+  (signals error (encounter-spec '(:encounter :shade) :damage "2x6"))
+  (is (equal "1d4" (getf (encounter-spec '(:encounter :shade) :damage "1d4")
+                         :damage)))
+  (is (contains-substring-p
+       "can only appear in a generated room"
+       (error-message-from
+        (lambda ()
+          (source-game-with-body
+           '(:entity :name "gate" :body ((:branch :when (:global :open) :then ((:generated-exits))))))))))
+  (is (typep (source-game-with-body '(:choice "Stay" (:quit))) 'game)))
+
 (test encounter-attack-and-flee-update-entity-state
   (multiple-value-bind (game room) (shadow-room-game :hp 1)
     (let ((session (make-runtime-session game :current-room (name room))))

@@ -1229,9 +1229,18 @@ require non-negative integers with KEY at most MAX-KEY."
   (dolist (node nodes)
     (validate-node node game context)))
 
+(defvar *validation-scene* nil
+  "The room whose content is being validated.")
+
 (defmethod validate-node ((thing room) game context)
   (declare (ignore context))
-  (validate-node-list (entities thing) game thing))
+  (let ((*validation-scene* thing))
+    (validate-node-list (entities thing) game thing)))
+
+(defmethod validate-node ((thing generated-exits) game context)
+  (declare (ignore game context))
+  (unless (typep *validation-scene* 'generated-room)
+    (validation-error "(:GENERATED-EXITS) can only appear in a generated room.")))
 
 (defmethod validate-node ((thing entity) game context)
   (declare (ignore context))
