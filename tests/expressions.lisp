@@ -193,3 +193,76 @@
     (is (contains-substring-p "\"type\":\"compare\",\"operator\":\"lt\"" script)))
   (signals error
     (dunge-html::compile-runtime-number 9007199254740992)))
+
+;;; Dice rolls
+
+(test roll-shorthand-and-compiled-spec
+  (is (equal '(:roll :dice "2d6+1" :label :hit)
+             (dunge::expand-dunge-source-form '(:roll "2d6+1" :label :hit))))
+  (is (equal '(:roll :dice "1d6")
+             (dunge::expand-dunge-source-form '(:roll "1d6"))))
+  (dolist (form '((:roll :dice "1d6") (:roll :label :hit :dice "1d6")))
+    (is (equal form (dunge::expand-dunge-source-form form))))
+  (let ((roll (source-node '(:roll "2d6+1" :label :hit))))
+    (is (typep roll 'roll))
+    (is (equal '(:expression "2d6+1" :count 2 :sides 6 :modifier 1)
+               (dunge::roll-spec roll)))
+    (is (eq :hit (dunge::roll-label roll))))
+  (dolist (bad '((:roll "2x6") (:roll "") (:roll 6) (:roll "1d6" :label "hit")
+                 (:roll "1d6" :extra t)))
+    (signals dunge-source-error (source-node bad))))
+
+(test rolls-use-the-game-generator-and-log
+  (flet ((play ()
+           (let* ((game (expression-game))
+                  (context (expression-context game)))
+             (dunge::prepare-game game)
+             (list (loop repeat 20
+                         collect (evaluate-source-expression
+                                  '(:roll "2d6+1" :label :attack) context))
+                   (game-roll-log game)))))
+    (destructuring-bind (values log) (play)
+      (is (every (lambda (value) (<= 3 value 13)) values))
+      (is (equal values (first (play))))
+      (is (= 20 (length log)))
+      (is (equal '(:dice "2d6+1" :count 2 :sides 6)
+                 (subseq (first log) 0 6)))
+      (is (eq :attack (getf (first log) :label)))
+      (is (= (first values) (getf (first log) :result)))
+      (is (= (getf (first log) :result)
+             (+ 1 (reduce #'+ (getf (first log) :rolls))))))))
+
+(test validator-keeps-rolls-out-of-conditions
+  (flet ((message (&rest body)
+           (error-message-from (lambda () (apply #'source-game-with-body body)))))
+    (dolist (body '(((:when (:gt (:roll "1d6") 3) (:p "Lucky.")))
+                    ((:choice "Gamble" (:quit) :when (:eq (:roll "1d2") 1)))
+                    ((:choice "Gamble"
+                      (:if :when (:lt (:roll "1d6") 3)
+                       :then ((:say "Low.")))))))
+      (is (contains-substring-p "cannot appear in a condition"
+                                (apply #'message body))))
+    (is (contains-substring-p
+         "outside the supported integer range"
+         (message '(:choice "Huge" (:say (:roll "9007199254740991d2"))))))
+    (is (null (message '(:choice "Gamble"
+                         ((:set :target (:global :r) :value (:roll "1d6"))
+                          (:if :when (:gt (:global :r) 3)
+                           :then ((:say "Lucky {global:r}."))))))))))
+
+(test html-compiler-lowers-rolls-and-saves-the-generator
+  (let ((script (dunge-html:compile-game-script
+                 (source-node
+                  '(:game
+                    :start "room"
+                    :seed 77
+                    :rooms
+                    ((:room
+                      :id "room"
+                      :body ((:choice "Roll" (:say (:roll "3d4-2" :label :hit)))))))))))
+    (is (contains-substring-p
+         "{\"type\":\"roll\",\"dice\":\"3d4-2\",\"count\":3,\"sides\":4,\"modifier\":-2,\"label\":\"hit\"}"
+         script))
+    (is (contains-substring-p "\"seed\":77" script))
+    (is (contains-substring-p "'rngState' : RNGSTATE" script))
+    (is (contains-substring-p "'rollLog'" script))))

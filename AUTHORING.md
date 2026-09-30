@@ -22,6 +22,7 @@ An expression is a literal or an expression form:
   from the first and needs at least two; the others take one or more.
 - Text: `(:concat a b ...)` joins its parts as text, and strings may
   interpolate state (see below).
+- Dice: `(:roll "2d6+1")` or `(:roll "2d6+1" :label :attack)` (see below).
 
 Arithmetic works on integers only. An unset or cleared state value counts as
 `0`, as it does for `:inc` and `:dec`. Any other non-integer operand, such as a
@@ -55,6 +56,38 @@ A condition is used by `:when`, `:if`, `:branch`, and choice `:when` fields:
 
 Every positional form has a canonical keyword-field spelling: `(:lt a b)` is
 `(:lt :left a :right b)`, and `(:add 1 2)` is `(:add :operands (1 2))`.
+
+### Dice
+
+`(:roll DICE [:label KEY])` rolls dice written as `NdS`, `NdS+M`, or `NdS-M`,
+such as `"1d6"`, `"d20"`, or `"3d4-2"`. The dice string is checked when the
+game loads. Each roll draws from the game's generator, which starts from the
+game's `:seed`. It is the same generator in the console and the browser, so the
+same seed and choices give the same rolls in both. Every roll is added to the
+game's roll log, tagged with its `:label` when it has one. Browser saves
+include the generator state and the roll log, so a reloaded game continues the
+same sequence.
+
+A roll is an integer expression, so it can be an arithmetic operand:
+
+```lisp
+(:set :target (:global :damage)
+      :value (:max 0 (:sub (:roll "1d8" :label :damage) (:global :armor))))
+```
+
+Rolls may appear only in effects, never in conditions. A condition can be
+evaluated any number of times, such as on every render, so a roll there would
+consume the generator unpredictably. To branch on a roll, store it first:
+
+```lisp
+(:set :target (:global :check) :value (:roll "1d20"))
+(:if :when (:gte (:global :check) 12)
+ :then ((:say "You leap the gap."))
+ :else ((:say "You fall short.")))
+```
+
+The validator also rejects dice whose largest possible total falls outside the
+supported integer range.
 
 ### Interpolation
 

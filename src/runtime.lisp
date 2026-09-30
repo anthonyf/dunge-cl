@@ -555,10 +555,17 @@ when the return stack is not empty, and otherwise ends play with FALL-THROUGH."
   (1+ (table-random game sides random-state)))
 
 (defun roll-dice (game expression &key label random-state (record t))
+  (roll-dice-spec game
+                  (parse-dice-expression expression)
+                  :label label
+                  :random-state random-state
+                  :record record))
+
+(defun roll-dice-spec (game spec &key label random-state (record t))
+  "Roll the parsed dice SPEC, as returned by PARSE-DICE-EXPRESSION."
   (unless (or game random-state)
     (error "Rolling dice requires a game or explicit random state."))
-  (let* ((spec (parse-dice-expression expression))
-         (rolls (loop repeat (getf spec :count)
+  (let* ((rolls (loop repeat (getf spec :count)
                       collect (dice-random-roll game
                                                 (getf spec :sides)
                                                 random-state)))
@@ -1864,6 +1871,13 @@ NIL (including cleared or unset state) as the empty string."
                (if result
                    (funcall function result value)
                    value)))))))
+
+(defmethod evaluate-expression ((expression roll) &optional context)
+  (unless (and context (runtime-context-game context))
+    (error "Cannot roll dice without a current game."))
+  (values (roll-dice-spec (runtime-context-game context)
+                          (roll-spec expression)
+                          :label (roll-label expression))))
 
 (defmethod evaluate-expression ((expression concat) &optional context)
   (format nil "~{~A~}"

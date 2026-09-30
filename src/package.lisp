@@ -160,6 +160,7 @@
    #:player-str
    #:player-wil
    #:quit
+   #:roll
    #:room
    #:room-title
    #:room-name
