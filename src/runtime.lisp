@@ -16,16 +16,28 @@
 
 (defstruct runtime-context
   game
+  world
   scene
   self
   session)
 
 (defstruct (runtime-session
-             (:constructor %make-runtime-session (game location return-stack)))
+             (:constructor %make-runtime-session (game world)))
   game
-  location
-  return-stack
+  world
   undo-stack)
+
+(defun runtime-session-location (session)
+  (world-location (runtime-session-world session)))
+
+(defun (setf runtime-session-location) (location session)
+  (setf (world-location (runtime-session-world session)) location))
+
+(defun runtime-session-return-stack (session)
+  (world-return-stack (runtime-session-world session)))
+
+(defun (setf runtime-session-return-stack) (return-stack session)
+  (setf (world-return-stack (runtime-session-world session)) return-stack))
 
 (defgeneric evaluate (thing &optional context)
   (:documentation "Evaluate a Dunge CLOS AST node in CONTEXT.
@@ -94,16 +106,21 @@ can TYPEP the result against QUIT, BACK, and related classes."))
     (ensure-runtime-room-name room-name "return stack entry"))
   return-stack)
 
-(defun make-runtime-session (game &key current-room return-stack)
-  (let ((start-room (or current-room (game-start game))))
+(defun make-runtime-session (game &key current-room return-stack world)
+  "A session playing GAME in WORLD, a fresh world by default, at CURRENT-ROOM
+with RETURN-STACK when they are given."
+  (let ((world (or world (make-world game)))
+        (start-room (or current-room (game-start game))))
     (unless start-room
       (error "Cannot start a runtime session for a game with no rooms."))
-    (%make-runtime-session
-     game
-     (find-room game (ensure-runtime-room-name start-room "current room"))
-     (mapcar (lambda (room-name)
-               (find-room game room-name))
-             (ensure-runtime-return-stack return-stack)))))
+    (setf (world-location world)
+          (find-room game (ensure-runtime-room-name start-room "current room")))
+    (when (or current-room return-stack)
+      (setf (world-return-stack world)
+            (mapcar (lambda (room-name)
+                      (find-room game room-name))
+                    (ensure-runtime-return-stack return-stack))))
+    (%make-runtime-session game world)))
 
 (defun ensure-saveable-room-location (location purpose)
   (unless (typep location 'room)
@@ -151,6 +168,7 @@ can TYPEP the result against QUIT, BACK, and related classes."))
   (check-type context runtime-context)
   (make-runtime-context
    :game (runtime-context-game context)
+   :world (runtime-context-world context)
    :scene scene
    :self nil
    :session (runtime-context-session context)))
@@ -159,6 +177,7 @@ can TYPEP the result against QUIT, BACK, and related classes."))
   (check-type context runtime-context)
   (make-runtime-context
    :game (runtime-context-game context)
+   :world (runtime-context-world context)
    :scene (runtime-context-scene context)
    :self self
    :session (runtime-context-session context)))
@@ -181,8 +200,10 @@ can TYPEP the result against QUIT, BACK, and related classes."))
   (let ((*pending-choice-spacing* nil)
         (*debug* debug))
     (let* ((game (runtime-session-game session))
-           (game-context (make-runtime-context :game game
-                                               :session session)))
+           (game-context (make-runtime-context
+                          :game game
+                          :world (runtime-session-world session)
+                          :session session)))
       (loop do (let* ((location (runtime-session-location session))
                       (location-context
                         (runtime-context-for-location game-context location))
@@ -275,20 +296,20 @@ when the return stack is not empty, and otherwise ends play with FALL-THROUGH."
 (defun choice-taken-p (choice context)
   (and (choice-once-p choice)
        context
-       (runtime-context-game context)
+       (runtime-context-world context)
        (gethash (choice-state-key choice)
-                (game-taken-choices (runtime-context-game context)))))
+                (world-taken (runtime-context-world context)))))
 
 (defun choice-visible-p (choice context)
   (available-p choice context))
 
 (defun mark-choice-taken (choice context)
   (when (choice-once-p choice)
-    (unless (and context (runtime-context-game context))
-      (error "Cannot mark once-only choice ~S without a current game."
+    (unless (and context (runtime-context-world context))
+      (error "Cannot mark once-only choice ~S without a world."
              (label choice)))
     (setf (gethash (choice-state-key choice)
-                   (game-taken-choices (runtime-context-game context)))
+                   (world-taken (runtime-context-world context)))
           t)))
 
 (defmethod consumed-p ((choice choice) context)
@@ -304,25 +325,26 @@ when the return stack is not empty, and otherwise ends play with FALL-THROUGH."
         table
         (error "No table named ~S." table-id))))
 
-(defun runtime-context-for-table (game context)
+(defun runtime-context-for-table (game world context)
   (or context
-      (make-runtime-context :game game)))
+      (make-runtime-context :game game :world world)))
 
 (defun next-dunge-random-state (state)
   (mod (+ (* +dunge-rng-multiplier+ state)
           +dunge-rng-increment+)
        +dunge-rng-modulus+))
 
-(defun game-random (game limit)
+(defun world-random (world limit)
+  "Draw from WORLD's generator: a number from 0 below LIMIT."
   (positive-integer-value limit "Random limit")
-  (let ((next-state (next-dunge-random-state (game-random-state game))))
-    (setf (game-random-state game) next-state)
+  (let ((next-state (next-dunge-random-state (world-rng-state world))))
+    (setf (world-rng-state world) next-state)
     (mod next-state limit)))
 
-(defun table-random (game limit random-state)
+(defun table-random (world limit random-state)
   (if random-state
       (random limit random-state)
-      (game-random game limit)))
+      (world-random world limit)))
 
 (defun dice-expression-string (expression)
   (unless (stringp expression)
@@ -408,37 +430,38 @@ when the return stack is not empty, and otherwise ends play with FALL-THROUGH."
             (list :label label))
           (list :result total)))
 
-(defun dice-random-roll (game sides random-state)
-  (1+ (table-random game sides random-state)))
+(defun dice-random-roll (world sides random-state)
+  (1+ (table-random world sides random-state)))
 
-(defun roll-dice (game expression &key label random-state (record t))
-  (roll-dice-spec game
+(defun roll-dice (world expression &key label random-state (record t))
+  (roll-dice-spec world
                   (parse-dice-expression expression)
                   :label label
                   :random-state random-state
                   :record record))
 
-(defun roll-dice-spec (game spec &key label random-state (record t))
-  "Roll the parsed dice SPEC, as returned by PARSE-DICE-EXPRESSION."
-  (unless (or game random-state)
-    (error "Rolling dice requires a game or explicit random state."))
+(defun roll-dice-spec (world spec &key label random-state (record t))
+  "Roll the parsed dice SPEC, as returned by PARSE-DICE-EXPRESSION, from
+WORLD's generator or an explicit RANDOM-STATE."
+  (unless (or world random-state)
+    (error "Rolling dice requires a world or explicit random state."))
   (let* ((rolls (loop repeat (getf spec :count)
-                      collect (dice-random-roll game
+                      collect (dice-random-roll world
                                                 (getf spec :sides)
                                                 random-state)))
          (total (+ (reduce #'+ rolls)
                    (getf spec :modifier)))
          (entry (dice-roll-log-entry spec rolls total label)))
-    (when (and record game)
-      (push entry (game-roll-log-reversed game)))
+    (when (and record world)
+      (push entry (world-roll-log world)))
     (values total entry)))
 
-(defun roll-dice-value (game value &key label random-state (record t))
+(defun roll-dice-value (world value &key label random-state (record t))
   (cond
     ((integerp value)
      (values (non-negative-integer-value value "Dice value") nil))
     ((stringp value)
-     (roll-dice game value
+     (roll-dice world value
                 :label label
                 :random-state random-state
                 :record record))
@@ -446,8 +469,9 @@ when the return stack is not empty, and otherwise ends play with FALL-THROUGH."
      (error "Dice values must be non-negative integers or dice strings; got ~S."
             value))))
 
-(defun record-table-roll (game entry)
-  (push entry (game-roll-log-reversed game))
+(defun record-table-roll (world entry)
+  (when world
+    (push entry (world-roll-log world)))
   entry)
 
 (defun table-available-entries (table context)
@@ -461,14 +485,14 @@ when the return stack is not empty, and otherwise ends play with FALL-THROUGH."
 (defun choose-indexed-entry (entries index)
   (elt entries index))
 
-(defun choose-random-entry (game entries random-state)
-  (let ((index (table-random game (length entries) random-state)))
+(defun choose-random-entry (world entries random-state)
+  (let ((index (table-random world (length entries) random-state)))
     (values (choose-indexed-entry entries index)
             (list :index index))))
 
-(defun choose-weighted-entry (game entries random-state)
+(defun choose-weighted-entry (world entries random-state)
   (let ((total (reduce #'+ entries :key #'table-entry-weight)))
-    (loop with roll = (table-random game total random-state)
+    (loop with roll = (table-random world total random-state)
           with remaining = roll
           for entry in entries
           for weight = (table-entry-weight entry)
@@ -482,11 +506,11 @@ when the return stack is not empty, and otherwise ends play with FALL-THROUGH."
   (and (<= (car range) value)
        (<= value (cdr range))))
 
-(defun choose-roll-entry (game table entries random-state)
+(defun choose-roll-entry (world table entries random-state)
   (let* ((highest (reduce #'max entries
                           :key (lambda (entry)
                                  (table-range-high (table-entry-range entry)))))
-         (roll (1+ (table-random game highest random-state))))
+         (roll (1+ (table-random world highest random-state))))
     (let ((entry (find-if (lambda (entry)
                             (table-range-contains-p (table-entry-range entry) roll))
                           entries)))
@@ -498,48 +522,46 @@ when the return stack is not empty, and otherwise ends play with FALL-THROUGH."
               (list :roll roll
                     :die highest)))))
 
-(defun choose-sequence-entry (table entries)
-  (let* ((last-index (1- (length entries)))
-         (index (min (table-sequence-index table)
+(defun choose-sequence-entry (world table entries)
+  (let* ((state (world-table-state world table))
+         (last-index (1- (length entries)))
+         (index (min (table-state-sequence-index state)
                      last-index))
          (entry (choose-indexed-entry entries index)))
-    (setf (table-sequence-index table)
+    (setf (table-state-sequence-index state)
           (min (1+ index) last-index))
     (values entry
             (list :index index))))
 
-(defun deck-entry-drawn-p (table entry)
-  (gethash (table-entry-ordinal entry) (table-deck-drawn table)))
-
-(defun choose-deck-entry (game table entries random-state)
-  (let ((remaining (remove-if (lambda (entry)
-                                (deck-entry-drawn-p table entry))
-                              entries))
-        (reshuffled nil))
+(defun choose-deck-entry (world table entries random-state)
+  (let* ((drawn (table-state-deck-drawn (world-table-state world table)))
+         (remaining (remove-if (lambda (entry)
+                                 (gethash (table-entry-ordinal entry) drawn))
+                               entries))
+         (reshuffled nil))
     (unless remaining
-      (clrhash (table-deck-drawn table))
+      (clrhash drawn)
       (setf remaining entries
             reshuffled t))
     (multiple-value-bind (entry details)
-        (choose-random-entry game remaining random-state)
-      (setf (gethash (table-entry-ordinal entry) (table-deck-drawn table))
-            t)
+        (choose-random-entry world remaining random-state)
+      (setf (gethash (table-entry-ordinal entry) drawn) t)
       (values entry
               (append details
                       (list :remaining (length remaining)
                             :reshuffled reshuffled))))))
 
-(defun choose-table-entry (game table context random-state)
+(defun choose-table-entry (world table context random-state)
   (let ((entries (table-available-entries table context)))
     (ecase (table-mode table)
       (:weighted
-       (choose-weighted-entry game entries random-state))
+       (choose-weighted-entry world entries random-state))
       (:roll
-       (choose-roll-entry game table entries random-state))
+       (choose-roll-entry world table entries random-state))
       (:deck
-       (choose-deck-entry game table entries random-state))
+       (choose-deck-entry world table entries random-state))
       (:sequence
-       (choose-sequence-entry table entries))
+       (choose-sequence-entry world table entries))
       (:first-match
        (values (first entries)
                (list :index 0))))))
@@ -566,9 +588,12 @@ when the return stack is not empty, and otherwise ends play with FALL-THROUGH."
           details
           (list :result result)))
 
-(defun roll-table (game table-id &key context random-state)
+(defun roll-table (game table-id &key world context random-state)
+  "Roll GAME's table TABLE-ID. Dice, table positions, and the roll log come
+from WORLD, or from CONTEXT's world when WORLD is not given."
   (let* ((table (find-table game table-id))
-         (context (runtime-context-for-table game context)))
+         (context (runtime-context-for-table game world context))
+         (world (runtime-context-world context)))
     (if (eq (table-mode table) :bundle)
         (let ((result (mapcar (lambda (entry)
                                 (resolve-table-result game
@@ -577,17 +602,17 @@ when the return stack is not empty, and otherwise ends play with FALL-THROUGH."
                                                       random-state))
                               (table-available-entries table context))))
           (record-table-roll
-           game
+           world
            (table-roll-log-entry table nil result nil))
           (values result nil))
         (multiple-value-bind (entry details)
-            (choose-table-entry game table context random-state)
+            (choose-table-entry world table context random-state)
           (let ((result (resolve-table-result game
                                               (table-entry-result entry)
                                               context
                                               random-state)))
             (record-table-roll
-             game
+             world
              (table-roll-log-entry table entry result details))
             (values result entry))))))
 
@@ -602,16 +627,15 @@ when the return stack is not empty, and otherwise ends play with FALL-THROUGH."
              context
              (runtime-context-session context))
     (let ((session (runtime-context-session context)))
-      (push (capture-runtime-undo-state session)
+      (push (copy-world (runtime-session-world session))
             (runtime-session-undo-stack session)))))
 
 (defun undo-runtime-session (context)
   (let ((session (and context (runtime-context-session context))))
     (if (and session (runtime-session-undo-stack session))
         (progn
-          (restore-runtime-undo-state
-           session
-           (pop (runtime-session-undo-stack session)))
+          (restore-world-contents (runtime-session-world session)
+                                  (pop (runtime-session-undo-stack session)))
           (%make-refresh))
         (progn
           (format *output* "Nothing to undo.~%")
@@ -776,6 +800,10 @@ when the return stack is not empty, and otherwise ends play with FALL-THROUGH."
              declared-keys))
     state-key))
 
+(defun context-world (context)
+  (or (and context (runtime-context-world context))
+      (error "Cannot read or change state without a world.")))
+
 (defun resolve-state-reference (reference context)
   (ecase (state-ref-scope reference)
     (:self
@@ -783,25 +811,22 @@ when the return stack is not empty, and otherwise ends play with FALL-THROUGH."
        (error "Cannot resolve SELF state without a current entity."))
      (let* ((self (runtime-context-self context))
             (key (ensure-declared-state-key self (state-ref-key reference))))
-       (values (local-state self)
+       (values (entity-state (context-world context) self)
                key
                self)))
     (:global
-     (unless (and context (runtime-context-game context))
-       (error "Cannot resolve GLOBAL state without a current game."))
      (let ((game (runtime-context-game context)))
-       (values (game-global-state game)
-               (ensure-declared-global-state-key
-                game
-                (state-ref-key reference)))))
+       (values (world-globals (context-world context))
+               (if game
+                   (ensure-declared-global-state-key game (state-ref-key reference))
+                   (state-key (state-ref-key reference))))))
     (:player
      (unless (and context (runtime-context-game context))
        (error "Cannot resolve PLAYER state without a current game."))
-     (let ((game (runtime-context-game context)))
-       (values (game-player-state game)
-               (ensure-declared-player-state-key
-                game
-                (state-ref-key reference)))))
+     (values (world-player (context-world context))
+             (ensure-declared-player-state-key
+              (runtime-context-game context)
+              (state-ref-key reference))))
     (:ref
      (unless (and context (runtime-context-self context))
        (error "Cannot resolve REF state without a current entity."))
@@ -813,7 +838,7 @@ when the return stack is not empty, and otherwise ends play with FALL-THROUGH."
                 (or (entity-id self) (name self))
                 (state-ref-role reference)))
        (let ((key (ensure-declared-state-key target (state-ref-key reference))))
-         (values (local-state target)
+         (values (entity-state (context-world context) target)
                  key
                  target))))))
 
@@ -843,18 +868,16 @@ when the return stack is not empty, and otherwise ends play with FALL-THROUGH."
         #'string<
         :key #'prin1-to-string))
 
-(defun collect-runtime-table-state (game)
-  (mapcar (lambda (table)
-            (list :table (table-id table)
-                  :sequence-index (table-sequence-index table)
-                  :deck-drawn (sorted-hash-keys (table-deck-drawn table))))
-          (game-tables game)))
+(defun collect-runtime-table-state (game world)
+  (loop for table in (game-tables game)
+        for state = (gethash (table-id table) (world-tables world))
+        when state
+          collect (list :table (table-id table)
+                        :sequence-index (table-state-sequence-index state)
+                        :deck-drawn (sorted-hash-keys
+                                     (table-state-deck-drawn state)))))
 
-(defun collect-runtime-roll-log (game)
-  (game-roll-log game))
-
-
-(defun collect-runtime-local-state (game)
+(defun collect-runtime-local-state (game world)
   (let (entries)
     (dolist (room (game-rooms game))
       (walk-node-tree
@@ -865,33 +888,23 @@ when the return stack is not empty, and otherwise ends play with FALL-THROUGH."
                     (state-declarations node))
            (push (list :room (name room)
                        :entity (entity-id node)
-                       :state (sorted-state-alist (local-state node)))
+                       :state (sorted-state-alist (entity-state world node)))
                  entries)))))
     (nreverse entries)))
 
 (defun capture-runtime-state (session)
-  (let ((game (runtime-session-game session)))
+  "The saveable state of SESSION's world, as a property list."
+  (let ((game (runtime-session-game session))
+        (world (runtime-session-world session)))
     (list :current-room (runtime-session-current-room-name session)
           :return-stack (runtime-session-return-stack-room-names session)
-          :player (sorted-state-alist (game-player-state game))
-          :rng-state (game-random-state game)
-          :roll-log (collect-runtime-roll-log game)
-          :globals (sorted-state-alist (game-global-state game))
-          :locals (collect-runtime-local-state game)
-          :tables (collect-runtime-table-state game)
-          :taken-choices (sorted-hash-keys (game-taken-choices game)))))
-
-(defun capture-runtime-undo-state (session)
-  (let ((game (runtime-session-game session)))
-    (list :location (runtime-session-location session)
-          :return-stack (copy-list (runtime-session-return-stack session))
-          :player (sorted-state-alist (game-player-state game))
-          :rng-state (game-random-state game)
-          :roll-log (collect-runtime-roll-log game)
-          :globals (sorted-state-alist (game-global-state game))
-          :locals (collect-runtime-local-state game)
-          :tables (collect-runtime-table-state game)
-          :taken-choices (sorted-hash-keys (game-taken-choices game)))))
+          :player (sorted-state-alist (world-player world))
+          :rng-state (world-rng-state world)
+          :roll-log (world-rolls world)
+          :globals (sorted-state-alist (world-globals world))
+          :locals (collect-runtime-local-state game world)
+          :tables (collect-runtime-table-state game world)
+          :taken-choices (sorted-hash-keys (world-taken world)))))
 
 (defun runtime-state-field (state field &optional default)
   (ensure-runtime-property-list state "state")
@@ -948,128 +961,94 @@ when the return stack is not empty, and otherwise ends play with FALL-THROUGH."
 (defun runtime-state-pair-p (entry)
   (consp entry))
 
-(defun restore-runtime-global-state (game globals)
+(defun restore-runtime-global-state (game world globals)
   (ensure-runtime-list globals ":GLOBALS")
   (dolist (entry globals)
     (unless (runtime-state-pair-p entry)
       (error "Runtime global state entry must be (KEY . VALUE)."))
     (setf (gethash (ensure-declared-global-state-key game (car entry))
-                   (game-global-state game))
+                   (world-globals world))
           (cdr entry))))
 
-(defun restore-runtime-taken-choices (game taken-choices)
+(defun restore-runtime-taken-choices (world taken-choices)
   (ensure-runtime-list taken-choices ":TAKEN-CHOICES")
-  (clrhash (game-taken-choices game))
+  (clrhash (world-taken world))
   (dolist (choice-id taken-choices)
-    (setf (gethash (choice-id-key choice-id)
-                   (game-taken-choices game))
-          t)))
+    (setf (gethash (choice-id-key choice-id) (world-taken world)) t)))
 
-(defun restore-runtime-local-state-entry (game entry)
+(defun restore-runtime-local-state-entry (game world entry)
   (ensure-runtime-property-list entry "local state entry")
   (let* ((room-name (runtime-state-required-field entry :room))
          (entity-id (runtime-state-required-field entry :entity))
          (state (runtime-state-field entry :state nil))
          (room (find-room game room-name))
          (entity (gethash (scene-id-key entity-id) (scene-index room))))
-    (unless (typep entity 'entity)
+    (unless (and (typep entity 'entity) (state-declarations entity))
       (error "No saveable entity ~S in room ~S." entity-id room-name))
     (ensure-runtime-list state "local :STATE")
     (dolist (state-entry state)
       (unless (runtime-state-pair-p state-entry)
         (error "Runtime local state entry must be (KEY . VALUE)."))
       (setf (gethash (ensure-declared-state-key entity (car state-entry))
-                     (local-state entity))
+                     (entity-state world entity))
             (cdr state-entry)))))
 
-(defun restore-runtime-local-state (game locals)
-  (ensure-runtime-list locals ":LOCALS")
-  (dolist (entry locals)
-    (restore-runtime-local-state-entry game entry)))
-
-(defun restore-runtime-table-state-entry (game entry)
+(defun restore-runtime-table-state-entry (game world entry)
   (ensure-runtime-property-list entry "table state entry")
   (let* ((table-id (runtime-state-required-field entry :table))
          (sequence-index (runtime-state-field entry :sequence-index 0))
          (deck-drawn (runtime-state-field entry :deck-drawn nil))
-         (table (find-table game table-id)))
-    (setf (table-sequence-index table)
+         (state (world-table-state world (find-table game table-id))))
+    (setf (table-state-sequence-index state)
           (non-negative-integer-value sequence-index "Table sequence index"))
     (ensure-runtime-list deck-drawn "table :DECK-DRAWN")
-    (clrhash (table-deck-drawn table))
+    (clrhash (table-state-deck-drawn state))
     (dolist (ordinal deck-drawn)
       (setf (gethash (non-negative-integer-value ordinal "Deck drawn ordinal")
-                     (table-deck-drawn table))
+                     (table-state-deck-drawn state))
             t))))
 
-(defun restore-runtime-table-state (game tables)
-  (ensure-runtime-list tables ":TABLES")
-  (dolist (entry tables)
-    (restore-runtime-table-state-entry game entry)))
-
-(defun restore-runtime-random-state (game rng-state)
-  (setf (game-random-state game)
-        (non-negative-integer-value rng-state "Runtime RNG state")))
-
-(defun restore-runtime-roll-log (game roll-log)
-  (ensure-runtime-list roll-log ":ROLL-LOG")
-  (setf (game-roll-log game) (copy-list roll-log)))
-
-(defun restore-runtime-player-state (game player-state)
+(defun restore-runtime-player-state (game world player-state)
   (ensure-runtime-list player-state ":PLAYER")
   (dolist (entry player-state)
     (unless (runtime-state-pair-p entry)
       (error "Runtime player state entry must be (KEY . VALUE)."))
     (setf (gethash (ensure-declared-player-state-key game (car entry))
-                   (game-player-state game))
+                   (world-player world))
           (cdr entry))))
 
+(defun plist->world (game state)
+  "A world for GAME holding the saved STATE over its declared starting values.
+Keys GAME does not declare are errors."
+  (let ((world (make-world game))
+        (roll-log (runtime-state-field state :roll-log nil)))
+    (setf (world-rng-state world)
+          (non-negative-integer-value
+           (runtime-state-field state :rng-state (game-random-seed game))
+           "Runtime RNG state"))
+    (ensure-runtime-list roll-log ":ROLL-LOG")
+    (setf (world-roll-log world) (reverse roll-log))
+    (restore-runtime-player-state game world (runtime-state-field state :player nil))
+    (restore-runtime-global-state game world (runtime-state-field state :globals nil))
+    (let ((locals (runtime-state-field state :locals nil)))
+      (ensure-runtime-list locals ":LOCALS")
+      (dolist (entry locals)
+        (restore-runtime-local-state-entry game world entry)))
+    (let ((tables (runtime-state-field state :tables nil)))
+      (ensure-runtime-list tables ":TABLES")
+      (dolist (entry tables)
+        (restore-runtime-table-state-entry game world entry)))
+    (restore-runtime-taken-choices world
+                                   (runtime-state-field state :taken-choices nil))
+    world))
+
 (defun restore-runtime-state (game state)
-  (let* ((current-room (runtime-state-required-field state :current-room))
-         (return-stack (runtime-state-field state :return-stack nil))
-         (player-state (runtime-state-field state :player nil))
-         (rng-state (runtime-state-field state :rng-state (game-random-seed game)))
-         (roll-log (runtime-state-field state :roll-log nil))
-         (globals (runtime-state-field state :globals nil))
-         (locals (runtime-state-field state :locals nil))
-         (tables (runtime-state-field state :tables nil))
-         (taken-choices (runtime-state-field state :taken-choices nil)))
-    (prepare-game game)
-    (restore-runtime-player-state game player-state)
-    (restore-runtime-random-state game rng-state)
-    (restore-runtime-roll-log game roll-log)
-    (restore-runtime-global-state game globals)
-    (restore-runtime-local-state game locals)
-    (restore-runtime-table-state game tables)
-    (restore-runtime-taken-choices game taken-choices)
-    (make-runtime-session game
-                          :current-room current-room
-                          :return-stack return-stack)))
-
-(defun canonical-runtime-location (game location)
-  (if (typep location 'room)
-      (find-room game (name location))
-      location))
-
-(defun restore-runtime-undo-state (session state)
-  (let ((game (runtime-session-game session)))
-    (prepare-game game)
-    (restore-runtime-player-state game (getf state :player))
-    (restore-runtime-random-state game
-                                  (getf state :rng-state
-                                        (game-random-seed game)))
-    (restore-runtime-roll-log game (getf state :roll-log nil))
-    (restore-runtime-global-state game (getf state :globals))
-    (restore-runtime-local-state game (getf state :locals))
-    (restore-runtime-table-state game (getf state :tables))
-    (restore-runtime-taken-choices game (getf state :taken-choices))
-    (setf (runtime-session-location session)
-          (canonical-runtime-location game (getf state :location)))
-    (setf (runtime-session-return-stack session)
-          (mapcar (lambda (location)
-                    (canonical-runtime-location game location))
-                  (getf state :return-stack)))
-    session))
+  "A session for GAME resuming the saved STATE."
+  (make-runtime-session game
+                        :world (plist->world game state)
+                        :current-room (runtime-state-required-field
+                                       state :current-room)
+                        :return-stack (runtime-state-field state :return-stack nil)))
 
 (defun read-runtime-state-form (stream source-name)
   (let ((*read-eval* nil)
@@ -1203,9 +1182,7 @@ NIL (including cleared or unset state) as the empty string."
                    value)))))))
 
 (defmethod evaluate-expression ((expression roll) &optional context)
-  (unless (and context (runtime-context-game context))
-    (error "Cannot roll dice without a current game."))
-  (values (roll-dice-spec (runtime-context-game context)
+  (values (roll-dice-spec (context-world context)
                           (roll-spec expression)
                           :label (roll-label expression))))
 

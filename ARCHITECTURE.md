@@ -534,12 +534,29 @@ The minimum save payload is still:
  :taken-choices (:take-recipe))
 ```
 
-Runtime sessions track the current location and return stack separately from
-authored content. `capture-runtime-state` produces the serializable payload,
-`restore-runtime-state` applies one to a prepared game, and
-`write-runtime-state-file` / `load-runtime-state-file` round-trip that payload
-through a safe s-expression reader with `*read-eval*` disabled. Entity-local
-state is saved for entities with stable scene IDs.
+A game is an immutable definition: rooms, tables, declarations, start room,
+and seed. Its indexes (rooms, tables, each room's scene ids, entity refs, and
+action owners) are built once when it is made. Everything that changes during
+play lives in a **world**: the generator state and roll log, global and player
+state, each stateful entity's state (keyed by room and entity id), taken
+choices, table positions, the current location, and the return stack.
+
+- `make-world` builds a fresh world from a game's declarations, so starting
+  over is just making a new world. Validation reads only the definition and
+  never touches play state.
+- A runtime session plays a game in one world; runtime contexts carry that
+  world to expressions and effects.
+- Debug undo pushes a `copy-world` before each choice and restores into the
+  same world object.
+- `capture-runtime-state` turns a session's world into the payload above, and
+  `restore-runtime-state` (through `plist->world`) overlays a payload on a
+  fresh world, rejecting keys the game does not declare.
+- `write-runtime-state-file` / `load-runtime-state-file` round-trip the
+  payload through a safe s-expression reader with `*read-eval*` disabled.
+
+The browser runtime mirrors this: one `*world*` object holds all mutable play
+data, saves serialize it, and undo copies it. The compiled game data is never
+changed during play.
 
 ## Validator
 

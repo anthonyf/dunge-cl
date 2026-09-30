@@ -220,11 +220,10 @@
   (flet ((play ()
            (let* ((game (expression-game))
                   (context (expression-context game)))
-             (dunge::prepare-game game)
              (list (loop repeat 20
                          collect (evaluate-source-expression
                                   '(:roll "2d6+1" :label :attack) context))
-                   (game-roll-log game)))))
+                   (world-rolls (runtime-context-world context))))))
     (destructuring-bind (values log) (play)
       (is (every (lambda (value) (<= 3 value 13)) values))
       (is (equal values (first (play))))
@@ -285,5 +284,6 @@
                     :seed ,(+ (expt 2 60) (* 3 (expt 2 31)) 77)
                     :rooms ((:room :id "room" :body ((:choice "Quit" (:quit))))))))))
     (is (contains-substring-p "\"rngState\":77" script))
-    (is (contains-substring-p "'rngState' : RNGSTATE" script))
-    (is (contains-substring-p "'rollLog'" script))))
+    (is (contains-substring-p "'rngState' : GAME.rngState" script))
+    (is (contains-substring-p "'rollLog' : []" script))
+    (is (contains-substring-p "'world' : copyJsonValue(WORLD)" script))))
