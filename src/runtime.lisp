@@ -107,14 +107,17 @@ can TYPEP the result against QUIT, BACK, and related classes."))
   return-stack)
 
 (defun make-runtime-session (game &key current-room return-stack world)
-  "A session playing GAME in WORLD, a fresh world by default, at CURRENT-ROOM
-with RETURN-STACK when they are given."
-  (let ((world (or world (make-world game)))
-        (start-room (or current-room (game-start game))))
-    (unless start-room
-      (error "Cannot start a runtime session for a game with no rooms."))
-    (setf (world-location world)
-          (find-room game (ensure-runtime-room-name start-room "current room")))
+  "A session playing GAME in WORLD, a fresh world by default. CURRENT-ROOM and
+RETURN-STACK, room names, move the world's player when given; otherwise the
+player stays where WORLD has them."
+  (let ((world (or world (make-world game))))
+    (when (or current-room (null (world-location world)))
+      (let ((start-room (or current-room (game-start game))))
+        (unless start-room
+          (error "Cannot start a runtime session for a game with no rooms."))
+        (setf (world-location world)
+              (find-room game
+                         (ensure-runtime-room-name start-room "current room")))))
     (when (or current-room return-stack)
       (setf (world-return-stack world)
             (mapcar (lambda (room-name)
@@ -326,8 +329,17 @@ when the return stack is not empty, and otherwise ends play with FALL-THROUGH."
         (error "No table named ~S." table-id))))
 
 (defun runtime-context-for-table (game world context)
-  (or context
-      (make-runtime-context :game game :world world)))
+  "A context for rolling GAME's tables: CONTEXT, playing in WORLD when one is
+given explicitly."
+  (cond
+    ((null context)
+     (make-runtime-context :game game :world world))
+    ((and world (not (eq world (runtime-context-world context))))
+     (let ((copy (copy-runtime-context context)))
+       (setf (runtime-context-world copy) world)
+       copy))
+    (t
+     context)))
 
 (defun next-dunge-random-state (state)
   (mod (+ (* +dunge-rng-multiplier+ state)
@@ -1040,15 +1052,19 @@ Keys GAME does not declare are errors."
         (restore-runtime-table-state-entry game world entry)))
     (restore-runtime-taken-choices world
                                    (runtime-state-field state :taken-choices nil))
+    (setf (world-location world)
+          (find-room game (ensure-runtime-room-name
+                           (runtime-state-required-field state :current-room)
+                           "current room"))
+          (world-return-stack world)
+          (mapcar (lambda (room-name) (find-room game room-name))
+                  (ensure-runtime-return-stack
+                   (runtime-state-field state :return-stack nil))))
     world))
 
 (defun restore-runtime-state (game state)
   "A session for GAME resuming the saved STATE."
-  (make-runtime-session game
-                        :world (plist->world game state)
-                        :current-room (runtime-state-required-field
-                                       state :current-room)
-                        :return-stack (runtime-state-field state :return-stack nil)))
+  (make-runtime-session game :world (plist->world game state)))
 
 (defun read-runtime-state-form (stream source-name)
   (let ((*read-eval* nil)

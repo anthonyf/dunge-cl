@@ -829,6 +829,22 @@
       (is (= 0 (gethash :visits (globals-of (make-world game)))))
       (is (= 1 (gethash :visits (globals-of session)))))))
 
+(test worlds-restore-location-and-roll-tables-in-the-given-world
+  (let* ((game (build-save-load-fixture))
+         (session (make-runtime-session game)))
+    (run-session-script session (format nil "2~%1~%2~%"))
+    (let ((world (plist->world game (capture-runtime-state session))))
+      (is (equal "notes" (name (world-location world))))
+      ;; A session over a restored world starts where the world is.
+      (is (equal "notes" (runtime-session-current-room-name
+                          (make-runtime-session game :world world))))))
+  (let* ((game (build-seeded-table-fixture 5))
+         (context (test-context game))
+         (other (make-world game)))
+    (roll-table game :weighted :world other :context context)
+    (is (= 1 (length (world-rolls other))))
+    (is (null (world-rolls (runtime-context-world context))))))
+
 (test undo-copies-leave-the-world-independent
   (let* ((game (source-game-with-player '((:hp 4))))
          (world (make-world game))

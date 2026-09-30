@@ -30,7 +30,8 @@
   (let ((table (make-hash-table :test 'eql)))
     (dolist (declaration declarations table)
       (destructuring-bind (name value) declaration
-        (setf (gethash (state-key name) table) value)))))
+        ;; Copied, so no world shares a value with the definition.
+        (setf (gethash (state-key name) table) (copy-tree value))))))
 
 (defun entity-state-key (entity)
   (cons (name (entity-scene entity)) (entity-id entity)))

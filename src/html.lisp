@@ -646,7 +646,8 @@ same game data and the same runtime, since either can change the save shape."
            (:catch (error) nil)))
 
     (defun initial-state (state-data)
-      (copy-object (@ state-data values)))
+      ;; A deep copy, so no world shares a value with the game data.
+      (copy-json-value (@ state-data values)))
 
     (defun room-by-id (room-id)
       (let ((room (and room-id
