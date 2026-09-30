@@ -9,18 +9,11 @@
    #:adaptation-example
    #:adaptation-browser-demo-path
    #:basic-example
+   #:build-adaptation
    #:control-panel-example
-   #:ensure-adaptation-first-room
-   #:ensure-adaptation-room-exit
-   #:find-adaptation-choice
-   #:install-adaptation-entrance-flow
-   #:generated-adaptation-example
-   #:instanced-adaptation-example
-   #:install-adaptation-player
    #:load-adaptation-example
    #:load-basic-example
    #:load-control-panel-example
-   #:load-generated-adaptation-example
    #:load-instanced-adaptation-example
    #:make-adaptation-player
    #:write-adaptation-browser-demo))

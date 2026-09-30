@@ -334,7 +334,7 @@ shared resolver normalizes the common crawler result shapes:
   strings into integer counts.
 - `(:encounter ENCOUNTER-ID ...)` resolves optional `:count` dice and can be
   used by CL procedures to start persistent encounter state.
-- `(:exit DIRECTION ROOM-ID)` validates and extracts generated-room exits.
+- `(:exit DIRECTION ROOM-ID)` validates and extracts room exits.
 
 `resolve-table-result-data` returns normalized result data without deciding
 where it belongs. `table-result-loot-results` extracts gold/item/supply
@@ -344,48 +344,45 @@ boundary intact: source files describe what was rolled, and CL procedure code
 decides whether that roll becomes a loot choice, an exit, room detail, an
 encounter, or something else.
 
-## Generated Rooms
+## Building Games
 
-Generated rooms are room instances created by Common Lisp from authored tables
-before play. They subclass normal rooms, receive stable generated ids such as
-`"generated:dungeon:1"`, and can be found by the same navigation lookup used
-for authored rooms once registered with a game. They are part of the game's
-definition: preparing a game for a new run keeps them, and saves do not
-record them.
+Generated content is built before play and becomes ordinary content.
+`dunge.crawler:build-game` takes a game's source and a builder function:
 
-`dunge.crawler:create-generated-room` builds a room's body from resolved table
-results as ordinary AST:
+1. It compiles the source once as a scratch game, whose generator starts from
+   a stream derived from `:seed`.
+2. The builder rolls the scratch game's tables and plans rooms with
+   `create-generated-room`, links them with `link-rooms`, and sets the
+   player's declarations (`set-player`) and initial global values
+   (`set-initial-global`).
+3. `build-game` turns each room plan into an ordinary `(:room ...)` form and
+   compiles the final game from the source with those rooms and values spliced
+   in. A planned room whose id matches an authored room replaces it.
+
+Play then starts from `:seed` itself with an empty roll log, so building a game
+never shifts its play dice.
+
+A room plan's body is built from resolved table results:
 
 - a paragraph for the description and one per result, such as `Find: Ration.`;
 - a once-only "Take ..." choice for each `:gold`, `:item`, or `:supply` result,
   which adds the loot to `:player` state;
-- any extra `:options` choices, such as the crawler's "Eat ration" choice.
+- any `:options` choices, such as the crawler's "Eat ration" choice;
+- a `:go` choice per exit, labelled "Return", "Continue deeper", and so on.
 
-`:encounter-options` choices are offered between Attack and Flee while the
-room's encounter is active. Exits are still rendered from the room's exit data.
-
-The core API for the room graph is small:
-
-- `register-generated-room` registers a room with an explicit id.
-- `find-generated-room` recalls a generated room.
-- `game-generated-rooms` returns the generated rooms.
-- `generated-room-exit-target` reads the concrete target for a direction.
-- `set-generated-room-exit` adds or replaces an exit.
-- `link-generated-rooms` links two rooms and can also write the reciprocal exit.
-
-Exits only store concrete room ids, so a generated room can link to authored
-rooms or other generated rooms through the same navigation path.
+With an `:encounter` spec, those choices wait behind an encounter entity (see
+below). Exits only store concrete room ids, so a planned room can link to
+authored rooms or other planned rooms.
 
 `.dunge` still describes the possible ingredients; CL decides which rooms
-exist. For example, the adaptation testbed rolls an authored
-`(:exit :deeper "generated:dungeon:*")` table result, then CL creates a
-concrete room such as `"generated:dungeon:2"` and links it back to the room that
-discovered it. The adaptation loader also rewires the authored
-`:enter-first-room` choice to the first generated room's id.
+exist. The adaptation testbed rolls an authored
+`(:exit :deeper "generated:dungeon:*")` table result, then plans a concrete
+room such as `"generated:dungeon:1"` and links it back to the room that found
+it. Its first chamber takes the id of the authored `"placeholder-room"`, so the
+threshold's authored `(:go "placeholder-room")` choice enters it and nothing
+is rewired after compilation.
 
-The browser backend does not roll rooms either. The compiler serializes the
-generated rooms as `generatedRooms`, and the browser runtime registers them
-alongside authored rooms so ordinary `:go` navigation can enter them.
+The browser backend compiles built rooms like any other room.
 
 ## State
 
@@ -483,9 +480,9 @@ condition is not kept.
 
 Encounters are ordinary content. A `.dunge` table can describe an encounter
 with `(:encounter ENCOUNTER-ID ...)`, but that result does not start combat by
-itself. When CL builds a generated room, `dunge.crawler:encounter-spec` reads
-the enemy's HP, armor, and damage from the result (with overrides), and
-`create-generated-room` wraps the room's choices in an encounter entity:
+itself. When CL plans a room, `dunge.crawler:encounter-spec` reads the enemy's
+HP, armor, and damage from the result (with overrides), and the built room
+wraps its choices in an encounter entity:
 
 - its local state holds `:status` (`:active`, `:defeated`, `:escaped`, or
   `:player-defeated`), `:hp`, `:max-hp`, `:armor`, `:dealt`, `:taken`, and
@@ -588,10 +585,9 @@ refresh guards, save-game UI, and story rendering are part of this backend;
 generation itself is still driven by Common Lisp before the file is compiled.
 
 The adaptation testbed uses that boundary as a runnable vertical slice.
-`dunge-examples:write-adaptation-browser-demo` loads the adaptation, installs
-the generated player and two-room generated dungeon graph, rewires the authored
-threshold to the first generated room, and writes the
-`examples/adaptation/index.html` standalone build.
+`dunge-examples:write-adaptation-browser-demo` builds the adaptation (a rolled
+player and a two-room dungeon) and writes the `examples/adaptation/index.html`
+standalone build.
 
 Builds are reproducible: the runtime script is expanded with `ps:ps-doc`, which
 resets Parenscript's gensym counter, so identical sources produce identical

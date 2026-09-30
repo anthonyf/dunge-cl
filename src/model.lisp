@@ -52,10 +52,6 @@ beyond plus or minus this value are errors.")
                               :initarg :player
                               :initform nil)
    (room-index :reader room-index :initform (make-hash-table :test 'equal))
-   (generated-room-index :reader generated-room-index
-                         :initform (make-hash-table :test 'equal))
-   (generated-room-counter :accessor game-generated-room-counter
-                           :initform 0)
    (table-index :reader table-index :initform (make-hash-table :test 'eql))
    (start :accessor game-start :initarg :start :initform nil))
   (:children (thing) (append (game-rooms thing)
@@ -90,17 +86,6 @@ beyond plus or minus this value are errors.")
     (:id :scene-id :required t :to :name)
     (:title :string)
     (:body :node-list :default nil :to :entities))))
-
-(define-dunge-node generated-room (room)
-  ((zone :reader generated-room-zone :initarg :zone :initform nil)
-   (description :accessor generated-room-description
-                :initarg :description
-                :initform nil)
-   (depth :accessor generated-room-depth :initarg :depth :initform 0)
-   (results :accessor generated-room-results
-            :initarg :results
-            :initform nil)
-   (exits :accessor generated-room-exits :initarg :exits :initform nil)))
 
 (define-dunge-node effect-node ()
   ())
@@ -509,177 +494,6 @@ beyond plus or minus this value are errors.")
     (error "~A must be a non-negative integer; got ~S." label value))
   value)
 
-(defun generated-room-zone-key (zone)
-  (unless (keywordp zone)
-    (error "Generated room zone must be a keyword; got ~S." zone))
-  zone)
-
-(defun generated-room-id-string (id)
-  (scene-id-key id))
-
-(defun generated-room-title-string (title id)
-  (cond
-    ((null title) id)
-    ((stringp title) title)
-    (t
-     (error "Generated room title must be a string or NIL; got ~S."
-            title))))
-
-(defun generated-room-description-string (description)
-  (cond
-    ((null description) nil)
-    ((stringp description) description)
-    (t
-     (error "Generated room description must be a string or NIL; got ~S."
-            description))))
-
-(defun generated-room-exit-list (exits)
-  (proper-list-length-value exits "Generated room exits")
-  (dolist (exit exits)
-    (unless (and (consp exit)
-                 (keywordp (car exit))
-                 (stringp (cdr exit)))
-      (error "Generated room exits must be (DIRECTION . ROOM-ID) pairs; got ~S."
-             exit)))
-  exits)
-
-(defun generated-room-exit-direction-key (direction)
-  (unless (keywordp direction)
-    (error "Generated room exit directions must be keywords; got ~S."
-           direction))
-  direction)
-
-(defun generated-room-exit-target-string (target)
-  (cond
-    ((typep target 'room)
-     (scene-id-key (name target)))
-    ((stringp target)
-     (scene-id-key target))
-    (t
-     (error "Generated room exit targets must be room ids or rooms; got ~S."
-            target))))
-
-(defun generated-room-value (room label)
-  (unless (typep room 'generated-room)
-    (error "~A must be a generated room; got ~S." label room))
-  room)
-
-(defun generated-room-result-list (results)
-  (proper-list-length-value results "Generated room results")
-  results)
-
-(defun generated-zone-id-part (zone)
-  (string-downcase (symbol-name (generated-room-zone-key zone))))
-
-(defun allocate-generated-room-id (game zone)
-  (let ((counter (incf (game-generated-room-counter game))))
-    (format nil "generated:~A:~D" (generated-zone-id-part zone) counter)))
-
-(defun generated-room-id-counter (id)
-  (let ((separator (position #\: id :from-end t)))
-    (when (and separator (< (1+ separator) (length id)))
-      (handler-case
-          (let ((counter (parse-integer id
-                                        :start (1+ separator)
-                                        :junk-allowed nil)))
-            (when (plusp counter)
-              counter))
-        (error ()
-          nil)))))
-
-(defun note-generated-room-id-counter (game id)
-  (let ((counter (generated-room-id-counter id)))
-    (when counter
-      (setf (game-generated-room-counter game)
-            (max (game-generated-room-counter game) counter)))))
-
-(defun make-generated-room (&key id title description zone (depth 0) results
-                              exits body)
-  "Make a generated room whose BODY, a list of AST nodes, is described and
-offered like an authored room's."
-  (let ((id (generated-room-id-string id))
-        (results (copy-tree (generated-room-result-list (or results nil)))))
-    (make-instance 'generated-room
-                   :name id
-                   :title (generated-room-title-string title id)
-                   :description (generated-room-description-string
-                                 description)
-                   :zone (generated-room-zone-key zone)
-                   :depth (non-negative-integer-value
-                           depth
-                           "Generated room depth")
-                   :results results
-                   :exits (copy-tree (generated-room-exit-list
-                                      (or exits nil)))
-                   :entities body)))
-
-(defun clear-generated-rooms (game)
-  (clrhash (generated-room-index game))
-  (setf (game-generated-room-counter game) 0)
-  game)
-
-(defun game-generated-rooms (game)
-  (sort (loop for room being the hash-values of (generated-room-index game)
-              collect room)
-        #'string<
-        :key #'name))
-
-(defun find-generated-room (game room-id &key errorp)
-  (let ((key (generated-room-id-string room-id)))
-    (multiple-value-bind (room present-p)
-        (gethash key (generated-room-index game))
-      (cond
-        (present-p room)
-        (errorp
-         (error "No generated room named ~S." room-id))
-        (t nil)))))
-
-(defun register-generated-room (game room)
-  (unless (typep room 'generated-room)
-    (error "Can only register GENERATED-ROOM instances; got ~S." room))
-  (let ((id (generated-room-id-string (name room))))
-    (when (nth-value 1 (gethash id (room-index game)))
-      (error "Generated room id ~S conflicts with an authored room." id))
-    (when (nth-value 1 (gethash id (generated-room-index game)))
-      (error "Duplicate generated room id ~S." id))
-    (prepare-room-scene room)
-    (setf (gethash id (generated-room-index game)) room)
-    (note-generated-room-id-counter game id)
-    room))
-
-(defun generated-room-exit-target (room direction)
-  (let ((room (generated-room-value room "Generated room exit source")))
-    (cdr (assoc (generated-room-exit-direction-key direction)
-                (generated-room-exits room)
-                :test #'eq))))
-
-(defun set-generated-room-exit (room direction target)
-  (let* ((room (generated-room-value room "Generated room exit source"))
-         (direction (generated-room-exit-direction-key direction))
-         (target (generated-room-exit-target-string target))
-         (existing (assoc direction (generated-room-exits room) :test #'eq)))
-    (if existing
-        (setf (cdr existing) target)
-        (setf (generated-room-exits room)
-              (append (generated-room-exits room)
-                      (list (cons direction target)))))
-    room))
-
-(defun link-generated-rooms (from direction to &key reverse-direction)
-  (let* ((from (generated-room-value from "Generated room link source"))
-         (to (generated-room-value to "Generated room link target"))
-         (direction (generated-room-exit-direction-key direction))
-         (reverse-direction (when reverse-direction
-                              (generated-room-exit-direction-key
-                               reverse-direction)))
-         (to-target (generated-room-exit-target-string to))
-         (from-target (when reverse-direction
-                        (generated-room-exit-target-string from))))
-    (set-generated-room-exit from direction to-target)
-    (when reverse-direction
-      (set-generated-room-exit to reverse-direction from-target))
-    (values from to)))
-
 (defun tag-list-value (value)
   (unless (listp value)
     (source-error "Tag lists must be lists; got ~S." value))
@@ -888,13 +702,6 @@ offered like an authored room's."
    (:fields
     (:text :expression :required t))))
 
-;;; Until generated rooms become ordinary rooms, this stands in a generated
-;;; room's body for a choice per exit.
-(define-dunge-node generated-exits ()
-  ()
-  (:source :generated-exits
-   (:fields)))
-
 (define-dunge-node quit (control-node)
   ()
   (:source :quit
@@ -1032,14 +839,16 @@ offered like an authored room's."
     (reset-table-state table))
   (dolist (room (game-rooms game))
     (prepare-room-scene room))
-  ;; Generated rooms are definition, but their entities' state is play state.
-  (dolist (room (game-generated-rooms game))
-    (prepare-room-scene room))
   game)
 
 (defvar *validation-errors* nil)
 (defvar *validation-choice-ids* nil)
 (defvar *validation-resolve-room-targets* nil)
+
+(defvar *validate-room-targets* t
+  "Whether VALIDATE-GAME checks that :GO and :GOSUB targets exist. A build
+turns this off for the scratch game it rolls on, whose source can name rooms
+the build has yet to plan.")
 
 (defgeneric validate-node (thing game context)
   (:documentation "Validate a Dunge AST node in GAME and CONTEXT."))
@@ -1051,17 +860,10 @@ offered like an authored room's."
 (defun static-room-name-p (thing)
   (stringp thing))
 
-(defun generated-room-reference-p (room-name)
-  (and (stringp room-name)
-       (let ((prefix "generated:"))
-         (and (>= (length room-name) (length prefix))
-              (string= prefix room-name :end2 (length prefix))))))
-
 (defun validate-room-target (node game room-name)
   (when (and *validation-resolve-room-targets*
              (static-room-name-p room-name))
-    (unless (or (nth-value 1 (gethash room-name (room-index game)))
-                (generated-room-reference-p room-name))
+    (unless (nth-value 1 (gethash room-name (room-index game)))
       (validation-error "~A targets missing room ~S."
                         (class-name (class-of node))
                         room-name))))
@@ -1204,7 +1006,7 @@ require non-negative integers with KEY at most MAX-KEY."
   (prepare-game game)
   (let ((*validation-errors* nil)
         (*validation-choice-ids* (make-hash-table :test 'eql))
-        (*validation-resolve-room-targets* t))
+        (*validation-resolve-room-targets* *validate-room-targets*))
     (validate-game-start game)
     (validate-state-declaration-list "Game"
                                      (game-global-state-declarations game))
@@ -1215,8 +1017,6 @@ require non-negative integers with KEY at most MAX-KEY."
     (dolist (table (game-tables game))
       (validate-node table game game))
     (dolist (room (game-rooms game))
-      (validate-node room game room))
-    (dolist (room (game-generated-rooms game))
       (validate-node room game room))
     (signal-validation-errors "Game"))
   game)
@@ -1229,18 +1029,9 @@ require non-negative integers with KEY at most MAX-KEY."
   (dolist (node nodes)
     (validate-node node game context)))
 
-(defvar *validation-scene* nil
-  "The room whose content is being validated.")
-
 (defmethod validate-node ((thing room) game context)
   (declare (ignore context))
-  (let ((*validation-scene* thing))
-    (validate-node-list (entities thing) game thing)))
-
-(defmethod validate-node ((thing generated-exits) game context)
-  (declare (ignore game context))
-  (unless (typep *validation-scene* 'generated-room)
-    (validation-error "(:GENERATED-EXITS) can only appear in a generated room.")))
+  (validate-node-list (entities thing) game thing))
 
 (defmethod validate-node ((thing entity) game context)
   (declare (ignore context))

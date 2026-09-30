@@ -716,34 +716,35 @@
                               ids)
                       :test #'string=))))))
 
-(test html-compiler-starts-the-player-from-current-values
+(test html-compiler-starts-the-player-from-declared-values
+  ;; A build sets starting values as declarations, which is what both
+  ;; runtimes start from; play state left on the game object is not.
   (let ((game (source-game-with-player '((:hp 4) (:max-hp 4)))))
     (setf (gethash :hp (game-player-state game)) 2)
-    (is (contains-substring-p "\"values\":{\"hp\":2,\"max-hp\":4}"
+    (is (contains-substring-p "\"values\":{\"hp\":4,\"max-hp\":4}"
                               (dunge-html:compile-game-script game)))))
 
-(test generated-room-entity-state-is-saved-and-reset
-  (let* ((game (source-game-with-body))
-         (room (create-generated-room
-                game
-                :zone :dungeon
-                :exits '((:back . "room"))
-                :options '((:entity
-                            :name "lever"
-                            :id "lever"
-                            :state ((:pulled nil))
-                            :body ((:action :label "Pull the lever"
-                                    :do ((:set :target (:self :pulled)
-                                               :value t))))))))
-         (lever (gethash "lever" (dunge::scene-index room)))
-         (session (make-runtime-session game :current-room (name room))))
-    (run-session-script session (format nil "1~%"))
-    (is (eq t (gethash :pulled (dunge::local-state lever))))
-    (is (find (name room) (getf (capture-runtime-state session) :locals)
-              :key (lambda (entry) (getf entry :room))
-              :test #'equal))
-    (dunge::prepare-game game)
-    (is (null (gethash :pulled (dunge::local-state lever))))))
+(test built-room-entity-state-is-saved-and-reset
+  (multiple-value-bind (game room)
+      (plan-one-room nil
+                     :zone :dungeon
+                     :exits '((:back . "room"))
+                     :options '((:entity
+                                 :name "lever"
+                                 :id "lever"
+                                 :state ((:pulled nil))
+                                 :body ((:action :label "Pull the lever"
+                                         :do ((:set :target (:self :pulled)
+                                                    :value t)))))))
+    (let ((lever (gethash "lever" (dunge::scene-index room)))
+          (session (make-runtime-session game :current-room (name room))))
+      (run-session-script session (format nil "1~%"))
+      (is (eq t (gethash :pulled (dunge::local-state lever))))
+      (is (find (name room) (getf (capture-runtime-state session) :locals)
+                :key (lambda (entry) (getf entry :room))
+                :test #'equal))
+      (dunge::prepare-game game)
+      (is (null (gethash :pulled (dunge::local-state lever)))))))
 
 (test crawler-used-slots-follow-inventory-rules
   ;; A dagger uses a slot, bulky mail two, a supply stack one however many,
@@ -811,6 +812,23 @@
         (restore-runtime-state (source-game-with-player *mara-player*)
                                state)))))
 
+(defun built-game (player builder &rest body)
+  "Build a game whose start room holds BODY, planning rooms with BUILDER."
+  (build-game `(:game
+                :start "room"
+                :player ,player
+                :rooms ((:room :id "room" :body ,body)))
+              :builder builder))
+
+(defun plan-one-room (player &rest plan-arguments)
+  "Build a game with one planned room. Return the game and that room."
+  (let (plan)
+    (let ((game (built-game player
+                            (lambda (build)
+                              (setf plan (apply #'create-generated-room
+                                                build plan-arguments))))))
+      (values game (dunge::find-room game (room-plan-id plan))))))
+
 (defun encounter-entity (room)
   (gethash "encounter" (dunge::scene-index room)))
 
@@ -819,22 +837,19 @@
 
 (defun shadow-room-game (&key (player '((:hp 4) (:max-hp 4) (:armor 1)))
                               (hp 1) (damage 1) options encounter-options)
-  "A game whose generated room holds a watchful shadow."
-  (let* ((game (source-game-with-player player))
-         (results '((:encounter :watchful-shadow :reaction :uncertain)))
-         (room (create-generated-room
-                game
-                :zone :dungeon
-                :title "Shadowed Room"
-                :results results
-                :exits '((:back . "room"))
-                :options options
-                :encounter (encounter-spec (first (table-result-encounters
-                                                   results))
-                                           :hp hp
-                                           :damage damage)
-                :encounter-options encounter-options)))
-    (values game room)))
+  "A game whose planned room holds a watchful shadow."
+  (let ((results '((:encounter :watchful-shadow :reaction :uncertain))))
+    (plan-one-room player
+                   :zone :dungeon
+                   :title "Shadowed Room"
+                   :results results
+                   :exits '((:back . "room"))
+                   :options options
+                   :encounter (encounter-spec
+                               (first (table-result-encounters results))
+                               :hp hp
+                               :damage damage)
+                   :encounter-options encounter-options)))
 
 (test encounters-are-entities-whose-state-is-saved
   (multiple-value-bind (game room) (shadow-room-game :hp 5 :damage 2)
@@ -847,7 +862,6 @@
     (setf (gethash :hp (dunge::local-state (encounter-entity room))) 3)
     (let* ((session (make-runtime-session game :current-room (name room)))
            (state (capture-runtime-state session)))
-      (is (null (getf state :encounters)))
       (is (find (name room) (getf state :locals)
                 :key (lambda (entry) (getf entry :room))
                 :test #'equal))
@@ -859,19 +873,13 @@
           (is (= 3 (encounter-value fresh-room :hp)))
           (is (eq :active (encounter-value fresh-room :status))))))))
 
-(test encounter-specs-and-exits-nodes-are-validated
+(test encounter-specs-are-validated
   (signals error (encounter-spec '(:encounter :shade) :hp 5 :max-hp 2))
   (signals error (encounter-spec '(:encounter :shade) :damage -1))
   (signals error (encounter-spec '(:encounter :shade) :damage "2x6"))
   (is (equal "1d4" (getf (encounter-spec '(:encounter :shade) :damage "1d4")
                          :damage)))
-  (is (contains-substring-p
-       "can only appear in a generated room"
-       (error-message-from
-        (lambda ()
-          (source-game-with-body
-           '(:entity :name "gate" :body ((:branch :when (:global :open) :then ((:generated-exits))))))))))
-  (is (typep (source-game-with-body '(:choice "Stay" (:quit))) 'game)))
+  (signals dunge-source-error (source-node '(:generated-exits))))
 
 (test encounter-attack-and-flee-update-entity-state
   (multiple-value-bind (game room) (shadow-room-game :hp 1)
@@ -925,86 +933,74 @@
         (is (eq :defeated (encounter-value room :status)))))))
 
 (test generated-room-loot-choices-are-taken-once-and-saved
-  (let* ((player '((:hp 4) (:gold 0) (:ration 0)))
-         (game (source-game-with-player player))
-         (results '((:supply :ration) (:gold 3) (:room-detail :old-bones)))
-         (room (create-generated-room game
-                                      :zone :dungeon
-                                      :title "Looted Room"
-                                      :results results
-                                      :exits '((:back . "room"))))
-         (session (make-runtime-session game :current-room (name room))))
-    (multiple-value-bind (output result)
-        (run-session-script session (format nil "1~%1~%1~%"))
-      (is (equal "room" (name result)))
-      (is (contains-substring-p "Room Detail: Old Bones." output))
-      (is (contains-substring-p "1. Take ration" output))
-      (is (contains-substring-p "You take ration." output))
-      (is (contains-substring-p "1. Take 3 gold" output))
-      (is (contains-substring-p "You take 3 gold." output))
-      (is (= 1 (gethash :ration (game-player-state game))))
-      (is (= 3 (gethash :gold (game-player-state game)))))
-    (let* ((state (capture-runtime-state session))
-           (fresh-game (source-game-with-player player))
-           (fresh-room (create-generated-room fresh-game
-                                              :zone :dungeon
-                                              :title "Looted Room"
-                                              :results results
-                                              :exits '((:back . "room")))))
-      (restore-runtime-state fresh-game state)
-      (multiple-value-bind (output result)
-          (run-session-script
-           (make-runtime-session fresh-game :current-room (name fresh-room))
-           (format nil "1~%"))
-        (is (equal "room" (name result)))
-        (is (not (contains-substring-p "Take ration" output)))
-        (is (not (contains-substring-p "Take 3 gold" output)))
-        (is (contains-substring-p "1. Return" output))))))
+  (flet ((looted-room ()
+           (plan-one-room '((:hp 4) (:gold 0) (:ration 0))
+                          :zone :dungeon
+                          :title "Looted Room"
+                          :results '((:supply :ration)
+                                     (:gold 3)
+                                     (:room-detail :old-bones))
+                          :exits '((:back . "room")))))
+    (multiple-value-bind (game room) (looted-room)
+      (let ((session (make-runtime-session game :current-room (name room))))
+        (multiple-value-bind (output result)
+            (run-session-script session (format nil "1~%1~%1~%"))
+          (is (equal "room" (name result)))
+          (is (contains-substring-p "Room Detail: Old Bones." output))
+          (is (contains-substring-p "1. Take ration" output))
+          (is (contains-substring-p "You take ration." output))
+          (is (contains-substring-p "1. Take 3 gold" output))
+          (is (contains-substring-p "You take 3 gold." output))
+          (is (= 1 (gethash :ration (game-player-state game))))
+          (is (= 3 (gethash :gold (game-player-state game)))))
+        (let ((state (capture-runtime-state session)))
+          (multiple-value-bind (fresh-game fresh-room) (looted-room)
+            (restore-runtime-state fresh-game state)
+            (multiple-value-bind (output result)
+                (run-session-script
+                 (make-runtime-session fresh-game
+                                       :current-room (name fresh-room))
+                 (format nil "1~%"))
+              (is (equal "room" (name result)))
+              (is (not (contains-substring-p "Take ration" output)))
+              (is (not (contains-substring-p "Take 3 gold" output)))
+              (is (contains-substring-p "1. Return" output)))))))))
 
 (test generated-room-ration-use-recovers-in-exploration
-  (let* ((game (source-game-with-player
-                '((:hp 2) (:max-hp 3) (:fatigue 1) (:deprived t) (:ration 2))))
-         (room (create-generated-room
-                game
-                :zone :dungeon
-                :title "Quiet Room"
-                :exits '((:back . "room"))
-                :options (list (ration-choice-form))))
-         (session (make-runtime-session game :current-room (name room)))
-         (state (game-player-state game)))
-    (multiple-value-bind (output result)
-        (run-session-script session (format nil "1~%1~%"))
-      (is (equal "room" (name result)))
-      (is (contains-substring-p "1. Eat ration" output))
-      (is (contains-substring-p "You eat a ration and recover." output))
-      (is (= 3 (gethash :hp state)))
-      (is (= 0 (gethash :fatigue state)))
-      (is (null (gethash :deprived state)))
-      (is (= 1 (gethash :ration state))))))
+  (multiple-value-bind (game room)
+      (plan-one-room '((:hp 2) (:max-hp 3) (:fatigue 1) (:deprived t) (:ration 2))
+                     :zone :dungeon
+                     :title "Quiet Room"
+                     :exits '((:back . "room"))
+                     :options (list (ration-choice-form)))
+    (let ((session (make-runtime-session game :current-room (name room)))
+          (state (game-player-state game)))
+      (multiple-value-bind (output result)
+          (run-session-script session (format nil "1~%1~%"))
+        (is (equal "room" (name result)))
+        (is (contains-substring-p "1. Eat ration" output))
+        (is (contains-substring-p "You eat a ration and recover." output))
+        (is (= 3 (gethash :hp state)))
+        (is (= 0 (gethash :fatigue state)))
+        (is (null (gethash :deprived state)))
+        (is (= 1 (gethash :ration state)))))))
 
-(test generated-rooms-register-and-render-their-body
-  (let* ((game (source-game-with-body))
-         (room (create-generated-room
-                game
-                :zone :dungeon
-                :depth 1
-                :title "Flooded Guardroom"
-                :description "Cold water covers the floor."
-                :results '((:room-detail :flooded-floor)
-                           (:loot :minor))
-                :exits '((:back . "room"))))
-         (session (make-runtime-session game :current-room (name room))))
-    (is (eq room (find-generated-room game (name room) :errorp t)))
-    (is (equal (name room) (runtime-session-current-room-name session)))
-    (is (= 1 (game-generated-room-counter game)))
-    (is (equal '(p p p dunge::generated-exits)
-               (mapcar #'type-of (entities room))))
-    ;; Generated rooms are part of the game's definition: preparing the game
-    ;; for a new run keeps them.
-    (dunge::prepare-game game)
-    (is (eq room (find-generated-room game (name room) :errorp t)))
+(test planned-rooms-become-ordinary-rooms
+  (multiple-value-bind (game room)
+      (plan-one-room nil
+                     :zone :dungeon
+                     :title "Flooded Guardroom"
+                     :description "Cold water covers the floor."
+                     :results '((:room-detail :flooded-floor)
+                                (:loot :minor))
+                     :exits '((:back . "room")))
+    (is (eq 'room (type-of room)))
+    (is (equal "generated:dungeon:1" (name room)))
+    (is (member room (game-rooms game)))
+    (is (equal '(p p p choice) (mapcar #'type-of (entities room))))
     (multiple-value-bind (output result)
-        (run-session-script session (format nil "1~%"))
+        (run-session-script (make-runtime-session game :current-room (name room))
+                            (format nil "1~%"))
       (is (contains-substring-p "Flooded Guardroom" output))
       (is (contains-substring-p "Cold water covers the floor." output))
       (is (contains-substring-p "Room Detail: Flooded Floor." output))
@@ -1012,57 +1008,86 @@
       (is (contains-substring-p "1. Return" output))
       (is (equal "room" (name result))))))
 
-(test generated-room-ids-keep-the-counter-ahead-of-explicit-ids
-  (let ((game (source-game-with-body)))
-    (create-generated-room game :id "generated:dungeon:7" :zone :dungeon)
-    (let ((next-room (create-generated-room game :zone :dungeon)))
-      (is (= 8 (game-generated-room-counter game)))
-      (is (equal "generated:dungeon:8" (name next-room))))))
+(test planned-rooms-replace-authored-rooms-by-id
+  (let ((game (built-game nil
+                          (lambda (build)
+                            (create-generated-room build
+                                                   :id "vault"
+                                                   :title "Planned Vault"
+                                                   :exits '((:back . "room"))))
+                          '(:choice "Enter the vault" (:go "vault")))))
+    (is (equal '("room" "vault") (mapcar #'name (game-rooms game)))))
+  (let ((game (build-game
+               '(:game
+                 :start "room"
+                 :rooms ((:room :id "room" :body ((:choice "Vault" (:go "vault"))))
+                         (:room :id "vault" :title "Authored Vault" :body ())))
+               :builder (lambda (build)
+                          (create-generated-room build
+                                                 :id "vault"
+                                                 :title "Planned Vault")))))
+    (is (equal "Planned Vault"
+               (room-title (dunge::find-room game "vault"))))
+    (is (= 2 (length (game-rooms game))))))
 
-(test generated-room-graph-helpers-link-and-replace-exits
-  (let* ((game (source-game-with-body))
-         (entry (create-generated-room game
-                                       :zone :dungeon
-                                       :depth 1))
-         (deeper (create-generated-room game
-                                        :zone :dungeon
-                                        :depth 2)))
-    (is (null (generated-room-exit-target entry :deeper)))
-    (link-generated-rooms entry :deeper deeper :reverse-direction :back)
-    (is (equal (name deeper)
-               (generated-room-exit-target entry :deeper)))
-    (is (equal (name entry)
-               (generated-room-exit-target deeper :back)))
-    (set-generated-room-exit entry :deeper "room")
-    (is (equal "room" (generated-room-exit-target entry :deeper)))
-    (is (= 1 (count :deeper
-                    (generated-room-exits entry)
-                    :key #'car
-                    :test #'eq)))
+(test build-game-uses-its-own-dice-and-sets-initial-values
+  (let* ((rolled nil)
+         (game (build-game
+                '(:game
+                  :start "room"
+                  :seed 42
+                  :state ((:depth 0))
+                  :flags (:ready)
+                  :player ((:hp 1))
+                  :rooms ((:room :id "room" :body ((:p "A room.")))))
+                :builder (lambda (build)
+                           (setf rolled (roll-dice (build-game-object build)
+                                                   "1d100"))
+                           (set-player build '((:hp 7)))
+                           (set-initial-global build :depth 3)
+                           (set-initial-global build :ready t)))))
+    ;; Play starts from the seed with an empty roll log.
+    (is (= 42 (game-random-state game)))
+    (is (null (game-roll-log game)))
+    (is (= 7 (gethash :hp (game-player-state game))))
+    (is (= 3 (gethash :depth (game-global-state game))))
+    (is (eq t (gethash :ready (game-global-state game))))
+    ;; The build's first roll is not play's first roll.
+    (let ((play (build-game '(:game :start "room" :seed 42
+                              :rooms ((:room :id "room" :body ()))))))
+      (is (/= rolled (roll-dice play "1d100"))))
     (signals error
-      (set-generated-room-exit entry "north" "room"))
-    (signals error
-      (generated-room-exit-target "not a room" :north))
-    (let ((source (create-generated-room game
-                                         :zone :dungeon
-                                         :depth 3))
-          (target (create-generated-room game
-                                         :zone :dungeon
-                                         :depth 4)))
-      (signals error
-        (link-generated-rooms source
-                              :north
-                              target
-                              :reverse-direction "south"))
-      (is (null (generated-room-exits source)))
-      (is (null (generated-room-exits target)))
-      (signals error
-        (link-generated-rooms source
-                              :north
-                              "generated:dungeon:5"
-                              :reverse-direction :south))
-      (is (null (generated-room-exits source)))
-      (is (null (generated-room-exits target))))))
+      (build-game '(:game :start "room" :rooms ((:room :id "room" :body ())))
+                  :builder (lambda (build)
+                             (set-initial-global build :undeclared 1))))))
+
+(test planned-room-ids-and-links
+  (let ((plans nil))
+    (built-game nil
+                (lambda (build)
+                  (let* ((entry (create-generated-room build :zone :dungeon))
+                         (deeper (create-generated-room build :zone :dungeon))
+                         (named (create-generated-room build :id "vault")))
+                    (setf plans (list entry deeper named))
+                    (is (equal '("generated:dungeon:1" "generated:dungeon:2" "vault")
+                               (mapcar #'room-plan-id plans)))
+                    (signals error (create-generated-room build :id "vault"))
+                    (is (null (room-plan-exit entry :deeper)))
+                    (link-rooms entry :deeper deeper :reverse-direction :back)
+                    (is (equal (room-plan-id deeper) (room-plan-exit entry :deeper)))
+                    (is (equal (room-plan-id entry) (room-plan-exit deeper :back)))
+                    (set-room-plan-exit entry :deeper "room")
+                    (is (equal "room" (room-plan-exit entry :deeper)))
+                    (is (= 1 (count :deeper (room-plan-exits entry) :key #'car)))
+                    (signals error (set-room-plan-exit entry "north" "room"))
+                    ;; A failed link leaves both plans alone.
+                    (signals error
+                      (link-rooms named :north deeper :reverse-direction "south"))
+                    (signals error
+                      (link-rooms named :north "room" :reverse-direction :south))
+                    (is (null (room-plan-exits named)))
+                    (set-room-plan-exit entry :deeper deeper))))
+    (is (= 3 (length plans)))))
 
 (test console-debug-undo-restores-previous-choice-state
   (let* ((game (build-save-load-fixture))
@@ -1752,9 +1777,10 @@
   (signals error
     (source-game-with-body
      '(:choice "Missing room" (:go "missing"))))
-  (is (typep (source-game-with-body
-              '(:choice "Generated room" (:go "generated:dungeon:1")))
-             'game))
+  ;; Built rooms are ordinary rooms, so generated ids get no exemption.
+  (signals error
+    (source-game-with-body
+     '(:choice "Generated room" (:go "generated:dungeon:1"))))
   (signals error
     (source-game-with-body
      '(:choice "Once without id" (:quit) :once t)))
@@ -2063,137 +2089,92 @@
     (is (contains-substring-p "A first find waits here" output))
     (is (contains-substring-p "Encounter: Watchful Shadow" output))
     (is (contains-substring-p "You escape from Watchful Shadow." output))
-    (is (contains-substring-p "You take ration." output))
+    (is (contains-substring-p "You take chalk." output))
     (is (contains-substring-p "This chamber sits at depth 2" output))
     (is (not (contains-substring-p "Placeholder Chamber" output)))))
 
-(test adaptation-character-creation-uses-dice-and-starting-gear
-  (let ((game (dunge-examples:load-adaptation-example)))
-    (multiple-value-bind (returned-game player)
-        (dunge-examples:install-adaptation-player game
-                                                  :name "Nia"
-                                                  :background :delver)
-      (is (eq game returned-game))
-      (is (eq player (game-player-state game)))
-      (flet ((stat (key) (gethash key player)))
-        (is (equal "Nia" (stat :name)))
-        (is (eq :delver (stat :background)))
-        (is (<= 5 (stat :str) 15))
-        (is (<= 5 (stat :dex) 15))
-        (is (<= 5 (stat :wil) 15))
-        (is (<= 1 (stat :hp) 6))
-        (is (= (stat :hp) (stat :max-hp)))
-        (is (<= 1 (stat :gold) 6))
-        (is (= 1 (stat :armor)))
-        (is (= 1 (stat :rusted-dagger)))
-        (is (= 1 (stat :lantern)))
-        (is (= 1 (stat :ration)))
-        ;; Items the tables can award are declared too.
-        (is (= 0 (stat :chalk))))
-      (is (equal '(:adaptation-str
-                   :adaptation-dex
-                   :adaptation-wil
-                   :adaptation-hp
-                   :adaptation-gold)
-                 (mapcar (lambda (entry)
-                           (getf entry :label))
-                         (game-roll-log game)))))))
+(defun build-adaptation-recording-scratch (&rest arguments)
+  "Build the adaptation game; return it and the scratch game the build used."
+  (let (scratch)
+    (values (build-game (read-dunge-file (dunge-examples::adaptation-source-path))
+                        :base-path (dunge-examples::adaptation-source-path)
+                        :builder (lambda (build)
+                                   (setf scratch (build-game-object build))
+                                   (apply #'dunge-examples:build-adaptation
+                                          build arguments)))
+            scratch)))
 
-(test generated-adaptation-example-loads-with-created-player
-  (let* ((game (dunge-examples:load-generated-adaptation-example))
-         (player (game-player-state game)))
-    (is (equal "Generated Delver" (gethash :name player)))
-    (is (eq :wanderer (gethash :background player)))
-    (is (= 1 (gethash :lantern player)))
-    (is (= 2 (gethash :ration player)))
-    (is (= 5 (length (game-roll-log game))))))
-
-(test adaptation-generated-room-instances-use-authored-tables-and-persist
-  (let* ((game (dunge-examples:load-adaptation-example))
-         (room (dunge-examples:ensure-adaptation-first-room game))
-         (roll-log-length (length (game-roll-log game))))
-    (is (typep room 'generated-room))
-    (is (eq :dungeon (generated-room-zone room)))
-    (is (= 1 (generated-room-depth room)))
-    (is (= 4 (length (generated-room-results room))))
-    (is (equal '(:room-segment
-                 :starter-loot
-                 :starter-encounter
-                 :starter-exit
-                 :dungeon-link
-                 :room-segment
-                 :starter-loot
-                 :starter-encounter)
-               (remove nil
-                       (mapcar (lambda (entry)
-                                 (getf entry :table))
-                               (game-roll-log game)))))
-    (is (= 2 (length (game-generated-rooms game))))
-    (let* ((deeper-id (generated-room-exit-target room :deeper))
-           (deeper-room (find-generated-room game deeper-id :errorp t)))
-      (is (equal `((:back . "threshold") (:deeper . ,(name deeper-room)))
-                 (generated-room-exits room)))
-      (is (= 2 (generated-room-depth deeper-room)))
-      (is (equal (name room)
-                 (generated-room-exit-target deeper-room :back)))
-      (is (eq deeper-room
-              (dunge-examples:ensure-adaptation-room-exit
-               game
-               room
-               :deeper))))
-    (is (= 2 (gethash :ration (game-player-state game))))
+(test adaptation-build-rolls-a-player-and-a-dungeon-before-play
+  (multiple-value-bind (game scratch) (build-adaptation-recording-scratch)
+    ;; The build rolled the player, then the rooms, on its own stream.
+    (is (equal '(:adaptation-str :adaptation-dex :adaptation-wil
+                 :adaptation-hp :adaptation-gold)
+               (remove nil (mapcar (lambda (entry) (getf entry :label))
+                                   (game-roll-log scratch)))))
+    (is (equal '(:room-segment :starter-loot :starter-encounter :starter-exit
+                 :dungeon-link :room-segment :starter-loot :starter-encounter)
+               (remove nil (mapcar (lambda (entry) (getf entry :table))
+                                   (game-roll-log scratch)))))
+    ;; Play starts from the seed with an empty roll log.
+    (is (= (game-random-seed game) (game-random-state game)))
+    (is (null (game-roll-log game)))
+    ;; The first chamber replaced the authored placeholder by id.
+    (is (equal '("camp" "threshold" "placeholder-room" "generated:dungeon:1")
+               (mapcar #'name (game-rooms game))))
+    (let ((first-room (dunge::find-room game "placeholder-room"))
+          (deeper-room (dunge::find-room game "generated:dungeon:1")))
+      (is (not (equal "Placeholder Chamber" (room-title first-room))))
+      (is (eq :active (encounter-value first-room :status)))
+      (is (eq :active (encounter-value deeper-room :status))))
+    ;; Initial values replace direct state writes.
     (is (= 2 (gethash :rooms-generated (game-global-state game))))
     (is (= 2 (gethash :dungeon-depth (game-global-state game))))
-    (is (gethash :first-room-generated (game-global-state game)))
-    (is (every #'encounter-entity (game-generated-rooms game)))
-    (is (eq :active (encounter-value room :status)))
-    (is (eq room (dunge-examples:ensure-adaptation-first-room game)))
-    (is (= roll-log-length (length (game-roll-log game))))
-    (let* ((session (make-runtime-session game :current-room (name room)))
-           (state (capture-runtime-state session))
-           (fresh-game (dunge-examples:load-adaptation-example))
-           (restored-room (dunge-examples:ensure-adaptation-first-room
-                           fresh-game))
-           (restored-session (restore-runtime-state fresh-game state)))
-      (is (equal (name room)
-                 (runtime-session-current-room-name restored-session)))
-      (is (equal (generated-room-results room)
-                 (generated-room-results restored-room)))
-      (is (= 2 (length (game-generated-rooms fresh-game))))
-      (is (every #'encounter-entity (game-generated-rooms fresh-game)))
-      (multiple-value-bind (output result)
-          (run-session-script restored-session (format nil "2~%1~%2~%2~%2~%"))
-        (is (contains-substring-p (room-title restored-room) output))
-        (is (contains-substring-p "A first find waits here" output))
-        (is (contains-substring-p "Encounter: Watchful Shadow" output))
-        (is (contains-substring-p "2. Flee" output))
-        (is (contains-substring-p "1. Take ration" output))
-        (is (contains-substring-p "You take ration." output))
-        (is (contains-substring-p "1. Return" output))
-        (is (contains-substring-p "2. Continue deeper" output))
-        (is (contains-substring-p "This chamber sits at depth 2" output))
-        (is (typep result 'quit))
-        (is (= 3 (gethash :ration (game-player-state fresh-game))))
-        (is (gethash :generated_3a_dungeon_3a_1-loot-1
-                     (game-taken-choices fresh-game)))
-        (is (equal (name restored-room)
-                   (runtime-session-current-room-name restored-session)))))))
-
-(test instanced-adaptation-example-loads-with-first-generated-room
-  (let ((game (dunge-examples:load-instanced-adaptation-example)))
+    (is (eq t (gethash :first-room-generated (game-global-state game))))
+    (dunge::prepare-game game)
+    (is (= 2 (gethash :rooms-generated (game-global-state game))))
     (is (equal "Generated Delver" (gethash :name (game-player-state game))))
-    (is (= 2 (length (game-generated-rooms game))))
-    (is (every #'encounter-entity (game-generated-rooms game)))
     (is (= 2 (gethash :ration (game-player-state game))))
-    (is (= 13 (length (game-roll-log game))))
-    (signals error
-      (dunge-examples:find-adaptation-choice game nil))
-    (let* ((room (dunge-examples:ensure-adaptation-first-room game))
-           (choice (dunge-examples:find-adaptation-choice game
-                                                          :enter-first-room))
-           (effect (target choice)))
-      (is (typep effect 'goto))
-      (is (equal (name room) (room-name effect))))))
+    (is (= 0 (gethash :chalk (game-player-state game))))))
+
+(test adaptation-character-creation-uses-dice-and-starting-gear
+  (let* ((game (dunge-examples:load-instanced-adaptation-example
+                :name "Nia" :background :delver))
+         (player (game-player-state game)))
+    (flet ((stat (key) (gethash key player)))
+      (is (equal "Nia" (stat :name)))
+      (is (eq :delver (stat :background)))
+      (is (<= 5 (stat :str) 15))
+      (is (<= 5 (stat :dex) 15))
+      (is (<= 5 (stat :wil) 15))
+      (is (<= 1 (stat :hp) 6))
+      (is (= (stat :hp) (stat :max-hp)))
+      (is (<= 1 (stat :gold) 6))
+      (is (= 1 (stat :armor)))
+      (is (= 1 (stat :rusted-dagger)))
+      (is (= 1 (stat :lantern)))
+      (is (= 1 (stat :ration)))
+      (is (= 0 (stat :chalk))))))
+
+(test adaptation-play-state-survives-save-and-restore
+  (let* ((game (dunge-examples:load-instanced-adaptation-example :seed 1))
+         (session (make-runtime-session game)))
+    ;; Approach, enter, attack twice, take the loot.
+    (run-session-script session (format nil "1~%1~%1~%1~%1~%"))
+    (let* ((state (capture-runtime-state session))
+           (fresh-game (dunge-examples:load-instanced-adaptation-example :seed 1))
+           (restored-session (restore-runtime-state fresh-game state))
+           (room (dunge::find-room fresh-game "placeholder-room")))
+      (is (equal "placeholder-room"
+                 (runtime-session-current-room-name restored-session)))
+      (is (eq :defeated (encounter-value room :status)))
+      (is (equal (gethash :ration (game-player-state game))
+                 (gethash :ration (game-player-state fresh-game))))
+      (is (equal (sorted-keywords
+                  (loop for key being the hash-keys of (game-taken-choices game)
+                        collect key))
+                 (sorted-keywords
+                  (loop for key being the hash-keys of (game-taken-choices fresh-game)
+                        collect key)))))))
 
 (test adaptation-browser-demo-writes-repeatable-html-target
   (let ((path (merge-pathnames
@@ -2211,7 +2192,7 @@
                   "window.DUNGE_GAME_DEBUG = true"
                   contents))
              (is (contains-substring-p
-                  "\"generatedRooms\":[{\"type\":\"generated-room\""
+                  "{\"type\":\"room\",\"id\":\"placeholder-room\""
                   contents))
              (is (contains-substring-p
                   "\"rooms-generated\":2"
@@ -2220,7 +2201,7 @@
                   "\"Enter the generated chamber\""
                   contents))
              (is (contains-substring-p
-                  "\"target\":\"generated:dungeon:2\""
+                  "\"value\":\"generated:dungeon:1\""
                   contents))
              (is (contains-substring-p
                   "\"id\":\"generated:dungeon:1\""
@@ -2346,37 +2327,26 @@
     (is (contains-substring-p "{\"type\":\"roll\",\"dice\":\"1d4\",\"count\":1,\"sides\":4,\"modifier\":0,\"label\":\"enemy-damage\"}"
                               script))
     (is (contains-substring-p "\"label\":\"Attack watchful shadow\"" script))
-    (is (contains-substring-p "{\"type\":\"generated-exits\"}" script))
+    (is (contains-substring-p "\"label\":\"Return\"" script))
     (is (not (contains-substring-p "\"encounters\"" script)))
     (is (not (contains-substring-p "function attackEncounter" script)))))
 
-(test html-compiler-lowers-generated-rooms-for-browser-runtime
-  (let* ((game (dunge-examples:load-instanced-adaptation-example))
-         (room (dunge-examples:ensure-adaptation-first-room game))
-         (script (dunge-html:compile-game-script game)))
-    (is (contains-substring-p "\"generatedRooms\":[{\"type\":\"generated-room\",\"id\":\"generated:dungeon:1\""
+(test html-compiler-lowers-built-rooms-as-ordinary-rooms
+  (let ((script (dunge-html:compile-game-script
+                 (dunge-examples:load-instanced-adaptation-example))))
+    (is (contains-substring-p "{\"type\":\"room\",\"id\":\"generated:dungeon:1\""
                               script))
     (is (contains-substring-p "\"rooms-generated\":2" script))
     (is (contains-substring-p "\"dungeon-depth\":2" script))
     (is (contains-substring-p "\"first-room-generated\":true" script))
-    ;; The body is ordinary content: paragraphs and choices.
-    (is (contains-substring-p "{\"type\":\"p\",\"text\":\"Find: Ration.\"}" script))
-    (is (contains-substring-p "\"label\":\"Take ration\"" script))
-    (is (contains-substring-p "\"id\":\"generated_3a_dungeon_3a_1-loot-1\",\"once\":true" script))
+    ;; The body is ordinary content: paragraphs, choices, and an encounter.
     (is (contains-substring-p "\"label\":\"Eat ration\"" script))
     (is (contains-substring-p "\"label\":\"Attack watchful shadow\"" script))
-    (is (contains-substring-p "\"exits\":[{\"direction\":{\"type\":\"keyword\",\"name\":\"back\"},\"target\":\"threshold\"}"
+    (is (contains-substring-p "{\"type\":\"choice\",\"label\":\"Continue deeper\",\"target\":{\"type\":\"goto\",\"room\":{\"type\":\"literal\",\"value\":\"generated:dungeon:1\"}}"
                               script))
-    (is (contains-substring-p (format nil "\"id\":\"~A\"" (name room))
-                              script))
-    (is (not (contains-substring-p "claimedResults" script)))
-    (is (not (contains-substring-p "function executeLootAction" script)))
-    ;; Generated rooms are definition, not saved state.
-    (is (not (contains-substring-p "'generatedRooms' :" script)))
-    (is (not (contains-substring-p "'encounters' :" script)))
-    (is (= 2 (length (game-generated-rooms game))))
-    (is (find-generated-room game (name room) :errorp t))
-    (is (encounter-entity room))))
+    (is (not (contains-substring-p "generated-room" script)))
+    (is (not (contains-substring-p "generatedRooms" script)))
+    (is (not (contains-substring-p "\"exits\"" script)))))
 
 (test html-compiler-can-enable-debug-controls
   (let* ((game (source-game-with-body

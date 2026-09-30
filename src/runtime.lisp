@@ -58,7 +58,6 @@ can TYPEP the result against QUIT, BACK, and related classes."))
   (multiple-value-bind (room present-p) (gethash room-name (room-index game))
     (cond
       (present-p room)
-      ((find-generated-room game room-name))
       (t
        (error "No room named ~S." room-name)))))
 
@@ -254,41 +253,6 @@ when the return stack is not empty, and otherwise ends play with FALL-THROUGH."
             (runtime-debug-undo-available-p context))
         (evaluate (%make-choices :options options) context)
         (%make-fall-through))))
-
-(defun generated-room-display-word (value)
-  "Show VALUE as the browser's DISPLAY-VALUE does: a keyword's words split at
-hyphens with each first letter capitalized, anything else as plain text."
-  (if (keywordp value)
-      (format nil "~{~A~^ ~}"
-              (loop for part in (uiop:split-string
-                                 (string-downcase (symbol-name value))
-                                 :separator "-")
-                    when (plusp (length part))
-                      collect (concatenate 'string
-                                           (string-upcase (subseq part 0 1))
-                                           (subseq part 1))))
-      (format-dunge-value value)))
-
-(defun generated-room-display-lower (value)
-  (string-downcase (generated-room-display-word value)))
-
-(defun generated-room-exit-label (direction)
-  (case direction
-    (:back "Return")
-    (:deeper "Continue deeper")
-    (:out "Leave")
-    (otherwise
-     (format nil "Go ~A" (string-downcase (symbol-name direction))))))
-
-(defun generated-room-exit-choice (exit)
-  (%make-choice :label (generated-room-exit-label (car exit))
-                :target (%make-goto :room-name (cdr exit))))
-
-(defmethod collect-choices ((exits generated-exits) &optional context)
-  (let ((room (and context (runtime-context-scene context))))
-    (unless (typep room 'generated-room)
-      (error "Generated exits must be inside a generated room."))
-    (mapcar #'generated-room-exit-choice (generated-room-exits room))))
 
 (defmethod describe-entity ((thing t) &optional context)
   (declare (ignore context))
@@ -892,7 +856,7 @@ hyphens with each first letter capitalized, anything else as plain text."
 
 (defun collect-runtime-local-state (game)
   (let (entries)
-    (dolist (room (append (game-rooms game) (game-generated-rooms game)))
+    (dolist (room (game-rooms game))
       (walk-node-tree
        room
        (lambda (node)

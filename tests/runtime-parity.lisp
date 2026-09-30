@@ -146,27 +146,31 @@ never allow, to check that the browser still initializes its state."
     (load-dunge-string *parity-nook-game*)
   '(2))
 
+(defun build-parity-game (source builder)
+  "Build the game in the SOURCE string, planning rooms with BUILDER."
+  (build-game (let ((*read-eval* nil)) (read-from-string source))
+              :builder builder))
+
 (defun load-parity-generated-cellar-game ()
-  "A game whose hall leads into a generated room that has no exits, loot, or
-encounter, so the generated room itself has no choices."
-  (let ((game (load-dunge-string
-               "(:game
-                 :start \"hall\"
-                 :rooms
-                 ((:room
-                   :id \"hall\"
-                   :title \"Hall\"
-                   :body
-                   ((:p \"A trapdoor opens onto a cellar.\")
-                    (:choice \"Peer into the cellar\" (:gosub \"generated:cellar:1\"))
-                    (:choice \"Drop into the cellar\" (:go \"generated:cellar:1\"))
-                    (:choice \"Quit\" (:quit))))))")))
-    (create-generated-room game
-                           :id "generated:cellar:1"
-                           :zone :cellar
-                           :title "Cellar"
-                           :description "A bare cellar with no way onward.")
-    game))
+  "A game whose hall leads into a planned room that has no exits, loot, or
+encounter, so that room itself has no choices."
+  (build-parity-game
+   "(:game
+     :start \"hall\"
+     :rooms
+     ((:room
+       :id \"hall\"
+       :title \"Hall\"
+       :body
+       ((:p \"A trapdoor opens onto a cellar.\")
+        (:choice \"Peer into the cellar\" (:gosub \"generated:cellar:1\"))
+        (:choice \"Drop into the cellar\" (:go \"generated:cellar:1\"))
+        (:choice \"Quit\" (:quit))))))"
+   (lambda (build)
+     (create-generated-room build
+                            :zone :cellar
+                            :title "Cellar"
+                            :description "A bare cellar with no way onward."))))
 
 (def-parity-test parity-generated-room-without-choices-offers-continue ()
     (load-parity-generated-cellar-game)
@@ -214,19 +218,16 @@ encounter, so the generated room itself has no choices."
 ;;; rewrite the file with (dunge-tests::write-adaptation-golden).
 
 (defparameter *adaptation-golden-scenarios*
-  '((:name :default-seed-player-falls
-     :inputs (1 1 1))
-    (:name :victory-loot-and-deeper-room
-     :seed 1
+  '((:name :victory-loot-and-deeper-room
      :inputs (1 1 1 1 2 1 1 1 1 1))
     (:name :wounded-eats-ration-mid-fight
-     :seed 27
+     :seed 7
      :inputs (1 1 1 2 1 1 1 1))
     (:name :flee-then-loot
      :seed 2
      :inputs (1 1 2 1 1 1))
     (:name :gold-loot
-     :seed 4
+     :seed 37
      :inputs (1 1 1 1 1))
     (:name :delver-armor-absorbs-hit
      :seed 7
@@ -294,8 +295,6 @@ with SEED (default: the game's own) and BACKGROUND (default :wanderer).")
        (adaptation-scenario-game (adaptation-scenario ,scenario-name))
      (getf (adaptation-scenario ,scenario-name) :inputs)))
 
-(def-adaptation-parity-test parity-adaptation-default-seed-player-falls
-  :default-seed-player-falls)
 (def-adaptation-parity-test parity-adaptation-victory-loot-and-deeper-room
   :victory-loot-and-deeper-room)
 (def-adaptation-parity-test parity-adaptation-wounded-eats-ration-mid-fight
@@ -493,57 +492,60 @@ A die with 2^31 sides rolls one more than the state it draws."
     (load-dunge-string *parity-dice-game*)
   '(2 2 1 4))
 
-(defun load-parity-dice-damage-game ()
+(defun load-parity-dice-damage-game (&key (hp 12))
   "A duel against an enemy whose damage is dice, so the browser must roll it."
-  (let ((game (load-dunge-string
-                "(:game
-                  :start \"hall\"
-                  :seed 99
-                  :player ((:name \"Mara\") (:hp 12) (:max-hp 12) (:armor 1)
-                           (:fatigue 0) (:deprived nil) (:ration 2))
-                  :rooms
-                  ((:room
-                    :id \"hall\"
-                    :title \"Hall\"
-                    :body
-                    ((:choice \"Enter the pit\" (:go \"generated:pit:1\"))
-                     (:choice \"Quit\" (:quit))))))")))
-    (create-generated-room game
-                           :id "generated:pit:1"
-                           :zone :pit
-                           :title "Pit"
-                           :results '((:encounter :pit-brute))
-                           :exits '((:back . "hall"))
-                           :options (list (ration-choice-form))
-                           :encounter (encounter-spec '(:encounter :pit-brute)
-                                                      :hp 9 :armor 1
-                                                      :damage "1d4+1")
-                           :encounter-options (list (ration-choice-form)))
-    game))
+  (build-parity-game
+   (format nil "(:game
+                 :start \"hall\"
+                 :seed 99
+                 :player ((:name \"Mara\") (:hp ~D) (:max-hp 12) (:armor 1)
+                          (:fatigue 0) (:deprived nil) (:ration 2))
+                 :rooms
+                 ((:room
+                   :id \"hall\"
+                   :title \"Hall\"
+                   :body
+                   ((:choice \"Enter the pit\" (:go \"generated:pit:1\"))
+                    (:choice \"Quit\" (:quit))))))"
+           hp)
+   (lambda (build)
+     (create-generated-room build
+                            :zone :pit
+                            :title "Pit"
+                            :results '((:encounter :pit-brute))
+                            :exits '((:back . "hall"))
+                            :options (list (ration-choice-form))
+                            :encounter (encounter-spec '(:encounter :pit-brute)
+                                                       :hp 9 :armor 1
+                                                       :damage "1d4+1")
+                            :encounter-options (list (ration-choice-form))))))
 
 (def-parity-test parity-encounter-dice-damage-is-rolled ()
     (load-parity-dice-damage-game)
   ;; Enter, then attack until the fight ends, eating when offered.
   '(1 1 1 2 1 1 1 1 1))
 
+(def-parity-test parity-player-defeat-ends-the-run ()
+    (load-parity-dice-damage-game :hp 1)
+  '(1 1))
+
 (def-parity-test parity-generated-room-results-of-any-shape ()
-    (let ((game (load-dunge-string
-                 "(:game
-                   :start \"hall\"
-                   :rooms
-                   ((:room
-                     :id \"hall\"
-                     :title \"Hall\"
-                     :body ((:choice \"Look around\" (:go \"generated:odd:1\"))))))")))
-      (create-generated-room game
-                             :id "generated:odd:1"
-                             :zone :odd
-                             :title "Odd Room"
-                             :results '(:nothing
-                                        "Plain words"
-                                        42
-                                        (:room-detail :old-bones)
-                                        (:omen "a strange light"))
-                             :exits '((:back . "hall")))
-      game)
+    (build-parity-game
+     "(:game
+       :start \"hall\"
+       :rooms
+       ((:room
+         :id \"hall\"
+         :title \"Hall\"
+         :body ((:choice \"Look around\" (:go \"generated:odd:1\"))))))"
+     (lambda (build)
+       (create-generated-room build
+                              :zone :odd
+                              :title "Odd Room"
+                              :results '(:nothing
+                                         "Plain words"
+                                         42
+                                         (:room-detail :old-bones)
+                                         (:omen "a strange light"))
+                              :exits '((:back . "hall")))))
   '(1 1))

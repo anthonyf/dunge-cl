@@ -60,8 +60,6 @@
    #:game-player-state
    #:game-player-state-declarations
    #:declare-player-state
-   #:game-generated-room-counter
-   #:game-generated-rooms
    #:game-random-seed
    #:game-random-state
    #:game-rooms
@@ -69,26 +67,18 @@
    #:game-start
    #:game-tables
    #:game-taken-choices
-   #:find-generated-room
-   #:generated-room
-   #:generated-room-description
-   #:generated-room-depth
-   #:generated-room-exits
-   #:generated-room-exit-target
-   #:generated-room-results
-   #:generated-room-zone
    #:gosub
    #:goto
    #:interaction-label
    #:interaction-target
    #:item
    #:label
-   #:link-generated-rooms
    #:load-dunge-file
+   #:read-dunge-file
+   #:compile-dunge-source-at
    #:load-dunge-string
    #:load-runtime-state-file
    #:make-runtime-session
-   #:make-generated-room
    #:name
    #:node-children
    #:node-id
@@ -106,7 +96,6 @@
    #:room-title
    #:room-name
    #:read-runtime-state-file
-   #:register-generated-room
    #:restore-runtime-state
    #:make-runtime-context
    #:prioritized-mixin
@@ -123,7 +112,6 @@
    #:runtime-session-return-stack-room-names
    #:say
    #:sequence
-   #:set-generated-room-exit
    #:state-clear
    #:state-dec
    #:state-inc
@@ -134,7 +122,6 @@
    #:roll-dice
    #:roll-dice-value
    #:roll-table
-   #:allocate-generated-room-id
    #:game-random
    #:table-entries
    #:table-entry
