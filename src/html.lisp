@@ -531,7 +531,10 @@ body {
            (html-object
             "version" 1
             "start" (dunge:game-start game)
-            "seed" (dunge:game-random-seed game)
+            ;; The next state depends only on the seed modulo 2^31, and the
+            ;; reduced seed is always a safe integer for JSON.
+            "seed" (mod (dunge:game-random-seed game)
+                        dunge::+dunge-rng-modulus+)
             "player" (compile-html-player (dunge:game-player game))
             "encounters" (html-array
                           (mapcar #'compile-html-encounter encounters))

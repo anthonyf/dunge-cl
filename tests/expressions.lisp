@@ -242,9 +242,17 @@
                        :then ((:say "Low.")))))))
       (is (contains-substring-p "cannot appear in a condition"
                                 (apply #'message body))))
+    (dolist (dice '("9007199254740991d2" "1d1-9007199254740992"
+                    "2d6+9007199254740980"))
+      (is (contains-substring-p
+           "outside the supported integer range"
+           (message `(:choice "Huge" (:say (:roll ,dice)))))))
     (is (contains-substring-p
-         "outside the supported integer range"
-         (message '(:choice "Huge" (:say (:roll "9007199254740991d2"))))))
+         "more than 2147483648 sides"
+         (message '(:choice "Huge" (:say (:roll "1d2147483649"))))))
+    ;; Totals are checked at both ends, not by magnitude.
+    (dolist (dice '("1d2147483648" "1d1-9007199254740991" "4194303d2147483648"))
+      (is (null (message `(:choice "Edge" (:say (:roll ,dice)))))))
     (is (null (message '(:choice "Gamble"
                          ((:set :target (:global :r) :value (:roll "1d6"))
                           (:if :when (:gt (:global :r) 3)
@@ -263,6 +271,14 @@
     (is (contains-substring-p
          "{\"type\":\"roll\",\"dice\":\"3d4-2\",\"count\":3,\"sides\":4,\"modifier\":-2,\"label\":\"hit\"}"
          script))
+    (is (contains-substring-p "\"seed\":77" script)))
+  ;; Seeds beyond the safe integer range compile, reduced modulo 2^31.
+  (let ((script (dunge-html:compile-game-script
+                 (source-node
+                  `(:game
+                    :start "room"
+                    :seed ,(+ (expt 2 60) (* 3 (expt 2 31)) 77)
+                    :rooms ((:room :id "room" :body ((:choice "Quit" (:quit))))))))))
     (is (contains-substring-p "\"seed\":77" script))
     (is (contains-substring-p "'rngState' : RNGSTATE" script))
     (is (contains-substring-p "'rollLog'" script))))

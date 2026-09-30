@@ -436,10 +436,6 @@ when the return stack is not empty, and otherwise ends play with FALL-THROUGH."
 (defmethod consume-node ((choice choice) context)
   (mark-choice-taken choice context))
 
-(defconstant +dunge-rng-modulus+ 2147483648)
-(defconstant +dunge-rng-multiplier+ 1103515245)
-(defconstant +dunge-rng-increment+ 12345)
-
 (defun find-table (game table-id)
   (multiple-value-bind (table present-p) (gethash (table-id-key table-id)
                                                   (table-index game))

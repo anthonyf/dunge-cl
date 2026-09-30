@@ -86,8 +86,9 @@ consume the generator unpredictably. To branch on a roll, store it first:
  :else ((:say "You fall short.")))
 ```
 
-The validator also rejects dice whose largest possible total falls outside the
-supported integer range.
+The validator also rejects dice with more than 2^31 sides, which the generator
+cannot roll evenly, and dice whose modifier or largest possible total falls
+outside the supported integer range.
 
 ### Interpolation
 

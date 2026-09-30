@@ -342,7 +342,8 @@ A die with 2^31 sides rolls one more than the state it draws."
   (make-list 100 :initial-element 1))
 
 (def-parity-test parity-lcg-matches-from-a-large-seed ()
-    (load-parity-lcg-game (+ (expt 2 40) 7))
+    ;; Beyond both 2^31 and 2^53: the browser gets the seed modulo 2^31.
+    (load-parity-lcg-game (+ (expt 2 60) 7))
   (make-list 5 :initial-element 1))
 
 (defparameter *parity-dice-game*
