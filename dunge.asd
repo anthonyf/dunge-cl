@@ -11,6 +11,7 @@
                              (:file "html-package")
                              (:file "source")
                              (:file "model")
+                             (:file "world")
                              (:file "runtime")
                              (:file "html")))))
 

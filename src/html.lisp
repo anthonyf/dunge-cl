@@ -435,47 +435,21 @@ body {
   (declare (ignore effect))
   (html-object "type" "quit"))
 
-(defun capture-compile-time-state (game)
-  "Capture the play state that VALIDATE-GAME resets while preparing GAME."
-  (list :globals (dunge::sorted-state-alist (dunge:game-global-state game))
-        :taken-choices (dunge::sorted-hash-keys (dunge:game-taken-choices game))
-        :locals (dunge::collect-runtime-local-state game)
-        :tables (dunge::collect-runtime-table-state game)
-        :player (dunge::sorted-state-alist (dunge:game-player-state game))
-        :random-state (dunge:game-random-state game)
-        :roll-log (dunge:game-roll-log game)))
-
-(defun restore-compile-time-state (game state)
-  (dunge::restore-runtime-global-state game (getf state :globals))
-  (dunge::restore-runtime-taken-choices game (getf state :taken-choices))
-  (dunge::restore-runtime-local-state game (getf state :locals))
-  (dunge::restore-runtime-table-state game (getf state :tables))
-  (dunge::restore-runtime-player-state game (getf state :player))
-  (setf (dunge:game-random-state game) (getf state :random-state)
-        (dunge:game-roll-log game) (getf state :roll-log))
-  game)
-
 (defun compile-game-data (game)
-  "Compile GAME to the browser data model used by the generated Parenscript."
-  (let ((saved-state (capture-compile-time-state game)))
-    (unwind-protect
-         (progn
-           (dunge:validate-game game)
-           (html-object
-            "version" 1
-            "start" (dunge:game-start game)
-            ;; Play starts from the seed. The next state depends only on the
-            ;; seed modulo 2^31, which is always a safe integer for JSON.
-            "rngState" (mod (dunge:game-random-seed game)
-                            dunge::+dunge-rng-modulus+)
-            "player" (compile-state-declarations
-                      (dunge:game-player-state-declarations game))
-            "state" (compile-state-declarations
-                     (dunge:game-global-state-declarations game))
-            "rooms" (html-array (mapcar #'compile-html-node
-                                        (dunge:game-rooms game)))))
-      ;; Validation resets play state; leave GAME as we found it.
-      (restore-compile-time-state game saved-state))))
+  "Compile GAME's definition to the browser data model used by the generated
+Parenscript. Play state is not part of it: the browser makes its own world."
+  (dunge:validate-game game)
+  (html-object
+   "version" 1
+   "start" (dunge:game-start game)
+   ;; Play starts from the seed. The next state depends only on the seed
+   ;; modulo 2^31, which is always a safe integer for JSON.
+   "rngState" (mod (dunge:game-random-seed game) dunge::+dunge-rng-modulus+)
+   "player" (compile-state-declarations
+             (dunge:game-player-state-declarations game))
+   "state" (compile-state-declarations
+            (dunge:game-global-state-declarations game))
+   "rooms" (html-array (mapcar #'compile-html-node (dunge:game-rooms game)))))
 
 (defun json-escape-string (string stream)
   (write-char #\" stream)
@@ -566,11 +540,12 @@ same game data and the same runtime, since either can change the save shape."
     (defvar *progress-made* nil)
     (defvar *debug* nil)
     (defvar *game* nil)
-    (defvar *state* nil)
+    ;; All mutable play data: globals, player, entity state by room and
+    ;; entity, taken choices, and the generator. Saves serialize it and undo
+    ;; copies it; the game data itself is never changed.
+    (defvar *world* nil)
     (defvar *current-location* nil)
     (defvar *return-stack* (array))
-    (defvar *rng-state* 1)
-    (defvar *roll-log* (array))
     (defvar *undo-stack* (array))
     (defvar *messages* (array))
     (defvar *visible-messages* (array))
@@ -671,7 +646,8 @@ same game data and the same runtime, since either can change the save shape."
            (:catch (error) nil)))
 
     (defun initial-state (state-data)
-      (copy-object (@ state-data values)))
+      ;; A deep copy, so no world shares a value with the game data.
+      (copy-json-value (@ state-data values)))
 
     (defun room-by-id (room-id)
       (let ((room (and room-id
@@ -723,20 +699,48 @@ same game data and the same runtime, since either can change the save shape."
            (walk-nodes (@ node contents) callback)))))
 
     (defun prepare-room (room)
+      "Index ROOM's entities. Every entity learns its room and a key for its
+state in the world: its id, or its position in the room for hand-built data
+without one (the validator requires ids on stateful entities)."
       (setf (@ room scene-index) (create))
-      (walk-nodes
-       (@ room body)
-       (lambda (node)
-         ;; Every entity gets live state and refs; only entities with an id
-         ;; can be found by refs and saves. The validator requires ids on
-         ;; stateful entities, so this only guards hand-built data.
-         (when (eql (@ node type) "entity")
-           (unless (@ node state-data)
-             (setf (@ node state-data) (@ node state)))
-           (setf (@ node state) (initial-state (@ node state-data)))
-           (setf (@ node resolved-refs) (create))
-           (when (@ node id)
-             (setf (getprop (@ room scene-index) (@ node id)) node))))))
+      (let ((position 0))
+        (walk-nodes
+         (@ room body)
+         (lambda (node)
+           (when (eql (@ node type) "entity")
+             (setf position (+ position 1))
+             (setf (@ node room-id) (@ room id))
+             (setf (@ node state-key) (or (@ node id) (+ "#" position)))
+             (setf (@ node resolved-refs) (create))
+             (when (@ node id)
+               (setf (getprop (@ room scene-index) (@ node id)) node)))))))
+
+    (defun stateful-p (node)
+      (and (eql (@ node type) "entity")
+           (@ node state)
+           (> (@ (@ (@ node state) keys) length) 0)))
+
+    (defun make-world ()
+      "A fresh world: every declared value at its start."
+      (let ((world (create :globals (initial-state (@ *game* state))
+                           :player (initial-state (@ *game* player))
+                           :locals (create)
+                           :taken (create)
+                           "rngState" (@ *game* rng-state)
+                           "rollLog" (array))))
+        (dolist (room (@ *game* rooms))
+          (let ((room-locals (create)))
+            (walk-nodes
+             (@ room body)
+             (lambda (node)
+               (when (stateful-p node)
+                 (setf (getprop room-locals (@ node state-key))
+                       (initial-state (@ node state))))))
+            (setf (getprop (@ world locals) (@ room id)) room-locals)))
+        world))
+
+    (defun entity-state (node)
+      (getprop (getprop (@ *world* locals) (@ node room-id)) (@ node state-key)))
 
     (defun resolve-room-refs (room)
       (walk-nodes
@@ -765,11 +769,7 @@ same game data and the same runtime, since either can change the save shape."
       (setf *messages* (array))
       (setf *visible-messages* (array))
       (rebuild-room-index)
-      (setf *state* (create :globals (initial-state (@ *game* state))
-                            :player (initial-state (@ *game* player))
-                            :taken-choices (create)))
-      (setf *rng-state* (@ *game* rng-state))
-      (setf *roll-log* (array))
+      (setf *world* (make-world))
       (setf *current-location* (room-by-id (@ *game* start))))
 
     (defun room-location-id (location)
@@ -805,48 +805,18 @@ same game data and the same runtime, since either can change the save shape."
               (push-array ids room-id))))
         ids))
 
-    (defun capture-local-state ()
-      (let ((locals (array)))
-        (dolist (room (@ *game* rooms))
-          (walk-nodes
-           (@ room body)
-           (lambda (node)
-             (when (and (eql (@ node type) "entity")
-                        (@ node id)
-                        (> (object-key-count (@ node state)) 0))
-               (push-array locals
-                           (create :room (@ room id)
-                                   :entity (@ node id)
-                                   :state (copy-object (@ node state))))))))
-        locals))
-
     (defun capture-runtime-state ()
       (create "version" *save-version*
               "signature" *save-signature*
               "currentRoom" (fallback-current-room-id)
               "returnStack" (capture-return-stack)
-              "player" (copy-object (@ *state* player))
               "messages" (copy-array *visible-messages*)
-              "rngState" *rng-state*
-              "rollLog" (copy-json-value *roll-log*)
-              "globals" (copy-object (@ *state* globals))
-              "locals" (capture-local-state)
-              "takenChoices" (copy-object (getprop *state* "taken-choices"))))
+              "world" (copy-json-value *world*)))
 
     (defun restore-return-stack (room-ids)
       (setf *return-stack* (array))
       (dolist (room-id (node-list room-ids))
         (push-array *return-stack* (room-by-id room-id))))
-
-    (defun restore-local-state (locals)
-      (dolist (entry (node-list locals))
-        (let* ((room (room-by-id (@ entry room)))
-               (entity (getprop (@ room scene-index) (@ entry entity))))
-          (if entity
-              (setf (@ entity state) (copy-object (or (@ entry state)
-                                                      (create))))
-              (runtime-error
-               (+ "No saveable entity " (@ entry entity) "."))))))
 
     (defun valid-save-p (save)
       (and save
@@ -855,18 +825,9 @@ same game data and the same runtime, since either can change the save shape."
            (getprop save "currentRoom")))
 
     (defun restore-runtime-state (state)
-      (setf (@ *state* globals)
-            (copy-object (or (getprop state "globals") (create))))
-      (setf (getprop *state* "taken-choices")
-            (copy-object (or (getprop state "takenChoices") (create))))
-      (setf (@ *state* player)
-            (copy-object (or (getprop state "player") (create))))
-      (rebuild-room-index)
-      (restore-local-state (getprop state "locals"))
+      (setf *world* (copy-json-value (getprop state "world")))
       (restore-return-stack (getprop state "returnStack"))
       (setf *messages* (copy-array (getprop state "messages")))
-      (setf *rng-state* (getprop state "rngState"))
-      (setf *roll-log* (copy-array (getprop state "rollLog")))
       (setf *current-location*
             (room-by-id (getprop state "currentRoom"))))
 
@@ -914,18 +875,18 @@ same game data and the same runtime, since either can change the save shape."
     (defun resolve-state (reference context)
       (cond
         ((eql (@ reference scope) "global")
-         (create :holder (@ *state* globals)
+         (create :holder (@ *world* globals)
                  :key (@ reference key)))
         ((eql (@ reference scope) "player")
-         (create :holder (@ *state* player)
+         (create :holder (@ *world* player)
                  :key (@ reference key)))
         ((eql (@ reference scope) "self")
-         (create :holder (@ (@ context self) state)
+         (create :holder (entity-state (@ context self))
                  :key (@ reference key)))
         ((eql (@ reference scope) "ref")
          (let ((target (getprop (@ (@ context self) resolved-refs)
                                 (@ reference role))))
-           (create :holder (@ target state)
+           (create :holder (entity-state target)
                    :key (@ reference key))))))
 
     (defun format-value (value)
@@ -980,8 +941,8 @@ same game data and the same runtime, since either can change the save shape."
               #x7fffffff))
 
     (defun game-random (limit)
-      (setf *rng-state* (next-random-state *rng-state*))
-      (rem *rng-state* limit))
+      (setf (@ *world* rng-state) (next-random-state (@ *world* rng-state)))
+      (rem (@ *world* rng-state) limit))
 
     (defun evaluate-roll (expression)
       (let ((rolls (array))
@@ -999,7 +960,7 @@ same game data and the same runtime, since either can change the save shape."
           (when (@ expression label)
             (setf (getprop entry "label") (@ expression label)))
           (setf (getprop entry "result") total)
-          (push-array *roll-log* entry))
+          (push-array (@ *world* roll-log) entry))
         total))
 
     (defun evaluate-concat (expression context)
@@ -1202,7 +1163,7 @@ same game data and the same runtime, since either can change the save shape."
 
     (defun choice-visible-p (choice context)
       (and (not (and (@ choice once)
-                     (getprop (getprop *state* "taken-choices")
+                     (getprop (@ *world* taken)
                               (@ choice id))))
            (or (not (@ choice condition))
                (evaluate-condition (@ choice condition) context))))
@@ -1337,7 +1298,7 @@ same game data and the same runtime, since either can change the save shape."
     (defun choose (choice)
       (remember-undo-state)
       (when (and (@ choice once) (@ choice id))
-        (setf (getprop (getprop *state* "taken-choices")
+        (setf (getprop (@ *world* taken)
                        (@ choice id))
               t))
       (let ((context (create :scene (if (eql (@ *current-location* type) "room")

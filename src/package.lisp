@@ -55,18 +55,25 @@
    #:evaluate-session
    #:execute-effect
    #:game
-   #:game-global-state
+   #:copy-world
+   #:entity-state
+   #:make-world
+   #:plist->world
+   #:runtime-session-world
+   #:runtime-context-world
+   #:world
+   #:world-globals
+   #:world-location
+   #:world-player
+   #:world-rng-state
+   #:world-rolls
+   #:world-taken
    #:game-global-state-declarations
-   #:game-player-state
    #:game-player-state-declarations
-   #:declare-player-state
    #:game-random-seed
-   #:game-random-state
    #:game-rooms
-   #:game-roll-log
    #:game-start
    #:game-tables
-   #:game-taken-choices
    #:gosub
    #:goto
    #:interaction-label

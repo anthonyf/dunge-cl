@@ -138,22 +138,22 @@
            result))
   result)
 
-(defun resolve-table-result-amount (game amount label random-state record)
+(defun resolve-table-result-amount (world amount label random-state record)
   (multiple-value-bind (value roll-entry)
-      (roll-dice-value game amount
+      (roll-dice-value world amount
                        :label label
                        :random-state random-state
                        :record record)
     (declare (ignore roll-entry))
     value))
 
-(defun resolve-table-result-options (game options random-state record)
+(defun resolve-table-result-options (world options random-state record)
   (ensure-runtime-property-list options "table result options")
   (loop for (key value) on options by #'cddr
         append (list key
                      (if (eq key :count)
                          (positive-integer-value
-                          (resolve-table-result-amount game
+                          (resolve-table-result-amount world
                                                        value
                                                        :result-count
                                                        random-state
@@ -161,10 +161,10 @@
                           "Table result count")
                          value))))
 
-(defun resolve-inventory-table-result (game result random-state record)
+(defun resolve-inventory-table-result (world result random-state record)
   (let* ((kind (table-result-kind result))
          (id (table-result-keyword-payload result "Inventory"))
-         (options (resolve-table-result-options game
+         (options (resolve-table-result-options world
                                                 (cddr result)
                                                 random-state
                                                 record))
@@ -172,19 +172,19 @@
     (validate-inventory-entry-data entry)
     entry))
 
-(defun resolve-gold-table-result (game result random-state record)
+(defun resolve-gold-table-result (world result random-state record)
   (ensure-table-result-shape result "Gold" "(:GOLD AMOUNT)" 2)
   (list :gold
-        (resolve-table-result-amount game
+        (resolve-table-result-amount world
                                      (second result)
                                      :result-gold
                                      random-state
                                      record)))
 
-(defun resolve-counted-table-result (game result random-state record label)
+(defun resolve-counted-table-result (world result random-state record label)
   (let* ((kind (table-result-kind result))
          (id (table-result-keyword-payload result label))
-         (options (resolve-table-result-options game
+         (options (resolve-table-result-options world
                                                 (cddr result)
                                                 random-state
                                                 record)))
@@ -202,16 +202,17 @@
              result))
     (list :exit direction target)))
 
-(defun resolve-table-result-data (game result &key random-state (record t))
+(defun resolve-table-result-data (world result &key random-state (record t))
+  "Resolve dice in table RESULT, rolling on WORLD's generator."
   (cond
     ((table-result-data-p result)
      (case (table-result-kind result)
        (:gold
-        (resolve-gold-table-result game result random-state record))
+        (resolve-gold-table-result world result random-state record))
        ((:item :supply)
-        (resolve-inventory-table-result game result random-state record))
+        (resolve-inventory-table-result world result random-state record))
        ((:encounter)
-        (resolve-counted-table-result game
+        (resolve-counted-table-result world
                                       result
                                       random-state
                                       record
@@ -222,7 +223,7 @@
         (copy-tree result))))
     ((listp result)
      (mapcar (lambda (entry)
-               (resolve-table-result-data game
+               (resolve-table-result-data world
                                           entry
                                           :random-state random-state
                                           :record record))
@@ -599,9 +600,10 @@ offers Attack, ACTIVE-OPTIONS, and Flee; afterwards, INACTIVE-OPTIONS."
 ;;; dice come from a stream derived from the seed, so play starts from the
 ;;; seed itself with an empty roll log.
 
-(defstruct (build (:constructor %make-build (scratch)))
+(defstruct (build (:constructor %make-build (scratch world)))
   "What a builder has planned so far."
   scratch
+  world
   (rooms '())
   (room-counter 0)
   player
@@ -617,8 +619,20 @@ offers Attack, ACTIVE-OPTIONS, and Flee; afterwards, INACTIVE-OPTIONS."
   (mod (+ (* seed 2654435761) 1013904223) +dunge-rng-modulus+))
 
 (defun build-game-object (build)
-  "The scratch game whose tables and generator BUILD uses."
+  "The scratch game whose tables BUILD rolls."
   (build-scratch build))
+
+(defun build-roll-table (build table-id)
+  "Roll the scratch game's table TABLE-ID on the build's dice."
+  (roll-table (build-scratch build) table-id :world (build-world build)))
+
+(defun build-roll-dice (build value &key label)
+  "Roll VALUE, dice or an integer, on the build's dice."
+  (values (roll-dice-value (build-world build) value :label label)))
+
+(defun build-resolve (build result)
+  "Resolve the table RESULT's dice on the build's dice."
+  (resolve-table-result-data (build-world build) result))
 
 (defun next-room-id (build zone)
   "The next automatic id for a room in ZONE, skipping ids already planned."
@@ -807,7 +821,8 @@ and sets initial values, which the returned game starts with."
                      source))
          (scratch (let ((dunge::*validate-room-targets* nil))
                     (compile-source source base-path)))
-         (build (%make-build scratch)))
-    (setf (game-random-state scratch) (build-seed (game-random-seed scratch)))
+         (world (make-world scratch))
+         (build (%make-build scratch world)))
+    (setf (world-rng-state world) (build-seed (game-random-seed scratch)))
     (funcall builder build)
     (compile-source (built-source source build base-path) base-path)))

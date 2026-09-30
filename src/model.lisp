@@ -31,10 +31,6 @@ beyond plus or minus this value are errors.")
   ((rooms :reader game-rooms :initarg :rooms :initform nil)
    (tables :reader game-tables :initarg :tables :initform nil)
    (random-seed :reader game-random-seed :initarg :seed :initform 1)
-   (random-state :accessor game-random-state :initform 1)
-   (roll-log :accessor game-roll-log-reversed :initform nil)
-   (global-state :reader game-global-state
-                 :initform (make-hash-table :test 'eql))
    (global-state-declarations :reader game-global-state-declarations
                               :initarg :state
                               :initform nil)
@@ -44,11 +40,7 @@ beyond plus or minus this value are errors.")
    (marked-state-declarations :reader game-marked-state-declarations
                               :initarg :marked
                               :initform nil)
-   (taken-choices :reader game-taken-choices
-                  :initform (make-hash-table :test 'eql))
-   (player-state :reader game-player-state
-                 :initform (make-hash-table :test 'eql))
-   (player-state-declarations :accessor game-player-state-declarations
+   (player-state-declarations :reader game-player-state-declarations
                               :initarg :player
                               :initform nil)
    (room-index :reader room-index :initform (make-hash-table :test 'equal))
@@ -66,13 +58,6 @@ beyond plus or minus this value are errors.")
     (:player :state-declarations :default nil)
     (:tables :table-list :default nil)
     (:rooms :room-list :required t))))
-
-(defun game-roll-log (game)
-  (reverse (copy-list (game-roll-log-reversed game))))
-
-(defun (setf game-roll-log) (roll-log game)
-  (setf (game-roll-log-reversed game) (reverse (copy-list roll-log)))
-  roll-log)
 
 (define-dunge-node room ()
   ((name :reader name :initarg :name :initform nil)
@@ -568,10 +553,7 @@ beyond plus or minus this value are errors.")
 (define-dunge-node random-table ()
   ((id :reader table-id :initarg :id :initform nil)
    (mode :reader table-mode :initarg :mode :initform :weighted)
-   (entries :reader table-entries :initarg :entries :initform nil)
-   (sequence-index :accessor table-sequence-index :initform 0)
-   (deck-drawn :reader table-deck-drawn
-               :initform (make-hash-table :test 'eql)))
+   (entries :reader table-entries :initarg :entries :initform nil))
   (:children (thing) (table-entries thing))
   (:source :table
    (:fields
@@ -583,11 +565,6 @@ beyond plus or minus this value are errors.")
   (loop for entry in (table-entries table)
         for ordinal from 0
         do (setf (table-entry-ordinal entry) ordinal)))
-
-(defun reset-table-state (table)
-  (setf (table-sequence-index table) 0)
-  (clrhash (table-deck-drawn table))
-  table)
 
 (define-dunge-field-type :table-entry-list (value context)
   (mapcar (lambda (form)
@@ -613,8 +590,7 @@ beyond plus or minus this value are errors.")
    (state-declarations :reader state-declarations
                        :initarg :state
                        :initform nil)
-   (local-state :reader local-state
-                :initform (make-hash-table :test 'eql))
+   (scene :accessor entity-scene :initform nil)
    (refs :reader entity-refs :initarg :refs :initform nil)
    (resolved-refs :reader resolved-refs
                   :initform (make-hash-table :test 'eql))
@@ -708,7 +684,6 @@ beyond plus or minus this value are errors.")
    (:fields)))
 
 (defmethod initialize-instance :after ((game game) &key)
-  (setf (game-random-state game) (game-random-seed game))
   (setf (slot-value game 'global-state-declarations)
         (append (game-global-state-declarations game)
                 (mapcar (lambda (key)
@@ -736,30 +711,6 @@ beyond plus or minus this value are errors.")
   (dolist (child (node-children thing))
     (walk-node-tree child function)))
 
-(defun reset-local-state (thing)
-  (walk-node-tree
-   thing
-   (lambda (node)
-     (when (typep node 'entity)
-       (clrhash (local-state node))
-       (dolist (declaration (state-declarations node))
-         (destructuring-bind (name value) declaration
-           (setf (gethash (state-key name) (local-state node))
-                 value)))))))
-
-(defun reset-player-state (game)
-  (clrhash (game-player-state game))
-  (dolist (declaration (game-player-state-declarations game))
-    (destructuring-bind (name value) declaration
-      (setf (gethash (state-key name) (game-player-state game))
-            value))))
-
-(defun declare-player-state (game declarations)
-  "Replace GAME's :PLAYER state DECLARATIONS and reset the player to them."
-  (setf (game-player-state-declarations game) declarations)
-  (reset-player-state game)
-  game)
-
 (defun declared-player-state-keys (game)
   (state-declaration-key-list (game-player-state-declarations game)))
 
@@ -771,17 +722,12 @@ beyond plus or minus this value are errors.")
              (declared-player-state-keys game)))
     state-key))
 
-(defun reset-global-state (game)
-  (clrhash (game-global-state game))
-  (dolist (declaration (game-global-state-declarations game))
-    (destructuring-bind (name value) declaration
-      (setf (gethash (state-key name) (game-global-state game))
-            value))))
-
 (defun index-scene-node (scene thing)
   (walk-node-tree
    thing
    (lambda (node)
+     (when (typep node 'entity)
+       (setf (entity-scene node) scene))
      (let ((id (node-id node)))
        (when id
          (let ((key (scene-id-key id)))
@@ -819,9 +765,10 @@ beyond plus or minus this value are errors.")
      (dolist (child (node-children thing))
        (assign-action-owners child owner)))))
 
-(defun prepare-room-scene (room)
+(defun link-room-scene (room)
+  "Index ROOM's scene ids, resolve its entities' refs, and give each action
+its owner. Linking only reads the room's definition, so it is idempotent."
   (clrhash (scene-index room))
-  (reset-local-state room)
   (dolist (entity (entities room))
     (index-scene-node room entity))
   (dolist (entity (entities room))
@@ -829,17 +776,8 @@ beyond plus or minus this value are errors.")
   (dolist (entity (entities room))
     (assign-action-owners entity nil)))
 
-(defun prepare-game (game)
-  (reset-global-state game)
-  (clrhash (game-taken-choices game))
-  (setf (game-random-state game) (game-random-seed game)
-        (game-roll-log-reversed game) nil)
-  (reset-player-state game)
-  (dolist (table (game-tables game))
-    (reset-table-state table))
-  (dolist (room (game-rooms game))
-    (prepare-room-scene room))
-  game)
+(defmethod initialize-instance :after ((room room) &key)
+  (link-room-scene room))
 
 (defvar *validation-errors* nil)
 (defvar *validation-choice-ids* nil)
@@ -994,7 +932,6 @@ require non-negative integers with KEY at most MAX-KEY."
            (nreverse *validation-errors*))))
 
 (defun validate-room (room)
-  (prepare-room-scene room)
   (let ((*validation-errors* nil)
         (*validation-choice-ids* (make-hash-table :test 'eql))
         (*validation-resolve-room-targets* nil))
@@ -1003,7 +940,6 @@ require non-negative integers with KEY at most MAX-KEY."
   room)
 
 (defun validate-game (game)
-  (prepare-game game)
   (let ((*validation-errors* nil)
         (*validation-choice-ids* (make-hash-table :test 'eql))
         (*validation-resolve-room-targets* *validate-room-targets*))

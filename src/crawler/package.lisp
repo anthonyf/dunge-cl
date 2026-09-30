@@ -13,6 +13,10 @@
   (:export
    #:build-game
    #:build-game-object
+   #:build-resolve
+   #:build-roll-dice
+   #:build-roll-table
+   #:build-world
    #:create-generated-room
    #:link-rooms
    #:room-plan-exit

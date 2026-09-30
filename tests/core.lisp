@@ -78,11 +78,32 @@
          (panel (second (entities room))))
     (values game door panel)))
 
-(defun test-context (game &key scene self)
+(defvar *test-worlds* (make-hash-table :test 'eq :weakness :key))
+
+(defun test-world (game)
+  "The world test contexts for GAME share by default, made on first use."
+  (or (gethash game *test-worlds*)
+      (setf (gethash game *test-worlds*) (make-world game))))
+
+(defun test-context (game &key scene self (world (test-world game)))
   (make-runtime-context
    :game game
+   :world world
    :scene scene
    :self self))
+
+(defun world-of (thing)
+  "The world THING plays in: a world, session, or context."
+  (etypecase thing
+    (world thing)
+    (runtime-session (runtime-session-world thing))
+    (runtime-context (runtime-context-world thing))))
+
+(defun player-of (thing)
+  (world-player (world-of thing)))
+
+(defun globals-of (thing)
+  (world-globals (world-of thing)))
 
 (defun state-value (reference context)
   (dunge::state-reference-value reference context))
@@ -100,10 +121,12 @@
         do (setf start (+ position (length needle)))))
 
 (defun run-game-with-input (game input)
+  "Play GAME from the start in its test world, feeding it INPUT."
   (with-output-to-string (output)
     (let ((*input* (make-string-input-stream input))
           (*output* output))
-      (evaluate game))))
+      (terpri *output*)
+      (evaluate-session (make-runtime-session game :world (test-world game))))))
 
 (defun run-session-script (session input &key debug)
   (let (result)
@@ -629,7 +652,8 @@
                  (getf state :globals)))
       (let* ((fresh-game (build-save-load-fixture))
              (restored-session (restore-runtime-state fresh-game state))
-             (restored-context (test-context fresh-game))
+             (restored-context (test-context fresh-game
+                                             :world (world-of restored-session)))
              (start-room (first (game-rooms fresh-game)))
              (panel (gethash "panel" (dunge::scene-index start-room))))
         (is (equal "notes"
@@ -639,7 +663,9 @@
         (is (= 1 (state-value (source-state :global :visits)
                               restored-context)))
         (is (state-value (source-state :self :open)
-                         (test-context fresh-game :self panel)))
+                         (test-context fresh-game
+                                       :self panel
+                                       :world (world-of restored-session))))
         (is (dunge::choice-taken-p
              (second (entities start-room))
              restored-context))))))
@@ -662,9 +688,9 @@
                 context)))
     (execute-effect (source-node '(:dec :target (:player :ration) :amount 2))
                     context)
-    (is (= 1 (gethash :ration (game-player-state game))))
-    (dunge::prepare-game game)
-    (is (= 3 (gethash :ration (game-player-state game)))))
+    (is (= 1 (gethash :ration (player-of context))))
+    ;; The game is only a definition: a fresh world starts over.
+    (is (= 3 (gethash :ration (player-of (make-world game))))))
   (flet ((rejects (player &rest body)
            (is (not (null (error-message-from
                            (lambda ()
@@ -717,10 +743,8 @@
                       :test #'string=))))))
 
 (test html-compiler-starts-the-player-from-declared-values
-  ;; A build sets starting values as declarations, which is what both
-  ;; runtimes start from; play state left on the game object is not.
+  ;; The compiler emits the game's definition; play state lives in worlds.
   (let ((game (source-game-with-player '((:hp 4) (:max-hp 4)))))
-    (setf (gethash :hp (game-player-state game)) 2)
     (is (contains-substring-p "\"values\":{\"hp\":4,\"max-hp\":4}"
                               (dunge-html:compile-game-script game)))))
 
@@ -739,12 +763,11 @@
     (let ((lever (gethash "lever" (dunge::scene-index room)))
           (session (make-runtime-session game :current-room (name room))))
       (run-session-script session (format nil "1~%"))
-      (is (eq t (gethash :pulled (dunge::local-state lever))))
+      (is (eq t (gethash :pulled (entity-state (world-of session) lever))))
       (is (find (name room) (getf (capture-runtime-state session) :locals)
                 :key (lambda (entry) (getf entry :room))
                 :test #'equal))
-      (dunge::prepare-game game)
-      (is (null (gethash :pulled (dunge::local-state lever)))))))
+      (is (null (gethash :pulled (entity-state (make-world game) lever)))))))
 
 (test crawler-used-slots-follow-inventory-rules
   ;; A dagger uses a slot, bulky mail two, a supply stack one however many,
@@ -767,10 +790,10 @@
                used))
     (is (= 6 (evaluate-expression (compile-dunge-source used) context)))
     ;; Rested, healthy, and not deprived: no ration.
-    (setf (gethash :fatigue (game-player-state game)) 0)
+    (setf (gethash :fatigue (player-of context)) 0)
     (is (not (available-p ration context)))
     ;; A full inventory counts as deprived.
-    (setf (gethash :mail (game-player-state game)) 4)
+    (setf (gethash :mail (player-of context)) 4)
     (is (= 10 (evaluate-expression (compile-dunge-source used) context)))
     (is (available-p ration context))))
 
@@ -779,7 +802,7 @@
                 '((:hp 2) (:max-hp 4) (:fatigue 2) (:deprived t) (:ration 2))
                 (ration-choice-form)))
          (context (test-context game))
-         (state (game-player-state game))
+         (state (player-of context))
          (ration (first (entities (first (game-rooms game))))))
     (is (available-p ration context))
     (with-output-to-string (*output*)
@@ -795,18 +818,54 @@
           (gethash :ration state) 0)
     (is (not (available-p ration context)))))
 
+(test validating-a-game-leaves-play-state-alone
+  (let* ((game (build-save-load-fixture))
+         (session (make-runtime-session game)))
+    (run-session-script session (format nil "2~%1~%2~%"))
+    (let ((before (capture-runtime-state session)))
+      (validate-game game)
+      (is (equal before (capture-runtime-state session)))
+      ;; A new world starts over; the session's world is untouched.
+      (is (= 0 (gethash :visits (globals-of (make-world game)))))
+      (is (= 1 (gethash :visits (globals-of session)))))))
+
+(test worlds-restore-location-and-roll-tables-in-the-given-world
+  (let* ((game (build-save-load-fixture))
+         (session (make-runtime-session game)))
+    (run-session-script session (format nil "2~%1~%2~%"))
+    (let ((world (plist->world game (capture-runtime-state session))))
+      (is (equal "notes" (name (world-location world))))
+      ;; A session over a restored world starts where the world is.
+      (is (equal "notes" (runtime-session-current-room-name
+                          (make-runtime-session game :world world))))))
+  (let* ((game (build-seeded-table-fixture 5))
+         (context (test-context game))
+         (other (make-world game)))
+    (roll-table game :weighted :world other :context context)
+    (is (= 1 (length (world-rolls other))))
+    (is (null (world-rolls (runtime-context-world context))))))
+
+(test undo-copies-leave-the-world-independent
+  (let* ((game (source-game-with-player '((:hp 4))))
+         (world (make-world game))
+         (copy (copy-world world)))
+    (setf (gethash :hp (player-of world)) 1)
+    (is (= 4 (gethash :hp (player-of copy))))
+    (dunge::restore-world-contents world copy)
+    (is (= 4 (gethash :hp (player-of world))))))
+
 (test runtime-state-captures-and-restores-player-state
   (let* ((game (source-game-with-player *mara-player*))
          (session (make-runtime-session game)))
-    (setf (gethash :hp (game-player-state game)) 2
-          (gethash :ration (game-player-state game)) 1)
+    (setf (gethash :hp (player-of session)) 2
+          (gethash :ration (player-of session)) 1)
     (let* ((state (capture-runtime-state session))
            (fresh-game (source-game-with-player *mara-player*)))
       (is (equal '(:hp . 2) (assoc :hp (getf state :player))))
-      (restore-runtime-state fresh-game state)
-      (is (= 2 (gethash :hp (game-player-state fresh-game))))
-      (is (= 4 (gethash :max-hp (game-player-state fresh-game))))
-      (is (= 1 (gethash :ration (game-player-state fresh-game))))
+      (let ((restored (restore-runtime-state fresh-game state)))
+        (is (= 2 (gethash :hp (player-of restored))))
+        (is (= 4 (gethash :max-hp (player-of restored))))
+        (is (= 1 (gethash :ration (player-of restored)))))
       (setf (getf state :player) '((:mana . 3)))
       (signals error
         (restore-runtime-state (source-game-with-player *mara-player*)
@@ -832,8 +891,9 @@
 (defun encounter-entity (room)
   (gethash "encounter" (dunge::scene-index room)))
 
-(defun encounter-value (room key)
-  (gethash key (dunge::local-state (encounter-entity room))))
+(defun encounter-value (thing room key)
+  "The encounter in ROOM's KEY, in the world THING plays in."
+  (gethash key (entity-state (world-of thing) (encounter-entity room))))
 
 (defun shadow-room-game (&key (player '((:hp 4) (:max-hp 4) (:armor 1)))
                               (hp 1) (damage 1) options encounter-options)
@@ -857,11 +917,14 @@
                (encounter-spec '(:encounter :watchful-shadow)
                                :hp 5 :damage 2)))
     (is (equal "Watchful Shadow" (name (encounter-entity room))))
-    (is (eq :active (encounter-value room :status)))
-    (is (= 5 (encounter-value room :hp)))
-    (setf (gethash :hp (dunge::local-state (encounter-entity room))) 3)
     (let* ((session (make-runtime-session game :current-room (name room)))
-           (state (capture-runtime-state session)))
+           (state (progn
+                    (is (eq :active (encounter-value session room :status)))
+                    (is (= 5 (encounter-value session room :hp)))
+                    (setf (gethash :hp (entity-state (world-of session)
+                                                     (encounter-entity room)))
+                          3)
+                    (capture-runtime-state session))))
       (is (find (name room) (getf state :locals)
                 :key (lambda (entry) (getf entry :room))
                 :test #'equal))
@@ -870,8 +933,8 @@
         (let ((restored-session (restore-runtime-state fresh-game state)))
           (is (equal (name room)
                      (runtime-session-current-room-name restored-session)))
-          (is (= 3 (encounter-value fresh-room :hp)))
-          (is (eq :active (encounter-value fresh-room :status))))))))
+          (is (= 3 (encounter-value restored-session fresh-room :hp)))
+          (is (eq :active (encounter-value restored-session fresh-room :status))))))))
 
 (test encounter-specs-are-validated
   (signals error (encounter-spec '(:encounter :shade) :hp 5 :max-hp 2))
@@ -889,10 +952,10 @@
         (declare (ignore result))
         ;; Any roll beats 1 HP and no armor.
         (is (contains-substring-p "Watchful Shadow falls." output))
-        (is (eq :defeated (encounter-value room :status)))
-        (is (= 0 (encounter-value room :hp)))
-        (is (= 1 (encounter-value room :round)))
-        (is (<= 1 (encounter-value room :dealt) 6)))))
+        (is (eq :defeated (encounter-value session room :status)))
+        (is (= 0 (encounter-value session room :hp)))
+        (is (= 1 (encounter-value session room :round)))
+        (is (<= 1 (encounter-value session room :dealt) 6)))))
   (multiple-value-bind (game room) (shadow-room-game :hp 3)
     (let ((session (make-runtime-session game :current-room (name room))))
       (multiple-value-bind (output result)
@@ -901,8 +964,8 @@
         (is (contains-substring-p "Encounter: Watchful Shadow (escaped, HP 3/3)."
                                   output))
         (is (equal "room" (name result)))
-        (is (eq :escaped (encounter-value room :status)))
-        (is (= 1 (encounter-value room :round)))))))
+        (is (eq :escaped (encounter-value session room :status)))
+        (is (= 1 (encounter-value session room :round)))))))
 
 (test generated-room-active-encounter-renders-combat-choices
   (multiple-value-bind (game room) (shadow-room-game)
@@ -914,7 +977,7 @@
         (is (contains-substring-p "1. Attack watchful shadow" output))
         (is (contains-substring-p "Watchful Shadow falls." output))
         (is (contains-substring-p "1. Return" output))
-        (is (eq :defeated (encounter-value room :status)))))))
+        (is (eq :defeated (encounter-value session room :status)))))))
 
 (test generated-room-active-encounter-allows-ration-use
   (multiple-value-bind (game room)
@@ -928,9 +991,9 @@
         (is (contains-substring-p "2. Eat ration" output))
         (is (contains-substring-p "3. Flee" output))
         (is (contains-substring-p "You eat a ration and recover." output))
-        (is (= 4 (gethash :hp (game-player-state game))))
-        (is (= 0 (gethash :ration (game-player-state game))))
-        (is (eq :defeated (encounter-value room :status)))))))
+        (is (= 4 (gethash :hp (player-of session))))
+        (is (= 0 (gethash :ration (player-of session))))
+        (is (eq :defeated (encounter-value session room :status)))))))
 
 (test generated-room-loot-choices-are-taken-once-and-saved
   (flet ((looted-room ()
@@ -951,15 +1014,15 @@
           (is (contains-substring-p "You take ration." output))
           (is (contains-substring-p "1. Take 3 gold" output))
           (is (contains-substring-p "You take 3 gold." output))
-          (is (= 1 (gethash :ration (game-player-state game))))
-          (is (= 3 (gethash :gold (game-player-state game)))))
+          (is (= 1 (gethash :ration (player-of session))))
+          (is (= 3 (gethash :gold (player-of session)))))
         (let ((state (capture-runtime-state session)))
           (multiple-value-bind (fresh-game fresh-room) (looted-room)
-            (restore-runtime-state fresh-game state)
             (multiple-value-bind (output result)
                 (run-session-script
                  (make-runtime-session fresh-game
-                                       :current-room (name fresh-room))
+                                       :current-room (name fresh-room)
+                                       :world (plist->world fresh-game state))
                  (format nil "1~%"))
               (is (equal "room" (name result)))
               (is (not (contains-substring-p "Take ration" output)))
@@ -973,8 +1036,8 @@
                      :title "Quiet Room"
                      :exits '((:back . "room"))
                      :options (list (ration-choice-form)))
-    (let ((session (make-runtime-session game :current-room (name room)))
-          (state (game-player-state game)))
+    (let* ((session (make-runtime-session game :current-room (name room)))
+           (state (player-of session)))
       (multiple-value-bind (output result)
           (run-session-script session (format nil "1~%1~%"))
         (is (equal "room" (name result)))
@@ -1041,21 +1104,19 @@
                   :player ((:hp 1))
                   :rooms ((:room :id "room" :body ((:p "A room.")))))
                 :builder (lambda (build)
-                           (setf rolled (roll-dice (build-game-object build)
-                                                   "1d100"))
+                           (setf rolled (build-roll-dice build "1d100"))
                            (set-player build '((:hp 7)))
                            (set-initial-global build :depth 3)
                            (set-initial-global build :ready t)))))
     ;; Play starts from the seed with an empty roll log.
-    (is (= 42 (game-random-state game)))
-    (is (null (game-roll-log game)))
-    (is (= 7 (gethash :hp (game-player-state game))))
-    (is (= 3 (gethash :depth (game-global-state game))))
-    (is (eq t (gethash :ready (game-global-state game))))
-    ;; The build's first roll is not play's first roll.
-    (let ((play (build-game '(:game :start "room" :seed 42
-                              :rooms ((:room :id "room" :body ()))))))
-      (is (/= rolled (roll-dice play "1d100"))))
+    (let ((world (make-world game)))
+      (is (= 42 (world-rng-state world)))
+      (is (null (world-rolls world)))
+      (is (= 7 (gethash :hp (player-of world))))
+      (is (= 3 (gethash :depth (globals-of world))))
+      (is (eq t (gethash :ready (globals-of world))))
+      ;; The build's first roll is not play's first roll.
+      (is (/= rolled (roll-dice world "1d100"))))
     (signals error
       (build-game '(:game :start "room" :rooms ((:room :id "room" :body ())))
                   :builder (lambda (build)
@@ -1122,10 +1183,10 @@
       (is (typep result 'quit))
       (is (contains-substring-p "4. Undo" output))
       (is (= 2 (substring-count "Find clue" output)))
-      (let ((context (test-context game)))
+      (let ((context (test-context game :world (world-of session))))
         (is (not (state-value (source-state :global :clue) context)))
         (is (= 0 (state-value (source-state :global :visits) context)))
-        (is (not (gethash :find-clue (game-taken-choices game))))))))
+        (is (not (gethash :find-clue (world-taken (world-of session)))))))))
 
 (test console-debug-undo-works-from-fall-through-room
   (let* ((game (build-save-load-fixture))
@@ -1156,7 +1217,8 @@
              (is (equal "notes"
                         (runtime-session-current-room-name loaded-session)))
              (is (state-value (source-state :global :clue)
-                              (test-context fresh-game)))))
+                              (test-context fresh-game
+                                            :world (world-of loaded-session))))))
       (when (probe-file path)
         (delete-file path)))))
 
@@ -1344,40 +1406,40 @@
     (parse-dice-expression "1d6+bad")))
 
 (test dice-rolls-use-game-seed-and-record-roll-log
-  (let ((first-game (source-game-with-seeded-tables 314 nil))
-        (second-game (source-game-with-seeded-tables 314 nil)))
+  (let ((first-world (make-world (source-game-with-seeded-tables 314 nil)))
+        (second-world (make-world (source-game-with-seeded-tables 314 nil))))
     (is (equal (loop repeat 3
-                     collect (roll-dice first-game "1d6" :label :test-die))
+                     collect (roll-dice first-world "1d6" :label :test-die))
                (loop repeat 3
-                     collect (roll-dice second-game "1d6" :label :test-die))))
-    (is (= 3 (length (game-roll-log first-game))))
-    (let ((entry (first (game-roll-log first-game))))
+                     collect (roll-dice second-world "1d6" :label :test-die))))
+    (is (= 3 (length (world-rolls first-world))))
+    (let ((entry (first (world-rolls first-world))))
       (is (equal "1d6" (getf entry :dice)))
       (is (= 1 (getf entry :count)))
       (is (= 6 (getf entry :sides)))
       (is (equal :test-die (getf entry :label)))
       (is (equal (first (getf entry :rolls))
                  (getf entry :result)))))
-  (let ((game (source-game-with-seeded-tables 1 nil)))
+  (let ((world (make-world (source-game-with-seeded-tables 1 nil))))
     (multiple-value-bind (value record)
-        (roll-dice-value game 6 :label :static-value)
+        (roll-dice-value world 6 :label :static-value)
       (is (= 6 value))
       (is (null record))
-      (is (null (game-roll-log game))))))
+      (is (null (world-rolls world))))))
 
 (test table-result-resolvers-normalize-amounts
-  (let* ((game (source-game-with-body))
+  (let* ((world (make-world (source-game-with-body)))
          (resolved (resolve-table-result-data
-                    game
+                    world
                     '((:gold "1d6")
                       (:supply :ration :count "1d4")
                       (:item :chalk :slots 0)
                       (:room-detail :flooded-floor)))))
-    (is (= 2 (length (game-roll-log game))))
+    (is (= 2 (length (world-rolls world))))
     (is (equal '(:result-gold :result-count)
                (mapcar (lambda (entry)
                          (getf entry :label))
-                       (game-roll-log game))))
+                       (world-rolls world))))
     (let ((gold (second (first resolved)))
           (ration-count (getf (second resolved) :count)))
       (is (<= 1 gold 6))
@@ -1525,12 +1587,12 @@
     (execute-effect (source-node '(:mark :unlocked)) context)
     (is (eq :open (roll-table game :stateful :context context)))
     (is (eq :unlocked (roll-table game :match :context context)))
-    (is (eq :first (roll-table game :ordered)))
-    (is (eq :second (roll-table game :ordered)))
-    (is (eq :second (roll-table game :ordered)))
-    (is (eq :rolled (roll-table game :roll-result)))
+    (is (eq :first (roll-table game :ordered :context context)))
+    (is (eq :second (roll-table game :ordered :context context)))
+    (is (eq :second (roll-table game :ordered :context context)))
+    (is (eq :rolled (roll-table game :roll-result :context context)))
     (is (equal '(:gold :inner-result)
-               (roll-table game :bundle)))))
+               (roll-table game :bundle :context context)))))
 
 (test deck-table-draws-without-replacement-before-reshuffling
   (let* ((game
@@ -1541,9 +1603,10 @@
                :entries
                ((:table-entry :result :first)
                 (:table-entry :result :second))))))
-         (first-two (list (roll-table game :deck)
-                          (roll-table game :deck)))
-         (third (roll-table game :deck)))
+         (world (make-world game))
+         (first-two (list (roll-table game :deck :world world)
+                          (roll-table game :deck :world world)))
+         (third (roll-table game :deck :world world)))
     (is (equal '(:first :second) (sorted-keywords first-two)))
     (is (member third '(:first :second)))))
 
@@ -1565,15 +1628,16 @@
 
 (test table-runtime-state-captures-and-restores-sequence-and-deck-progress
   (let* ((game (build-table-state-fixture))
-         (session (make-runtime-session game)))
-    (is (eq :first (roll-table game :ordered)))
-    (is (eq :second (roll-table game :ordered)))
-    (let* ((deck-first (roll-table game :deck))
+         (session (make-runtime-session game))
+         (world (world-of session)))
+    (is (eq :first (roll-table game :ordered :world world)))
+    (is (eq :second (roll-table game :ordered :world world)))
+    (let* ((deck-first (roll-table game :deck :world world))
            (state (capture-runtime-state session))
-           (fresh-game (build-table-state-fixture)))
-      (restore-runtime-state fresh-game state)
-      (is (eq :third (roll-table fresh-game :ordered)))
-      (let ((deck-next (roll-table fresh-game :deck)))
+           (fresh-game (build-table-state-fixture))
+           (fresh-world (world-of (restore-runtime-state fresh-game state))))
+      (is (eq :third (roll-table fresh-game :ordered :world fresh-world)))
+      (let ((deck-next (roll-table fresh-game :deck :world fresh-world)))
         (is (member deck-next '(:left :right)))
         (is (not (eq deck-first deck-next)))))))
 
@@ -1600,35 +1664,41 @@
        (:table-entry :result :second))))))
 
 (test table-rolls-use-game-seed-and-record-roll-log
-  (let ((first-game (build-seeded-table-fixture 314))
-        (second-game (build-seeded-table-fixture 314)))
+  (let* ((first-game (build-seeded-table-fixture 314))
+         (first-world (make-world first-game))
+         (second-game (build-seeded-table-fixture 314))
+         (second-world (make-world second-game)))
     (is (= 314 (game-random-seed first-game)))
-    (let ((first-results (loop repeat 5
-                               collect (roll-table first-game :weighted)))
-          (second-results (loop repeat 5
-                                collect (roll-table second-game :weighted))))
+    (let ((first-results
+            (loop repeat 5
+                  collect (roll-table first-game :weighted :world first-world)))
+          (second-results
+            (loop repeat 5
+                  collect (roll-table second-game :weighted :world second-world))))
       (is (equal first-results second-results)))
-    (is (= 5 (length (game-roll-log first-game)))))
-  (let ((game (build-seeded-table-fixture 9)))
-    (is (eq :only (roll-table game :certain-roll)))
+    (is (= 5 (length (world-rolls first-world)))))
+  (let* ((game (build-seeded-table-fixture 9))
+         (world (make-world game)))
+    (is (eq :only (roll-table game :certain-roll :world world)))
     (is (equal (list (list :table :certain-roll
                            :mode :roll
                            :entry 0
                            :roll 1
                            :die 1
                            :result :only))
-               (game-roll-log game))))
-  (let ((game (build-seeded-table-fixture 9)))
-    (is (eq :first (roll-table game :ordered)))
-    (is (eq :second (roll-table game :ordered)))
+               (world-rolls world))))
+  (let* ((game (build-seeded-table-fixture 9))
+         (world (make-world game)))
+    (is (eq :first (roll-table game :ordered :world world)))
+    (is (eq :second (roll-table game :ordered :world world)))
     (is (equal '(:first :second)
                (mapcar (lambda (entry)
                          (getf entry :result))
-                       (game-roll-log game))))
+                       (world-rolls world))))
     (is (equal '(0 1)
                (mapcar (lambda (entry)
                          (getf entry :entry))
-                       (game-roll-log game))))))
+                       (world-rolls world))))))
 
 (test game-seed-must-be-non-negative
   (signals error
@@ -1639,17 +1709,16 @@
 (test runtime-state-captures-and-restores-rng-state-and-roll-log
   (let* ((game (build-seeded-table-fixture 123))
          (session (make-runtime-session game)))
-    (roll-table game :weighted)
+    (roll-table game :weighted :world (world-of session))
     (let* ((state (capture-runtime-state session))
-           (expected-next (roll-table game :weighted))
+           (expected-next (roll-table game :weighted :world (world-of session)))
            (fresh-game (build-seeded-table-fixture 123))
-           (restored-session (restore-runtime-state fresh-game state)))
-      (declare (ignore restored-session))
+           (fresh-world (world-of (restore-runtime-state fresh-game state))))
       (is (getf state :rng-state))
       (is (= 1 (length (getf state :roll-log))))
-      (is (= 1 (length (game-roll-log fresh-game))))
-      (is (eq expected-next (roll-table fresh-game :weighted)))
-      (is (= 2 (length (game-roll-log fresh-game)))))))
+      (is (= 1 (length (world-rolls fresh-world))))
+      (is (eq expected-next (roll-table fresh-game :weighted :world fresh-world)))
+      (is (= 2 (length (world-rolls fresh-world)))))))
 
 (test author-facing-shorthands-keep-control-flow-composable
   (let* ((game
@@ -1697,7 +1766,8 @@
             '(:choice "Quit" (:quit))))
          (result (let ((*input* (make-string-input-stream (format nil "1~%2~%")))
                        (*output* (make-string-output-stream)))
-                   (evaluate game))))
+                   (evaluate-session
+                    (make-runtime-session game :world (test-world game))))))
     (is (typep result 'quit))
     (is (state-value (source-state :global :flag) (test-context game)))))
 
@@ -1778,7 +1848,8 @@
             :rooms (list (dunge::%make-room
                           :name "room"
                           :entities (list panel))))))
-    (is (null (action-owner (first (entities panel)))))
+    ;; Rooms link their actions to owners when they are made.
+    (is (eq panel (action-owner (first (entities panel)))))
     (is (eq unprepared-game (validate-game unprepared-game)))))
 
 (test room-validation-allows-unresolved-navigation-targets
@@ -2124,7 +2195,7 @@
     (values (build-game (read-dunge-file (dunge-examples::adaptation-source-path))
                         :base-path (dunge-examples::adaptation-source-path)
                         :builder (lambda (build)
-                                   (setf scratch (build-game-object build))
+                                   (setf scratch (build-world build))
                                    (apply #'dunge-examples:build-adaptation
                                           build arguments)))
             scratch)))
@@ -2135,36 +2206,35 @@
     (is (equal '(:adaptation-str :adaptation-dex :adaptation-wil
                  :adaptation-hp :adaptation-gold)
                (remove nil (mapcar (lambda (entry) (getf entry :label))
-                                   (game-roll-log scratch)))))
+                                   (world-rolls scratch)))))
     (is (equal '(:room-segment :starter-loot :starter-encounter :starter-exit
                  :dungeon-link :room-segment :starter-loot :starter-encounter)
                (remove nil (mapcar (lambda (entry) (getf entry :table))
-                                   (game-roll-log scratch)))))
+                                   (world-rolls scratch)))))
     ;; Play starts from the seed with an empty roll log.
-    (is (= (game-random-seed game) (game-random-state game)))
-    (is (null (game-roll-log game)))
+    (is (= (game-random-seed game) (world-rng-state (make-world game))))
+    (is (null (world-rolls (make-world game))))
     ;; The first chamber replaced the authored placeholder by id.
     (is (equal '("camp" "threshold" "placeholder-room" "generated:dungeon:1")
                (mapcar #'name (game-rooms game))))
     (let ((first-room (dunge::find-room game "placeholder-room"))
           (deeper-room (dunge::find-room game "generated:dungeon:1")))
       (is (not (equal "Placeholder Chamber" (room-title first-room))))
-      (is (eq :active (encounter-value first-room :status)))
-      (is (eq :active (encounter-value deeper-room :status))))
+      (is (eq :active (encounter-value (make-world game) first-room :status)))
+      (is (eq :active (encounter-value (make-world game) deeper-room :status))))
     ;; Initial values replace direct state writes.
-    (is (= 2 (gethash :rooms-generated (game-global-state game))))
-    (is (= 2 (gethash :dungeon-depth (game-global-state game))))
-    (is (eq t (gethash :first-room-generated (game-global-state game))))
-    (dunge::prepare-game game)
-    (is (= 2 (gethash :rooms-generated (game-global-state game))))
-    (is (equal "Generated Delver" (gethash :name (game-player-state game))))
-    (is (= 2 (gethash :ration (game-player-state game))))
-    (is (= 0 (gethash :chalk (game-player-state game))))))
+    (let ((world (make-world game)))
+      (is (= 2 (gethash :rooms-generated (globals-of world))))
+      (is (= 2 (gethash :dungeon-depth (globals-of world))))
+      (is (eq t (gethash :first-room-generated (globals-of world))))
+      (is (equal "Generated Delver" (gethash :name (player-of world))))
+      (is (= 2 (gethash :ration (player-of world))))
+      (is (= 0 (gethash :chalk (player-of world)))))))
 
 (test adaptation-character-creation-uses-dice-and-starting-gear
   (let* ((game (dunge-examples:load-instanced-adaptation-example
                 :name "Nia" :background :delver))
-         (player (game-player-state game)))
+         (player (player-of (make-world game))))
     (flet ((stat (key) (gethash key player)))
       (is (equal "Nia" (stat :name)))
       (is (eq :delver (stat :background)))
@@ -2191,14 +2261,15 @@
            (room (dunge::find-room fresh-game "placeholder-room")))
       (is (equal "placeholder-room"
                  (runtime-session-current-room-name restored-session)))
-      (is (eq :defeated (encounter-value room :status)))
-      (is (equal (gethash :ration (game-player-state game))
-                 (gethash :ration (game-player-state fresh-game))))
+      (is (eq :defeated (encounter-value restored-session room :status)))
+      (is (equal (gethash :ration (player-of session))
+                 (gethash :ration (player-of restored-session))))
       (is (equal (sorted-keywords
-                  (loop for key being the hash-keys of (game-taken-choices game)
+                  (loop for key being the hash-keys of (world-taken (world-of session))
                         collect key))
                  (sorted-keywords
-                  (loop for key being the hash-keys of (game-taken-choices fresh-game)
+                  (loop for key being the hash-keys
+                          of (world-taken (world-of restored-session))
                         collect key)))))))
 
 (test adaptation-browser-demo-writes-repeatable-html-target
@@ -2291,8 +2362,9 @@
     (is (contains-substring-p "\"type\":\"toggle\"" script))
     (is (contains-substring-p "\"type\":\"eq\"" script))
     (is (contains-substring-p "\"id\":\"look\"" script))
-    (is (contains-substring-p "STATE['taken-choices']" script))
-    (is (not (contains-substring-p "STATE.takenChoices" script)))
+    ;; All play data lives in one world object that saves and undo copy.
+    (is (contains-substring-p "WORLD.taken[" script))
+    (is (contains-substring-p "'world' : copyJsonValue(WORLD)" script))
     (is (contains-substring-p "window.DUNGE_GAME_SIGNATURE = " script))
     (is (contains-substring-p "window.DUNGE_GAME_SAVE_KEY = \"dunge-save:"
                               script))
@@ -2311,10 +2383,10 @@
     (is (contains-substring-p "debugQueryFlagP(window.location.search)"
                               script))
     (is (not (contains-substring-p "containsTextP" script)))
-    (is (contains-substring-p "node.stateData" script))
+    (is (not (contains-substring-p "node.stateData" script)))
     (is (contains-substring-p "window.localStorage.setItem" script))
     (is (contains-substring-p "currentRoom" script))
-    (is (contains-substring-p "takenChoices" script))
+    (is (not (contains-substring-p "takenChoices" script)))
     (is (contains-substring-p "'messages' : copyArray(VISIBLEMESSAGES)"
                               script))
     (is (contains-substring-p "MESSAGES = copyArray(state['messages']);"
@@ -2339,7 +2411,7 @@
     (is (contains-substring-p
          "\"target\":{\"type\":\"state\",\"scope\":\"player\",\"role\":null,\"key\":\"ration\"}"
          script))
-    (is (contains-substring-p "'player' : copyObject(STATE.player)" script))
+    (is (contains-substring-p "'player' : initialState(GAME.player)" script))
     (is (not (contains-substring-p "inventory" script)))
     (is (not (contains-substring-p "function playerCanUseRationP" script)))))
 
@@ -2443,15 +2515,10 @@
         (when (probe-file directory)
           (uiop:delete-directory-tree directory :validate t))))))
 
-(test html-compiler-leaves-the-game-generator-alone
-  (let* ((game (dunge-examples:load-instanced-adaptation-example))
-         (random-state (game-random-state game))
-         (roll-log (game-roll-log game))
-         (first-script (dunge-html:compile-game-script game)))
-    (is (string= first-script (dunge-html:compile-game-script game)))
-    (is (= random-state (game-random-state game)))
-    (is (equal roll-log (game-roll-log game)))
-    (is (= 2 (gethash :rooms-generated (game-global-state game))))))
+(test html-compiler-output-depends-only-on-the-definition
+  (let ((game (dunge-examples:load-instanced-adaptation-example)))
+    (is (string= (dunge-html:compile-game-script game)
+                 (dunge-html:compile-game-script game)))))
 
 (test html-compiler-output-is-repeatable
   ;; site/check.sh checks reproducibility across fresh builds; this catches
